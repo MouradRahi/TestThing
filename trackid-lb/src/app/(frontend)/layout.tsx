@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { CartProvider } from '@/components/cart/CartContext'
 import { Nav } from '@/components/nav/Nav'
+import { Footer } from '@/components/nav/Footer'
 import './globals.css'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://trackid.lb'
@@ -30,6 +31,7 @@ export default function FrontendLayout({ children }: { children: React.ReactNode
         <CartProvider>
           <Nav />
           <main className="pt-14">{children}</main>
+          <Footer />
         </CartProvider>
       </body>
     </html>
