@@ -32,7 +32,7 @@ export const Pages: CollectionConfig = {
       fields: [
         { name: 'metaTitle', type: 'text' },
         { name: 'metaDescription', type: 'textarea' },
-        { name: 'ogImage', type: 'text', admin: { description: 'Cloudinary URL' } },
+        { name: 'ogImage', type: 'text', admin: { description: 'Supabase Storage URL — copy the public URL from the Supabase Storage dashboard' } },
       ],
     },
   ],

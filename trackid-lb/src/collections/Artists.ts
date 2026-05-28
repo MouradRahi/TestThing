@@ -34,7 +34,7 @@ export const Artists: CollectionConfig = {
       name: 'photo',
       type: 'text',
       admin: {
-        description: 'Cloudinary URL',
+        description: 'Supabase Storage URL — copy the public URL from the Supabase Storage dashboard (e.g. https://bdbhygelwizizepxewxv.supabase.co/storage/v1/object/public/products/filename.jpg)',
       },
     },
   ],

@@ -25,7 +25,7 @@ export default buildConfig({
   },
   collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Users],
   editor: lexicalEditor(),
-  secret: 'trackid-lb-dev-secret-2026',
+  secret: process.env.PAYLOAD_SECRET || 'trackid-lb-dev-secret-change-in-production',
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },

@@ -29,13 +29,30 @@ export async function generateMetadata({
     collection: 'products',
     where: { slug: { equals: slug } },
     limit: 1,
-    depth: 0,
+    depth: 1,
   })
   const product = docs[0]
   if (!product) return {}
+
+  const images = Array.isArray(product.images) ? product.images : []
+  const ogImage = images[0]?.url
+  const description = `Hand-painted by trackID.lb — ${product.title}. One-of-a-kind piece made in Lebanon.`
+
   return {
     title: product.title,
-    description: `Hand-painted by trackID.lb — ${product.title}`,
+    description,
+    openGraph: {
+      title: product.title,
+      description,
+      type: 'website',
+      ...(ogImage && { images: [{ url: ogImage, alt: product.title }] }),
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: product.title,
+      description,
+      ...(ogImage && { images: [ogImage] }),
+    },
   }
 }
 
@@ -68,8 +85,31 @@ export default async function ProductPage({
       ? product.category
       : null
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.title,
+    description: `Hand-painted by trackID.lb — ${product.title}`,
+    brand: { '@type': 'Brand', name: 'trackID.lb' },
+    image: images.map((img) => img.url).filter(Boolean),
+    offers: {
+      '@type': 'Offer',
+      price: product.price,
+      priceCurrency: 'USD',
+      availability:
+        (product.stockQuantity ?? 1) > 0
+          ? 'https://schema.org/InStock'
+          : 'https://schema.org/OutOfStock',
+      seller: { '@type': 'Organization', name: 'trackID.lb' },
+    },
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Breadcrumb */}
       <nav className="flex gap-2 text-[10px] uppercase tracking-widest text-muted mb-10">
         <Link href="/shop" className="hover:text-foreground transition-colors">Shop</Link>
@@ -122,7 +162,7 @@ export default async function ProductPage({
         <div className="md:sticky md:top-24 space-y-6">
           {artist && 'slug' in artist && (
             <Link
-              href={`/shop?artist=${artist.slug}`}
+              href={`/artist/${artist.slug}`}
               className="text-[10px] uppercase tracking-[0.3em] text-accent hover:text-accent-hover transition-colors"
             >
               {artist.name}

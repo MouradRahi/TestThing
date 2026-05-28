@@ -1,12 +1,13 @@
 import { getPayload } from '@/lib/payload'
+import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
 import { NextRequest, NextResponse } from 'next/server'
 
-let orderCounter = 0
-
 function generateOrderNumber(): string {
-  orderCounter++
-  const timestamp = Date.now().toString().slice(-4)
-  return `TRK-${timestamp}${String(orderCounter).padStart(3, '0')}`
+  // 6-digit ms timestamp tail + 4 random alphanumeric chars — no module state,
+  // collision-safe across cold starts and concurrent Vercel instances
+  const ts = Date.now().toString().slice(-6)
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase()
+  return `TRK-${ts}-${rand}`
 }
 
 export async function POST(req: NextRequest) {
@@ -48,8 +49,23 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // TODO Phase 3: send confirmation email via Resend
-    // TODO Phase 3: send WhatsApp notification to team
+    const notificationData = {
+      orderId: String(order.id),
+      orderNumber: order.orderNumber,
+      customerName,
+      customerPhone,
+      customerEmail,
+      deliveryAddress,
+      area,
+      items,
+      subtotal,
+      total,
+      paymentMethod: (paymentMethod || 'cod') as 'cod' | 'bank_transfer',
+    }
+
+    // Fire-and-forget — notifications must never block the order response
+    void sendOrderConfirmationEmail(notificationData)
+    void sendOrderWhatsAppAlert(notificationData)
 
     return NextResponse.json({ orderId: order.id, orderNumber: order.orderNumber }, { status: 201 })
   } catch (err) {

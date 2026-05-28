@@ -41,7 +41,7 @@ export const Products: CollectionConfig = {
           name: 'url',
           type: 'text',
           required: true,
-          admin: { description: 'Cloudinary URL' },
+          admin: { description: 'Supabase Storage URL — copy the public URL from the Supabase Storage dashboard (e.g. https://bdbhygelwizizepxewxv.supabase.co/storage/v1/object/public/products/filename.jpg)' },
         },
         {
           name: 'alt',

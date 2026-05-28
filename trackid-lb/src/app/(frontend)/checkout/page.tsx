@@ -86,8 +86,8 @@ export default function CheckoutPage() {
       <h1 className="text-2xl font-bold text-foreground mb-12">Checkout</h1>
 
       <div className="grid md:grid-cols-[1fr_380px] gap-12 items-start">
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Form — below summary on mobile, left on desktop */}
+        <form onSubmit={handleSubmit} className="space-y-5 order-2 md:order-1">
           <SectionLabel>Your Details</SectionLabel>
 
           <Field label="Full Name *" name="customerName" value={form.customerName} onChange={handleChange} required />
@@ -175,8 +175,8 @@ export default function CheckoutPage() {
           </button>
         </form>
 
-        {/* Order summary */}
-        <div className="bg-surface border border-border p-6 space-y-6">
+        {/* Order summary — above form on mobile, right on desktop */}
+        <div className="bg-surface border border-border p-6 space-y-6 order-1 md:order-2">
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Order Summary</p>
 
           <div className="space-y-4">

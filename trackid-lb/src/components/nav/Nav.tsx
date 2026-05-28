@@ -15,6 +15,9 @@ export function Nav() {
         <Link href="/shop" className="hover:text-foreground transition-colors">
           Shop
         </Link>
+        <Link href="/custom-request" className="hover:text-foreground transition-colors">
+          Custom
+        </Link>
         <Link href="/cart" className="hover:text-foreground transition-colors relative">
           Cart
           {itemCount > 0 && (

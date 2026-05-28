@@ -145,21 +145,31 @@ id, title, slug, content (rich text blocks)
 - [x] Tailwind v4 PostCSS config (`postcss.config.mjs`)
 - [x] `src/lib/cart.ts` — localStorage read/write utilities
 
-### Phase 3 — Notifications
-- [ ] Resend email on order placed (customer confirmation)
-- [ ] WhatsApp Cloud API message to team on new order
+### Phase 3 — Notifications (COMPLETE)
+- [x] Resend email on order placed (customer confirmation) — `src/lib/notifications.ts`
+- [ ] WhatsApp Cloud API message to team — **deferred to post-launch** (code exists in `notifications.ts`, skips gracefully when env vars are absent)
+- Notifications are fire-and-forget (never block order creation)
+- Keys needed in `.env.local` to activate email: `RESEND_API_KEY`, `RESEND_FROM`
 
-### Phase 4 — Content
-- [ ] Custom Request form page
-- [ ] About / Artist Story pages (powered by Payload Pages collection)
-- [ ] Drop/Lookbook pages (for collection launches)
+### Phase 4 — Content (COMPLETE)
+- [x] Custom Request form page (`/custom-request`) + `POST /api/custom-requests` route
+- [x] Artist profile pages (`/artist/[slug]`) — ISR, bio + genre + photo + product grid
+- [x] Generic Payload Pages renderer (`/p/[slug]`) — powers About, FAQ, Drops, any CMS page
+- [x] `RichTextRenderer` component for Lexical rich text serialization
+- [x] Nav updated — "Custom" link added
+- [x] Product detail page artist link now goes to `/artist/[slug]` (was shop filter)
+- Create content in Payload admin: Pages with slug "about", "faq", etc. auto-render at `/p/about`, `/p/faq`
 
-### Phase 5 — Polish
-- [ ] Full design system (typography, colors, spacing)
-- [ ] Mobile-first responsive layout
-- [ ] Instagram feed embed
-- [ ] SEO metadata (per product, per artist)
-- [ ] Sitemap + robots.txt
+### Phase 5 — Polish (COMPLETE)
+- [x] globals.css polish: smooth scroll, `:focus-visible` ring, `::selection`, `scrollbar-gutter: stable`
+- [x] Mobile checkout: order summary appears above form on mobile (better UX)
+- [x] Site-level `openGraph` + `twitter` card metadata in frontend layout (`metadataBase` set)
+- [x] Product pages: `openGraph` image from first product image + JSON-LD `Product` schema
+- [x] Artist pages: `openGraph` image from artist photo
+- [x] Custom request page: metadata via `layout.tsx` wrapper (client component pattern)
+- [x] `src/app/sitemap.ts` — dynamic sitemap covering /, /shop, /custom-request, all products, artists, pages
+- [x] `src/app/robots.ts` — allows all, disallows /admin/ and /api/, points to sitemap
+- [ ] Instagram feed embed — deferred (handle not yet available)
 
 ---
 
@@ -194,7 +204,8 @@ NEXT_PUBLIC_SITE_URL=https://trackid.lb
 - **Payload Local API** — never call Payload via HTTP from RSC; always use the local API for zero latency.
 - **Cursor pagination over offset** — `findMany({ cursor, limit })` not `findMany({ page, limit })`.
 - **ISR not SSR for product pages** — product data changes infrequently; edge caching > per-request DB hit.
-- **Cloudinary not Payload media storage** — offloads image serving to CDN, keeps DB lean.
+- **Supabase Storage not Cloudinary** — Cloudinary unavailable in Lebanon; Supabase serves images from same project as DB.
+- **Notifications are fire-and-forget** — email/WhatsApp calls are `void`-ed after order creation so a notification failure never blocks the order response.
 
 ---
 
@@ -222,6 +233,7 @@ trackid-lb/
 │   ├── payload.config.ts        # Payload root config
 │   └── lib/
 │       ├── payload.ts           # Payload local API client (singleton)
+│       ├── notifications.ts     # Resend email + WhatsApp Cloud API
 │       └── utils.ts
 ├── CLAUDE.md                    # this file
 └── .env.local
@@ -254,3 +266,38 @@ trackid-lb/
   - COD Checkout form (client component → `POST /api/orders`)
   - Order confirmation page
 - Next up: Phase 3 — Resend email + WhatsApp Cloud API notifications
+
+### Session 3 — 2026-05-28
+- Pre-launch audit completed — identified critical bugs and UX gaps
+- Fixed admin panel Cloudinary → Supabase Storage descriptions (Products, Artists, Pages collections)
+- Fixed "Clear filters" link showing when catalog is empty with no active filter
+- Fixed hardcoded `PAYLOAD_SECRET` in `payload.config.ts` — now reads from env
+- Fixed order number collision bug: replaced module-level counter (resets on cold start) with `TRK-{ts6}-{rand4}` — stateless, collision-safe across instances
+- Completed Phase 3: created `src/lib/notifications.ts`
+  - `sendOrderConfirmationEmail` — dark on-brand HTML email via Resend (skips gracefully if key not set)
+  - `sendOrderWhatsAppAlert` — team alert via WhatsApp Cloud API (skips gracefully if keys not set)
+  - Both calls are fire-and-forget in orders route — notification failures never block orders
+- Added `RESEND_FROM` to `.env.local` and `.env.local.example`
+- Outstanding pre-launch items: bank transfer instructions on checkout, richer order confirmation page, delivery fee UX, stock decrement on order
+
+### Session 4 — 2026-05-28
+- Completed Phase 4 — Content pages
+  - `/custom-request` — form page with success state, `POST /api/custom-requests` saves to Payload
+  - `/artist/[slug]` — ISR artist profile: photo, genre, bio, product grid; `generateStaticParams` for all artists
+  - `/p/[slug]` — generic Payload Pages renderer; `dynamicParams: true` so new pages auto-serve without redeploy
+  - `src/components/RichTextRenderer.tsx` — Lexical serializer (paragraphs, headings, lists, links, quotes, bold/italic/underline/code)
+  - Nav now shows: Shop · Custom · Cart
+  - Artist link on product detail now routes to `/artist/[slug]` instead of shop filter
+- Zero new TypeScript errors introduced
+
+### Session 5 — 2026-05-28
+- Completed Phase 5 — Polish
+  - globals.css: smooth scroll, keyboard focus ring, text selection style, scrollbar-gutter
+  - Checkout: order summary renders above the form on mobile (order-1/order-2 CSS)
+  - Site metadata: `metadataBase`, `openGraph`, `twitter` card added to frontend layout
+  - Product pages: OG image from first product photo + JSON-LD Product schema (price, availability, brand)
+  - Artist pages: OG image from artist photo in metadata
+  - Custom request: `layout.tsx` exports metadata (workaround for client component page)
+  - `src/app/sitemap.ts` + `src/app/robots.ts` — fully dynamic, reads from Payload at build time
+  - Instagram section deferred (handle not yet available)
+- No new TypeScript errors; sitemap `updatedAt` cast fixed (Payload types not yet generated)

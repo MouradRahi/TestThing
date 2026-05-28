@@ -104,9 +104,11 @@ export default async function ShopPage({
       {products.length === 0 ? (
         <div className="text-center py-32 text-muted">
           <p className="mb-4">Nothing here yet.</p>
-          <Link href="/shop" className="text-xs uppercase tracking-widest text-accent hover:text-accent-hover">
-            Clear filters
-          </Link>
+          {(artist || category) && (
+            <Link href="/shop" className="text-xs uppercase tracking-widest text-accent hover:text-accent-hover">
+              Clear filters
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
