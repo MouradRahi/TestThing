@@ -132,7 +132,7 @@ id, title, slug, content (rich text blocks)
 - [x] Payload Local API singleton (`src/lib/payload.ts`) — zero HTTP overhead in RSC
 - [x] Order creation API route (`POST /api/orders`) — COD only, generates TRK-XXXX order numbers
 - [x] Zero TypeScript errors
-- [ ] PostgreSQL connected (Supabase) — needs `.env.local` setup by developer
+- [x] PostgreSQL connected (Supabase) — needs `.env.local` setup by developer
 
 ### Phase 2 — Storefront (COMPLETE)
 - [x] Product catalog page (RSC, cursor pagination, filter by artist/category)
