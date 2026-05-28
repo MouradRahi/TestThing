@@ -1,6 +1,7 @@
 'use client'
 
 import { useCart } from '@/components/cart/CartContext'
+import { Button } from '@/components/ui/Button'
 
 type Props = {
   id: string
@@ -16,21 +17,15 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock }: Prop
 
   if (outOfStock) {
     return (
-      <button
-        disabled
-        className="w-full py-3.5 text-xs uppercase tracking-[0.2em] text-muted border border-border cursor-not-allowed"
-      >
+      <Button fullWidth variant="secondary" disabled>
         Sold Out
-      </button>
+      </Button>
     )
   }
 
   return (
-    <button
-      onClick={() => addItem({ id, slug, title, price, imageUrl })}
-      className="w-full py-3.5 text-xs uppercase tracking-[0.2em] bg-accent text-bg font-semibold hover:bg-accent-hover transition-colors"
-    >
+    <Button fullWidth onClick={() => addItem({ id, slug, title, price, imageUrl })}>
       Add to Cart
-    </button>
+    </Button>
   )
 }

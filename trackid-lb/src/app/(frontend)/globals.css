@@ -40,3 +40,7 @@ img { display: block; max-width: 100%; }
 
 /* Prevent content jump from scrollbar appearing */
 html { scrollbar-gutter: stable; }
+
+/* Explicit utility for dark text on accent (beige) backgrounds.
+   Tailwind v4 does not reliably generate text-bg from --color-bg. */
+.text-on-accent { color: #0a0a0a; }

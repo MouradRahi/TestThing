@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
+import { Button } from '@/components/ui/Button'
 import type { Where } from 'payload'
 
 export const revalidate = 30
@@ -136,12 +137,12 @@ export default async function ShopPage({
       {/* Load more */}
       {nextCursor && (
         <div className="text-center mt-16">
-          <Link
+          <Button
             href={`/shop?cursor=${encodeURIComponent(nextCursor)}${artist ? `&artist=${artist}` : ''}${category ? `&category=${category}` : ''}`}
-            className="inline-block px-10 py-3.5 text-xs uppercase tracking-[0.25em] border border-border text-foreground hover:border-accent hover:text-accent transition-colors"
+            variant="secondary"
           >
             Load More
-          </Link>
+          </Button>
         </div>
       )}
     </div>

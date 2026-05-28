@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
+import { Button } from '@/components/ui/Button'
 
 export const revalidate = 60
 
@@ -28,12 +29,7 @@ export default async function HomePage() {
         <p className="text-muted text-base max-w-sm mb-12">
           One-of-a-kind pieces for the artists you can't stop listening to.
         </p>
-        <Link
-          href="/shop"
-          className="inline-block px-10 py-3.5 text-xs uppercase tracking-[0.25em] bg-accent text-bg font-semibold hover:bg-accent-hover transition-colors"
-        >
-          Shop Now
-        </Link>
+        <Button href="/shop">Shop Now</Button>
       </section>
 
       {/* Latest drops */}

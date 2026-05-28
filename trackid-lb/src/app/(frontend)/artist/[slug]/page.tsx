@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { ProductCard } from '@/components/product/ProductCard'
+import { Button } from '@/components/ui/Button'
 
 export const revalidate = 3600
 
@@ -129,12 +130,9 @@ export default async function ArtistPage({
               </p>
             )}
             <div className="mt-10">
-              <Link
-                href={`/shop?artist=${artist.slug}`}
-                className="inline-block px-8 py-3 text-xs uppercase tracking-[0.25em] border border-border text-foreground hover:border-accent hover:text-accent transition-colors"
-              >
+              <Button href={`/shop?artist=${artist.slug}`} variant="secondary" size="md">
                 Browse all {artist.name} pieces
-              </Link>
+              </Button>
             </div>
           </div>
         </div>

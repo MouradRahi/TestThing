@@ -1,5 +1,5 @@
-import Link from 'next/link'
 import type { Metadata } from 'next'
+import { Button } from '@/components/ui/Button'
 
 export const metadata: Metadata = { title: 'Order Confirmed' }
 
@@ -19,12 +19,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
       <p className="text-xs text-muted leading-relaxed max-w-xs mx-auto mb-12">
         Our team will reach out shortly to confirm your delivery details. Keep your phone nearby.
       </p>
-      <Link
-        href="/shop"
-        className="inline-block px-10 py-3.5 text-xs uppercase tracking-[0.25em] border border-border text-foreground hover:border-accent hover:text-accent transition-colors"
-      >
-        Continue Shopping
-      </Link>
+      <Button href="/shop" variant="secondary">Continue Shopping</Button>
     </div>
   )
 }

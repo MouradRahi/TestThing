@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
+import { Button } from '@/components/ui/Button'
+import { Field, TextareaField, SectionLabel } from '@/components/ui/FormField'
 
 type FormState = {
   customerName: string
@@ -105,20 +107,15 @@ export default function CheckoutPage() {
             placeholder="e.g. Beirut, Tripoli, Saida…"
           />
 
-          <div>
-            <label className="block text-[10px] uppercase tracking-[0.2em] text-muted mb-2">
-              Full Address *
-            </label>
-            <textarea
-              name="deliveryAddress"
-              value={form.deliveryAddress}
-              onChange={handleChange}
-              required
-              rows={3}
-              placeholder="Street, building, floor, apartment…"
-              className="w-full bg-surface border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted/40 focus:border-accent/70 outline-none transition-colors resize-none"
-            />
-          </div>
+          <TextareaField
+            label="Full Address *"
+            name="deliveryAddress"
+            value={form.deliveryAddress}
+            onChange={handleChange}
+            required
+            rows={3}
+            placeholder="Street, building, floor, apartment…"
+          />
 
           <SectionLabel className="pt-4">Payment</SectionLabel>
 
@@ -148,31 +145,22 @@ export default function CheckoutPage() {
             ))}
           </div>
 
-          <div>
-            <label className="block text-[10px] uppercase tracking-[0.2em] text-muted mb-2">
-              Notes (optional)
-            </label>
-            <textarea
-              name="notes"
-              value={form.notes}
-              onChange={handleChange}
-              rows={2}
-              placeholder="Any special instructions…"
-              className="w-full bg-surface border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted/40 focus:border-accent/70 outline-none transition-colors resize-none"
-            />
-          </div>
+          <TextareaField
+            label="Notes (optional)"
+            name="notes"
+            value={form.notes}
+            onChange={handleChange}
+            rows={2}
+            placeholder="Any special instructions…"
+          />
 
           {error && (
             <p className="text-sm text-red-400 border border-red-400/30 px-3 py-2">{error}</p>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 text-xs uppercase tracking-[0.25em] bg-accent text-bg font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-          >
+          <Button type="submit" fullWidth disabled={loading} className="mt-2">
             {loading ? 'Placing order…' : 'Place Order'}
-          </button>
+          </Button>
         </form>
 
         {/* Order summary — above form on mobile, right on desktop */}
@@ -224,45 +212,3 @@ export default function CheckoutPage() {
   )
 }
 
-function SectionLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <p className={`text-[10px] uppercase tracking-[0.2em] text-muted pb-1 border-b border-border ${className}`}>
-      {children}
-    </p>
-  )
-}
-
-function Field({
-  label,
-  name,
-  value,
-  onChange,
-  required,
-  type = 'text',
-  placeholder,
-}: {
-  label: string
-  name: string
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  required?: boolean
-  type?: string
-  placeholder?: string
-}) {
-  return (
-    <div>
-      <label className="block text-[10px] uppercase tracking-[0.2em] text-muted mb-2">
-        {label}
-      </label>
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        required={required}
-        placeholder={placeholder}
-        className="w-full bg-surface border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted/40 focus:border-accent/70 outline-none transition-colors"
-      />
-    </div>
-  )
-}

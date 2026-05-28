@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
+import { Button } from '@/components/ui/Button'
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, total, itemCount } = useCart()
@@ -12,12 +13,7 @@ export default function CartPage() {
       <div className="max-w-lg mx-auto px-6 py-32 text-center">
         <h1 className="text-2xl font-bold text-foreground mb-3">Your cart is empty</h1>
         <p className="text-muted text-sm mb-10">Find a piece that speaks to you.</p>
-        <Link
-          href="/shop"
-          className="inline-block px-10 py-3.5 text-xs uppercase tracking-[0.25em] bg-accent text-bg font-semibold hover:bg-accent-hover transition-colors"
-        >
-          Browse Shop
-        </Link>
+        <Button href="/shop">Browse Shop</Button>
       </div>
     )
   }
@@ -94,12 +90,7 @@ export default function CartPage() {
         </div>
       </div>
 
-      <Link
-        href="/checkout"
-        className="mt-8 w-full flex items-center justify-center py-4 text-xs uppercase tracking-[0.25em] bg-accent text-bg font-semibold hover:bg-accent-hover transition-colors"
-      >
-        Checkout
-      </Link>
+      <Button href="/checkout" fullWidth className="mt-8">Checkout</Button>
 
       <div className="text-center mt-4">
         <Link href="/shop" className="text-[10px] uppercase tracking-widest text-muted hover:text-foreground transition-colors">

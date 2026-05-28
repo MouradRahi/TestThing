@@ -21,7 +21,7 @@ export function Nav() {
         <Link href="/cart" className="hover:text-foreground transition-colors relative">
           Cart
           {itemCount > 0 && (
-            <span className="absolute -top-2 -right-4 bg-accent text-bg text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none tabular-nums">
+            <span className="absolute -top-2 -right-4 bg-accent text-on-accent text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none tabular-nums">
               {itemCount > 9 ? '9+' : itemCount}
             </span>
           )}
