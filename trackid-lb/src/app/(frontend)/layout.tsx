@@ -1,35 +1,52 @@
 import type { Metadata } from 'next'
 import { CartProvider } from '@/components/cart/CartContext'
-import { Nav } from '@/components/nav/Nav'
+import { NavWrapper } from '@/components/nav/NavWrapper'
 import { Footer } from '@/components/nav/Footer'
+import { AnnouncementBar } from '@/components/AnnouncementBar'
+import { getSiteSettings, buildThemeCssVars } from '@/lib/site-settings'
 import './globals.css'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://trackid.lb'
 
-export const metadata: Metadata = {
-  title: { default: 'trackID.lb', template: '%s | trackID.lb' },
-  description: 'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.',
-  metadataBase: new URL(siteUrl),
-  openGraph: {
-    siteName: 'trackID.lb',
-    type: 'website',
-    locale: 'en_US',
-    title: 'trackID.lb',
-    description: 'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'trackID.lb',
-    description: 'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.',
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings()
+  const storeName = (settings.storeName as string) || 'trackID.lb'
+  const description =
+    (settings.metaDescription as string) ||
+    'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.'
+
+  return {
+    title: { default: storeName, template: `%s | ${storeName}` },
+    description,
+    metadataBase: new URL(siteUrl),
+    openGraph: {
+      siteName: storeName,
+      type: 'website',
+      locale: 'en_US',
+      title: storeName,
+      description,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: storeName,
+      description,
+    },
+  }
 }
 
-export default function FrontendLayout({ children }: { children: React.ReactNode }) {
+export default async function FrontendLayout({ children }: { children: React.ReactNode }) {
+  const settings = await getSiteSettings()
+  const cssVars = buildThemeCssVars(settings)
+
   return (
     <html lang="en">
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
+      </head>
       <body>
+        <AnnouncementBar />
         <CartProvider>
-          <Nav />
+          <NavWrapper />
           <main className="pt-14">{children}</main>
           <Footer />
         </CartProvider>

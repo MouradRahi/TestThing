@@ -3,21 +3,37 @@
 import Link from 'next/link'
 import { useCart } from '@/components/cart/CartContext'
 
-export function Nav() {
+export type NavLink = {
+  label: string
+  href: string
+  openInNewTab?: boolean
+}
+
+type Props = {
+  storeName: string
+  links: NavLink[]
+}
+
+export function Nav({ storeName, links }: Props) {
   const { itemCount } = useCart()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-14 flex items-center justify-between px-6 border-b border-border bg-bg/90 backdrop-blur-sm">
       <Link href="/" className="text-accent font-bold tracking-[0.2em] text-sm uppercase">
-        trackID.lb
+        {storeName}
       </Link>
       <nav className="flex items-center gap-8 text-xs uppercase tracking-widest text-muted">
-        <Link href="/shop" className="hover:text-foreground transition-colors">
-          Shop
-        </Link>
-        <Link href="/custom-request" className="hover:text-foreground transition-colors">
-          Custom
-        </Link>
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            target={link.openInNewTab ? '_blank' : undefined}
+            rel={link.openInNewTab ? 'noopener noreferrer' : undefined}
+            className="hover:text-foreground transition-colors"
+          >
+            {link.label}
+          </Link>
+        ))}
         <Link href="/cart" className="hover:text-foreground transition-colors relative">
           Cart
           {itemCount > 0 && (

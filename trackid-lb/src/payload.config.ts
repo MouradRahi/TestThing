@@ -12,6 +12,9 @@ import { Orders } from './collections/Orders'
 import { CustomRequests } from './collections/CustomRequests'
 import { Pages } from './collections/Pages'
 import { Users } from './collections/Users'
+import { SiteSettings } from './globals/SiteSettings'
+import { Navigation } from './globals/Navigation'
+import { Homepage } from './globals/Homepage'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -24,6 +27,7 @@ export default buildConfig({
     },
   },
   collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Users],
+  globals: [SiteSettings, Navigation, Homepage],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || 'trackid-lb-dev-secret-change-in-production',
   typescript: {

@@ -8,6 +8,7 @@
   --color-muted: #888888;
   --color-accent: #e8d5b0;
   --color-accent-hover: #d4c090;
+  --color-on-accent: #0a0a0a;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -41,6 +42,5 @@ img { display: block; max-width: 100%; }
 /* Prevent content jump from scrollbar appearing */
 html { scrollbar-gutter: stable; }
 
-/* Explicit utility for dark text on accent (beige) backgrounds.
-   Tailwind v4 does not reliably generate text-bg from --color-bg. */
-.text-on-accent { color: #0a0a0a; }
+/* Explicit utility — Tailwind v4 cannot reliably generate text utilities from CSS vars */
+.text-on-accent { color: var(--color-on-accent, #0a0a0a); }

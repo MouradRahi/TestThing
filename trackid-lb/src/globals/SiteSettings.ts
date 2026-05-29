@@ -1,0 +1,228 @@
+import type { GlobalConfig } from 'payload'
+
+export const SiteSettings: GlobalConfig = {
+  slug: 'site-settings',
+  admin: {
+    group: 'Site Configuration',
+    description: 'Global brand settings — store name, colors, announcement bar, footer text.',
+  },
+  fields: [
+    {
+      type: 'tabs',
+      tabs: [
+        // ── BRAND ───────────────────────────────────────────────────────────
+        {
+          label: 'Brand',
+          fields: [
+            {
+              name: 'storeName',
+              type: 'text',
+              defaultValue: 'trackID.lb',
+              admin: { description: 'Displayed in the nav, footer, email subjects, and page titles.' },
+            },
+            {
+              name: 'logoUrl',
+              type: 'text',
+              admin: {
+                description:
+                  'Supabase Storage public URL for a logo image. Leave blank to use the text logo.',
+              },
+            },
+            {
+              name: 'tagline',
+              type: 'text',
+              defaultValue: 'Hand-painted clothing for the artists you love.',
+            },
+            {
+              name: 'contactEmail',
+              type: 'email',
+              admin: { description: 'Shown in order confirmation emails as reply-to.' },
+            },
+            {
+              name: 'whatsappNumber',
+              type: 'text',
+              admin: { description: 'Full number with country code, e.g. +96170123456' },
+            },
+          ],
+        },
+
+        // ── ANNOUNCEMENT BAR ────────────────────────────────────────────────
+        {
+          label: 'Announcement Bar',
+          fields: [
+            {
+              name: 'announcementEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: { description: 'Toggle the bar on/off without losing the text.' },
+            },
+            {
+              name: 'announcementText',
+              type: 'text',
+              admin: { description: 'e.g. "Free delivery on orders over $50" or "New drop live now →"' },
+            },
+            {
+              name: 'announcementBgColor',
+              type: 'text',
+              defaultValue: '#e8d5b0',
+              admin: { description: 'Background hex color, e.g. #e8d5b0' },
+            },
+            {
+              name: 'announcementTextColor',
+              type: 'text',
+              defaultValue: '#0a0a0a',
+              admin: { description: 'Text hex color, e.g. #0a0a0a' },
+            },
+            {
+              name: 'announcementHref',
+              type: 'text',
+              admin: { description: 'Optional link — makes the whole bar clickable.' },
+            },
+          ],
+        },
+
+        // ── FOOTER ──────────────────────────────────────────────────────────
+        {
+          label: 'Footer',
+          fields: [
+            {
+              name: 'footerTagline',
+              type: 'text',
+              defaultValue: 'Hand-painted clothing for the artists you love. Made in Lebanon.',
+            },
+            {
+              name: 'footerNote',
+              type: 'text',
+              defaultValue: 'Cash on Delivery · Lebanon only',
+              admin: { description: 'Displayed in the bottom-right of the footer.' },
+            },
+            {
+              name: 'copyrightText',
+              type: 'text',
+              defaultValue: '© {year} trackID.lb',
+              admin: { description: 'Use {year} as a placeholder for the current year.' },
+            },
+            {
+              name: 'socialLinks',
+              type: 'array',
+              admin: { description: 'Social media icons shown in the footer.' },
+              fields: [
+                {
+                  name: 'platform',
+                  type: 'select',
+                  required: true,
+                  options: [
+                    { label: 'Instagram', value: 'instagram' },
+                    { label: 'TikTok', value: 'tiktok' },
+                    { label: 'Twitter / X', value: 'twitter' },
+                    { label: 'Facebook', value: 'facebook' },
+                    { label: 'YouTube', value: 'youtube' },
+                  ],
+                },
+                {
+                  name: 'url',
+                  type: 'text',
+                  required: true,
+                  admin: { description: 'Full URL including https://' },
+                },
+              ],
+            },
+          ],
+        },
+
+        // ── THEME ───────────────────────────────────────────────────────────
+        {
+          label: 'Theme',
+          fields: [
+            {
+              name: 'colorScheme',
+              type: 'select',
+              defaultValue: 'dark',
+              admin: {
+                description:
+                  'Choose a preset or select Custom to define every color individually.',
+              },
+              options: [
+                { label: 'Dark Editorial (default)', value: 'dark' },
+                { label: 'Light Minimal', value: 'light' },
+                { label: 'Warm Cream', value: 'warm' },
+                { label: 'Custom', value: 'custom' },
+              ],
+            },
+            {
+              name: 'customColors',
+              type: 'group',
+              admin: {
+                description: 'All fields accept hex values, e.g. #ffffff',
+                condition: (_, siblingData) => siblingData?.colorScheme === 'custom',
+              },
+              fields: [
+                {
+                  name: 'bg',
+                  type: 'text',
+                  admin: { description: 'Page background' },
+                },
+                {
+                  name: 'surface',
+                  type: 'text',
+                  admin: { description: 'Card / panel background' },
+                },
+                {
+                  name: 'border',
+                  type: 'text',
+                  admin: { description: 'Border and divider color' },
+                },
+                {
+                  name: 'foreground',
+                  type: 'text',
+                  admin: { description: 'Primary text color' },
+                },
+                {
+                  name: 'muted',
+                  type: 'text',
+                  admin: { description: 'Secondary / muted text color' },
+                },
+                {
+                  name: 'accent',
+                  type: 'text',
+                  admin: { description: 'Button and highlight color' },
+                },
+                {
+                  name: 'accentHover',
+                  type: 'text',
+                  admin: { description: 'Button hover color' },
+                },
+                {
+                  name: 'onAccent',
+                  type: 'text',
+                  admin: { description: 'Text color ON accent backgrounds (buttons, badges)' },
+                },
+              ],
+            },
+          ],
+        },
+
+        // ── SEO ─────────────────────────────────────────────────────────────
+        {
+          label: 'SEO',
+          fields: [
+            {
+              name: 'metaDescription',
+              type: 'textarea',
+              defaultValue:
+                'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.',
+            },
+            {
+              name: 'ogImage',
+              type: 'text',
+              admin: {
+                description:
+                  'Default social share image — Supabase Storage URL. Recommended: 1200×630px.',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+}

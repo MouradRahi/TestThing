@@ -117,6 +117,22 @@ id, title, slug, content (rich text blocks)
 — used for About, Artist Stories, FAQ, etc.
 ```
 
+### SiteSettings (Payload Global)
+```
+storeName, logoUrl, tagline
+contactEmail, whatsappNumber
+announcementEnabled, announcementText, announcementBgColor, announcementTextColor, announcementHref
+footerTagline, footerNote, copyrightText ({year} placeholder), socialLinks[]
+colorScheme (dark|light|warm|custom), customColors { bg, surface, border, foreground, muted, accent, accentHover, onAccent }
+metaDescription, ogImage
+```
+
+### Navigation (Payload Global)
+```
+headerLinks[] → { label, href, openInNewTab }
+footerColumns[] → { columnTitle, links[{ label, href, openInNewTab }] }
+```
+
 ---
 
 ## Build Progress
@@ -169,7 +185,71 @@ id, title, slug, content (rich text blocks)
 - [x] Custom request page: metadata via `layout.tsx` wrapper (client component pattern)
 - [x] `src/app/sitemap.ts` — dynamic sitemap covering /, /shop, /custom-request, all products, artists, pages
 - [x] `src/app/robots.ts` — allows all, disallows /admin/ and /api/, points to sitemap
+- [x] Footer added with dynamic CMS pages links
 - [ ] Instagram feed embed — deferred (handle not yet available)
+
+### Phase 6 — Site Settings + Navigation Globals (COMPLETE)
+Eliminates all hardcoded text, links, and colors. Every visible string and nav link is now managed from the Payload admin.
+
+- [x] `src/globals/SiteSettings.ts` — Payload Global with tabs: Brand, Announcement Bar, Footer, Theme, SEO
+  - Brand: storeName, logoUrl, tagline, contactEmail, whatsappNumber
+  - Announcement bar: enabled toggle, text, bgColor, textColor, optional href (clickable bar)
+  - Footer: tagline, footerNote, copyrightText (`{year}` placeholder), socialLinks[]
+  - SEO: metaDescription, ogImage
+- [x] `src/globals/Navigation.ts` — Payload Global
+  - headerLinks[] (label, href, openInNewTab)
+  - footerColumns[] (columnTitle, links[]) — each column independently managed
+- [x] Both globals registered in `payload.config.ts` under "Site Configuration" group
+- [x] `src/lib/site-settings.ts` — cached helpers (5-min TTL via `unstable_cache`)
+  - `getSiteSettings()`, `getNavigation()` — safe, never throw
+  - `COLOR_SCHEMES` — dark/light/warm presets with 8 color tokens each
+  - `resolveColorTokens()` — picks preset or merges custom fields
+  - `buildThemeCssVars()` — returns CSS custom property string for inline `<style>`
+  - `resolveCopyright()` — replaces `{year}` placeholder
+- [x] `src/components/nav/NavWrapper.tsx` — server component; fetches nav + settings, passes to Nav
+- [x] `src/components/nav/Nav.tsx` — updated to accept `storeName` + `links[]` as props; falls back to hardcoded defaults if Navigation global is empty
+- [x] `src/components/nav/Footer.tsx` — fully driven by globals; fallback hardcoded links if no footerColumns configured; social links row
+- [x] `src/components/AnnouncementBar.tsx` — server component; renders above nav if `announcementEnabled=true`
+- [x] `(frontend)/layout.tsx` — async, injects `<style>` tag with CSS vars from SiteSettings; `generateMetadata` reads storeName + metaDescription from DB
+
+### Phase 7 — Color Scheme System (COMPLETE)
+- [x] Three built-in presets: **Dark Editorial** (default), **Light Minimal**, **Warm Cream**
+- [x] **Custom** preset: 8 individual color fields shown only when "Custom" is selected (conditional via Payload `condition`)
+- [x] Color tokens: bg, surface, border, foreground, muted, accent, accentHover, onAccent
+- [x] `--color-on-accent` CSS var added to `@theme` in globals.css; `.text-on-accent` now uses `var(--color-on-accent)` — adapts to any scheme automatically
+- [x] CSS vars injected at layout level via `<style>` tag — overrides `@theme` defaults at runtime, zero client JS
+
+### Phase 8 — Homepage Block Builder (COMPLETE)
+Homepage is now fully CMS-driven. Go to Admin → Site Configuration → Homepage to build the page.
+
+- [x] `src/globals/blocks/hero.ts` — eyebrow, headline, subline, primary + secondary CTA, bgImage, bgColor, overlay opacity, text align, min height
+- [x] `src/globals/blocks/slideshow.ts` — slides[] (bgImage, bgColor, overlay, eyebrow, headline, subline, CTA), height, autoplay interval
+- [x] `src/globals/blocks/featured-products.ts` — sectionTitle, viewAllLabel/Href, source (latest | manual), limit, products relation
+- [x] `src/globals/blocks/image-text.ts` — image, eyebrow, heading, body, CTA, imagePosition (left | right)
+- [x] `src/globals/blocks/statement.ts` — single centered text line
+- [x] `src/globals/blocks/rich-text-block.ts` — Lexical rich text
+- [x] `src/globals/blocks/cta-banner.ts` — headline, subline, CTA, bgImage, bgColor, textColor, overlay
+- [x] `src/globals/Homepage.ts` — Payload Global with blocks field; registered in payload.config.ts
+- [x] `src/components/sections/HeroSection.tsx` — server component
+- [x] `src/components/sections/SlideshowSection.tsx` — client component; auto-advance, pause on hover, dot + arrow navigation
+- [x] `src/components/sections/FeaturedSection.tsx` — async server component; handles both latest and manual sources
+- [x] `src/components/sections/ImageTextSection.tsx` — server component
+- [x] `src/components/sections/StatementSection.tsx` — server component
+- [x] `src/components/sections/RichTextSection.tsx` — server component
+- [x] `src/components/sections/CTABannerSection.tsx` — server component
+- [x] `src/components/sections/BlockRenderer.tsx` — switches on `blockType`; filters hidden blocks; empty state message
+- [x] `src/app/(frontend)/page.tsx` — now fetches Homepage global (depth: 2) and delegates to BlockRenderer
+- Every block has a `hidden` checkbox — toggle off without deleting
+- Empty state shown when no sections configured, pointing to admin URL
+
+### Phase 9 — Extended Page Builder (PLANNED)
+Add same blocks field to Pages collection so CMS pages (`/p/[slug]`) support full layout sections, not just richText.
+
+### Phase 10 — Translation / i18n (OPTIONAL — post-launch)
+- Payload built-in localization: `locales: ['en', 'ar']`, all text fields `localized: true`
+- `next-intl` for static UI strings
+- RTL support via `dir` attribute on `<html>`
+- URL structure: `/ar/shop` vs `/shop`
 
 ---
 
@@ -206,21 +286,30 @@ NEXT_PUBLIC_SITE_URL=https://trackid.lb
 - **ISR not SSR for product pages** — product data changes infrequently; edge caching > per-request DB hit.
 - **Supabase Storage not Cloudinary** — Cloudinary unavailable in Lebanon; Supabase serves images from same project as DB.
 - **Notifications are fire-and-forget** — email/WhatsApp calls are `void`-ed after order creation so a notification failure never blocks the order response.
+- **Globals use `unstable_cache` (5 min TTL)** — SiteSettings and Navigation are fetched on every layout render but cached server-side. Changes propagate within 5 minutes without a redeploy.
+- **CSS vars injected at layout level** — Theme colors live in SiteSettings; the layout RSC builds a `:root{...}` string and injects it as an inline `<style>` tag. This overrides the Tailwind `@theme` defaults at runtime with zero client JS. Changing the color scheme in admin takes effect on next request after cache expiry.
+- **Nav is client component, NavWrapper is server** — Nav needs `useCart` (client hook) but also needs nav links from DB. Pattern: server NavWrapper fetches data and passes as props to the client Nav.
+- **Fallback defaults on all globals** — if Navigation/SiteSettings global has no data yet (fresh install), every component falls back to sensible hardcoded defaults so nothing breaks.
 
 ---
 
-## Folder Structure (once scaffolded)
+## Folder Structure
 
 ```
 trackid-lb/
 ├── src/
 │   ├── app/
 │   │   ├── (frontend)/          # storefront routes
+│   │   │   ├── layout.tsx       # async — injects CSS vars, generates metadata from DB
+│   │   │   ├── globals.css      # Tailwind v4 @theme defaults (overridden at runtime by layout)
 │   │   │   ├── page.tsx         # homepage
 │   │   │   ├── shop/            # catalog
 │   │   │   ├── product/[slug]/  # product detail (ISR)
+│   │   │   ├── artist/[slug]/   # artist profile (ISR)
+│   │   │   ├── p/[slug]/        # generic CMS page renderer
 │   │   │   ├── cart/
 │   │   │   ├── checkout/
+│   │   │   ├── custom-request/
 │   │   │   └── order/[id]/      # order confirmation
 │   │   └── (payload)/           # Payload admin routes (auto-generated)
 │   ├── collections/             # Payload collection definitions
@@ -230,9 +319,24 @@ trackid-lb/
 │   │   ├── Orders.ts
 │   │   ├── CustomRequests.ts
 │   │   └── Pages.ts
+│   ├── globals/                 # Payload Global definitions
+│   │   ├── SiteSettings.ts      # brand, announcement bar, footer, theme, SEO
+│   │   └── Navigation.ts        # header links + footer columns
+│   ├── components/
+│   │   ├── nav/
+│   │   │   ├── Nav.tsx          # client component (cart badge) — accepts storeName + links props
+│   │   │   ├── NavWrapper.tsx   # server wrapper — fetches globals, passes to Nav
+│   │   │   └── Footer.tsx       # server component — driven by Navigation + SiteSettings globals
+│   │   ├── AnnouncementBar.tsx  # server component — toggleable from SiteSettings
+│   │   ├── cart/
+│   │   ├── product/
+│   │   └── ui/
+│   │       ├── Button.tsx       # polymorphic button/link component
+│   │       └── FormField.tsx    # shared form field components
 │   ├── payload.config.ts        # Payload root config
 │   └── lib/
 │       ├── payload.ts           # Payload local API client (singleton)
+│       ├── site-settings.ts     # getSiteSettings, getNavigation, buildThemeCssVars, COLOR_SCHEMES
 │       ├── notifications.ts     # Resend email + WhatsApp Cloud API
 │       └── utils.ts
 ├── CLAUDE.md                    # this file
@@ -301,3 +405,36 @@ trackid-lb/
   - `src/app/sitemap.ts` + `src/app/robots.ts` — fully dynamic, reads from Payload at build time
   - Instagram section deferred (handle not yet available)
 - No new TypeScript errors; sitemap `updatedAt` cast fixed (Payload types not yet generated)
+- Button text color fix: `.text-on-accent { color: var(--color-on-accent, #0a0a0a) }` (Tailwind v4 cannot generate text utilities from CSS vars named with reserved prefixes like `bg`)
+- Footer component added: `src/components/nav/Footer.tsx` — RSC, dynamically fetches CMS pages
+
+### Session 6 — 2026-05-29
+- Agreed on white-label customisation roadmap (Phases 6–10)
+- Completed Phase 6 — Site Settings + Navigation Globals
+  - `src/globals/SiteSettings.ts` — 5-tab Payload Global (Brand, Announcement Bar, Footer, Theme, SEO)
+  - `src/globals/Navigation.ts` — headerLinks[] + footerColumns[] arrays
+  - Both registered in `payload.config.ts` under "Site Configuration" admin group
+  - `src/lib/site-settings.ts` — `getSiteSettings`, `getNavigation` with 5-min `unstable_cache`; color scheme helpers
+  - `src/components/nav/NavWrapper.tsx` — server wrapper that feeds props to Nav; graceful fallback to hardcoded defaults when Navigation global has no data
+  - `Nav.tsx` updated to accept `storeName` + `links[]` props — no longer hardcoded
+  - `Footer.tsx` fully driven by globals — social links, footer columns, copyright, tagline all from DB
+  - `AnnouncementBar.tsx` — toggleable banner above nav, colors controlled from admin
+  - `(frontend)/layout.tsx` converted to async RSC; injects inline `<style>` with CSS custom properties from SiteSettings; `generateMetadata` reads from DB
+- Completed Phase 7 — Color Scheme System
+  - Three presets (dark/light/warm) + Custom with 8 individual color fields
+  - `--color-on-accent` added to `@theme` defaults and `.text-on-accent` now uses `var(--color-on-accent)` — button text adapts to any color scheme automatically
+  - CSS vars injected via layout `<style>` tag; overrides `@theme` at runtime; zero client JS overhead
+- Next: Phase 8 — Homepage Block Builder
+
+### Session 7 — 2026-05-29
+- Fixed dev cache TTL: `revalidate: 1` in development, 300 in production — changes appear immediately in dev
+- Completed Phase 8 — Homepage Block Builder
+  - 7 Payload block definitions in `src/globals/blocks/`
+  - `Homepage` Global registered in payload.config.ts under "Site Configuration"
+  - 7 matching React section components in `src/components/sections/`
+  - `SlideshowSection` is a client component with auto-advance, pause on hover, dot + arrow nav
+  - `FeaturedSection` is an async server component — queries Payload directly for "latest" or uses resolved relations for "manual"
+  - `BlockRenderer` orchestrates all sections, filters `hidden: true` blocks, shows empty state
+  - `page.tsx` now a 10-line RSC — fetches Homepage global (depth: 2) and delegates entirely to BlockRenderer
+  - Restart dev server and go to Admin → Site Configuration → Homepage to build the homepage
+- Next: Phase 9 — Extended Page Builder
