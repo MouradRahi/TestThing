@@ -87,6 +87,11 @@ export async function Footer() {
                     Custom Request
                   </Link>
                 </li>
+                <li>
+                  <Link href="/track" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
+                    Track Order
+                  </Link>
+                </li>
               </ul>
             </div>
         }

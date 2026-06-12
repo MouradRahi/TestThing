@@ -1,10 +1,29 @@
 import type { CollectionConfig } from 'payload'
+import { formatSlug } from '../lib/slug'
+import { safeRevalidatePath } from '../lib/revalidate'
 
 export const Artists: CollectionConfig = {
   slug: 'artists',
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'genre', 'updatedAt'],
+  },
+  hooks: {
+    afterChange: [
+      ({ doc, previousDoc }) => {
+        safeRevalidatePath('/shop')
+        if (doc?.slug) safeRevalidatePath(`/artist/${doc.slug}`)
+        if (previousDoc?.slug && previousDoc.slug !== doc?.slug) {
+          safeRevalidatePath(`/artist/${previousDoc.slug}`)
+        }
+      },
+    ],
+    afterDelete: [
+      ({ doc }) => {
+        safeRevalidatePath('/shop')
+        if (doc?.slug) safeRevalidatePath(`/artist/${doc.slug}`)
+      },
+    ],
   },
   fields: [
     {
@@ -18,8 +37,9 @@ export const Artists: CollectionConfig = {
       required: true,
       unique: true,
       index: true,
+      hooks: { beforeValidate: [formatSlug] },
       admin: {
-        description: 'URL-friendly identifier, e.g. "fairouz" or "mashrou-leila"',
+        description: 'Auto-generated from the name if left empty, e.g. "fairouz" or "mashrou-leila"',
       },
     },
     {

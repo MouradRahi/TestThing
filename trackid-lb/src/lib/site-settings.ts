@@ -64,7 +64,7 @@ export const getSiteSettings = unstable_cache(
     }
   },
   ['site-settings'],
-  { revalidate: TTL },
+  { revalidate: TTL, tags: ['site-settings'] },
 )
 
 export const getNavigation = unstable_cache(
@@ -77,7 +77,7 @@ export const getNavigation = unstable_cache(
     }
   },
   ['navigation'],
-  { revalidate: TTL },
+  { revalidate: TTL, tags: ['navigation'] },
 )
 
 // ── Theme helpers ────────────────────────────────────────────────────────────
@@ -113,6 +113,34 @@ export function buildThemeCssVars(settings: AnyRecord): string {
     `--color-accent-hover:${t.accentHover}`,
     `--color-on-accent:${t.onAccent}`,
   ].join(';')
+}
+
+// ── Commerce helpers ─────────────────────────────────────────────────────────
+
+export type DeliveryZone = { label: string; fee: number }
+
+export function getDeliveryZones(settings: AnyRecord): DeliveryZone[] {
+  if (!Array.isArray(settings.deliveryZones)) return []
+  return settings.deliveryZones
+    .filter((z: AnyRecord) => z && typeof z.label === 'string' && typeof z.fee === 'number')
+    .map((z: AnyRecord) => ({ label: z.label as string, fee: z.fee as number }))
+}
+
+/**
+ * Delivery fee for a chosen area. Returns:
+ * - 0 when no zones are configured (free-text area mode) or free-delivery threshold reached
+ * - the zone fee when the area matches a configured zone
+ * - null when zones ARE configured but the area matches none (invalid submission)
+ */
+export function resolveDeliveryFee(settings: AnyRecord, area: string, subtotal: number): number | null {
+  const zones = getDeliveryZones(settings)
+  if (zones.length === 0) return 0
+  const zone = zones.find((z) => z.label === area)
+  if (!zone) return null
+  const threshold =
+    typeof settings.freeDeliveryThreshold === 'number' ? settings.freeDeliveryThreshold : null
+  if (threshold !== null && subtotal >= threshold) return 0
+  return zone.fee
 }
 
 // ── Misc helpers ─────────────────────────────────────────────────────────────

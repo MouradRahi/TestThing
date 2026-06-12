@@ -44,10 +44,13 @@ export default async function FrontendLayout({ children }: { children: React.Rea
         <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
       </head>
       <body>
-        <AnnouncementBar />
         <CartProvider>
-          <NavWrapper />
-          <main className="pt-14">{children}</main>
+          {/* Announcement + nav stick together; nav is in normal flow so the bar is never covered */}
+          <div className="sticky top-0 z-50">
+            <AnnouncementBar />
+            <NavWrapper />
+          </div>
+          <main>{children}</main>
           <Footer />
         </CartProvider>
       </body>

@@ -29,7 +29,7 @@ export default function CartPage() {
 
       <div className="space-y-0">
         {items.map((item) => (
-          <div key={item.id} className="flex gap-4 py-6 border-b border-border">
+          <div key={item.key} className="flex gap-4 py-6 border-b border-border">
             <div className="w-20 h-24 bg-surface border border-border shrink-0 relative overflow-hidden">
               {item.imageUrl ? (
                 <Image
@@ -43,10 +43,13 @@ export default function CartPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-foreground font-medium leading-snug">{item.title}</p>
-              <p className="text-xs text-muted mt-1">${item.price} each</p>
+              <p className="text-xs text-muted mt-1">
+                {item.size && <span className="mr-2 uppercase">Size: {item.size}</span>}
+                ${item.price} each
+              </p>
               <div className="flex items-center gap-3 mt-4">
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                  onClick={() => updateQuantity(item.key, item.quantity - 1)}
                   disabled={item.quantity <= 1}
                   className="w-7 h-7 border border-border text-foreground hover:border-accent flex items-center justify-center text-sm disabled:opacity-30 transition-colors"
                 >
@@ -56,8 +59,9 @@ export default function CartPage() {
                   {item.quantity}
                 </span>
                 <button
-                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                  className="w-7 h-7 border border-border text-foreground hover:border-accent flex items-center justify-center text-sm transition-colors"
+                  onClick={() => updateQuantity(item.key, item.quantity + 1)}
+                  disabled={item.maxQuantity != null && item.quantity >= item.maxQuantity}
+                  className="w-7 h-7 border border-border text-foreground hover:border-accent flex items-center justify-center text-sm disabled:opacity-30 transition-colors"
                 >
                   +
                 </button>
@@ -68,7 +72,7 @@ export default function CartPage() {
                 ${(item.price * item.quantity).toFixed(2)}
               </p>
               <button
-                onClick={() => removeItem(item.id)}
+                onClick={() => removeItem(item.key)}
                 className="text-[10px] uppercase tracking-widest text-muted hover:text-foreground transition-colors"
               >
                 Remove

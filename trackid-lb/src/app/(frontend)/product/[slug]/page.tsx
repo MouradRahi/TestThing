@@ -4,6 +4,8 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { AddToCart } from '@/components/product/AddToCart'
+import { ProductCard } from '@/components/product/ProductCard'
+import { getSizes, totalStock } from '@/lib/stock'
 
 export const revalidate = 3600
 
@@ -85,6 +87,9 @@ export default async function ProductPage({
       ? product.category
       : null
 
+  const sizes = getSizes(product)
+  const stock = totalStock(product)
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -96,12 +101,36 @@ export default async function ProductPage({
       '@type': 'Offer',
       price: product.price,
       priceCurrency: 'USD',
-      availability:
-        (product.stockQuantity ?? 1) > 0
-          ? 'https://schema.org/InStock'
-          : 'https://schema.org/OutOfStock',
+      availability: stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       seller: { '@type': 'Organization', name: 'trackID.lb' },
     },
+  }
+
+  // Related pieces — same artist first, same category as fallback
+  let related: typeof docs = []
+  const relatedBase = {
+    status: { equals: 'published' as const },
+    slug: { not_equals: product.slug },
+  }
+  if (artist && 'id' in artist) {
+    const res = await payload.find({
+      collection: 'products',
+      where: { ...relatedBase, artist: { equals: artist.id } },
+      limit: 4,
+      sort: '-createdAt',
+      depth: 1,
+    })
+    related = res.docs
+  }
+  if (related.length === 0 && category && 'id' in category) {
+    const res = await payload.find({
+      collection: 'products',
+      where: { ...relatedBase, category: { equals: category.id } },
+      limit: 4,
+      sort: '-createdAt',
+      depth: 1,
+    })
+    related = res.docs
   }
 
   return (
@@ -179,6 +208,12 @@ export default async function ProductPage({
             </span>
           )}
 
+          {stock > 0 && stock <= 2 && !product.isOneOfAKind && (
+            <p className="text-xs text-accent uppercase tracking-[0.2em]">
+              Only {stock} left
+            </p>
+          )}
+
           <div className="pt-2">
             <AddToCart
               id={String(product.id)}
@@ -186,7 +221,9 @@ export default async function ProductPage({
               title={product.title}
               price={product.price}
               imageUrl={primaryImage?.url}
-              outOfStock={(product.stockQuantity ?? 1) === 0}
+              outOfStock={stock === 0}
+              maxQuantity={sizes.length > 0 ? undefined : (product.stockQuantity ?? 1)}
+              sizes={sizes}
             />
           </div>
 
@@ -204,7 +241,7 @@ export default async function ProductPage({
             )}
             {product.tags && product.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {product.tags.map((t, i) => (
+                {product.tags.map((t: { tag?: string }, i: number) => (
                   <span
                     key={i}
                     className="text-[10px] text-muted border border-border px-2 py-0.5 uppercase tracking-wider"
@@ -221,6 +258,34 @@ export default async function ProductPage({
           </div>
         </div>
       </div>
+
+      {/* Related pieces */}
+      {related.length > 0 && (
+        <section className="mt-24 pt-12 border-t border-border">
+          <h2 className="text-xs uppercase tracking-[0.25em] text-muted mb-8">
+            {artist && 'name' in artist ? `More from ${artist.name}` : 'You may also like'}
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            {related.map((rel) => {
+              const relImages = Array.isArray(rel.images) ? rel.images : []
+              const relArtist =
+                rel.artist && typeof rel.artist === 'object' && 'name' in rel.artist ? rel.artist : null
+              return (
+                <ProductCard
+                  key={rel.id}
+                  slug={rel.slug}
+                  title={rel.title}
+                  price={rel.price}
+                  imageUrl={relImages[0]?.url}
+                  imageAlt={relImages[0]?.alt ?? undefined}
+                  artistName={relArtist?.name}
+                  soldOut={totalStock(rel) === 0}
+                />
+              )
+            })}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

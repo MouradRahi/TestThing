@@ -8,11 +8,9 @@ type Args = {
   searchParams: Promise<{ [key: string]: string | string[] }>
 }
 
-// @ts-expect-error — buildConfig is async, so config IS the Promise RootPage expects
 export const generateMetadata = ({ params, searchParams }: Args): Promise<Metadata> =>
   generatePageMetadata({ config, params, searchParams })
 
-// @ts-expect-error — buildConfig is async, so config IS the Promise RootPage expects
 const Page = ({ params, searchParams }: Args) =>
   RootPage({ config, importMap, params, searchParams })
 

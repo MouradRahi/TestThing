@@ -12,6 +12,7 @@ type FormState = {
   referenceArtist: string
   referenceSong: string
   garmentType: string
+  website: string // honeypot — must stay empty; bots that fill it are silently dropped
 }
 
 const GARMENT_OPTIONS = [
@@ -30,6 +31,7 @@ export default function CustomRequestPage() {
     referenceArtist: '',
     referenceSong: '',
     garmentType: '',
+    website: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -90,6 +92,21 @@ export default function CustomRequestPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Honeypot — hidden from real users, bots fill it and get silently dropped */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', height: 0, overflow: 'hidden' }}>
+          <label>
+            Website
+            <input
+              type="text"
+              name="website"
+              value={form.website}
+              onChange={handleChange}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </label>
+        </div>
+
         <SectionLabel>You</SectionLabel>
 
         <Field label="Full Name *" name="name" value={form.name} onChange={handleChange} required />

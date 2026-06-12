@@ -1,10 +1,19 @@
 import type { GlobalConfig } from 'payload'
+import { safeRevalidatePath, safeRevalidateTag } from '../lib/revalidate'
 
 export const Navigation: GlobalConfig = {
   slug: 'navigation',
   admin: {
     group: 'Site Configuration',
     description: 'Manage header and footer navigation links without touching code.',
+  },
+  hooks: {
+    afterChange: [
+      () => {
+        safeRevalidateTag('navigation')
+        safeRevalidatePath('/', 'layout')
+      },
+    ],
   },
   fields: [
     {

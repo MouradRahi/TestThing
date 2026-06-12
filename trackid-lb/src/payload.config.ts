@@ -19,6 +19,13 @@ import { Homepage } from './globals/Homepage'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+const payloadSecret = process.env.PAYLOAD_SECRET || ''
+if (!payloadSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('PAYLOAD_SECRET must be set in production — refusing to start with a known secret.')
+}
+// Dev-only fallback; production throws above before this is ever used
+const secret = payloadSecret || 'dev-only-secret'
+
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -29,7 +36,7 @@ export default buildConfig({
   collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Users],
   globals: [SiteSettings, Navigation, Homepage],
   editor: lexicalEditor(),
-  secret: process.env.PAYLOAD_SECRET || 'trackid-lb-dev-secret-change-in-production',
+  secret,
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },

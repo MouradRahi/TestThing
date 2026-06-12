@@ -1,6 +1,14 @@
 import { getPayload } from '@/lib/payload'
 import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
-import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
+import { resolveDeliveryFee, getDeliveryZones } from '@/lib/site-settings'
+import { getSizes } from '@/lib/stock'
+import { safeRevalidatePath } from '@/lib/revalidate'
+import { NextRequest, NextResponse, after } from 'next/server'
+import type { Payload } from 'payload'
+
+const MAX_DISTINCT_ITEMS = 30
+const MAX_QUANTITY_PER_ITEM = 99
 
 function generateOrderNumber(): string {
   // 6-digit ms timestamp tail + 4 random alphanumeric chars — no module state,
@@ -10,48 +18,281 @@ function generateOrderNumber(): string {
   return `TRK-${ts}-${rand}`
 }
 
+// ── Stock ────────────────────────────────────────────────────────────────────
+
+type PgPool = { query: (sql: string, params: unknown[]) => Promise<{ rowCount: number | null }> }
+
+function getPool(payload: Payload): PgPool | null {
+  const pool = (payload.db as unknown as { pool?: PgPool }).pool
+  return pool && typeof pool.query === 'function' ? pool : null
+}
+
+type StockLine = { productId: number; quantity: number; size?: string }
+
+/**
+ * Conditional decrement: only succeeds when enough stock exists, atomically.
+ * Two concurrent orders for the last one-of-a-kind piece cannot both pass.
+ * Sized products decrement the matching row in the products_sizes array table.
+ */
+async function decrementStock(payload: Payload, line: StockLine): Promise<boolean> {
+  const pool = getPool(payload)
+  if (pool) {
+    try {
+      const res = line.size
+        ? await pool.query(
+            'UPDATE products_sizes SET stock_quantity = stock_quantity - $1 WHERE _parent_id = $2 AND label = $3 AND stock_quantity >= $1',
+            [line.quantity, line.productId, line.size],
+          )
+        : await pool.query(
+            'UPDATE products SET stock_quantity = stock_quantity - $1 WHERE id = $2 AND stock_quantity >= $1',
+            [line.quantity, line.productId],
+          )
+      return (res.rowCount ?? 0) > 0
+    } catch (err) {
+      console.error('[orders] Atomic decrement failed, falling back to read-modify-write:', err)
+    }
+  }
+  // Fallback without direct pool access — the min:0 field validation still
+  // prevents stock from going negative, just not atomically.
+  const product = await payload.findByID({ collection: 'products', id: line.productId, depth: 0 })
+  if (line.size) {
+    const sizes = Array.isArray(product.sizes) ? [...product.sizes] : []
+    const idx = sizes.findIndex((s: { label?: string }) => s?.label === line.size)
+    if (idx < 0 || (sizes[idx].stockQuantity ?? 0) < line.quantity) return false
+    sizes[idx] = { ...sizes[idx], stockQuantity: sizes[idx].stockQuantity - line.quantity }
+    await payload.update({ collection: 'products', id: line.productId, data: { sizes } })
+    return true
+  }
+  const current = typeof product.stockQuantity === 'number' ? product.stockQuantity : 0
+  if (current < line.quantity) return false
+  await payload.update({
+    collection: 'products',
+    id: line.productId,
+    data: { stockQuantity: current - line.quantity },
+  })
+  return true
+}
+
+async function restoreStock(payload: Payload, lines: StockLine[]): Promise<void> {
+  for (const line of lines) {
+    try {
+      const pool = getPool(payload)
+      if (pool) {
+        if (line.size) {
+          await pool.query(
+            'UPDATE products_sizes SET stock_quantity = stock_quantity + $1 WHERE _parent_id = $2 AND label = $3',
+            [line.quantity, line.productId, line.size],
+          )
+        } else {
+          await pool.query('UPDATE products SET stock_quantity = stock_quantity + $1 WHERE id = $2', [
+            line.quantity,
+            line.productId,
+          ])
+        }
+        continue
+      }
+      const product = await payload.findByID({ collection: 'products', id: line.productId, depth: 0 })
+      if (line.size) {
+        const sizes = Array.isArray(product.sizes) ? [...product.sizes] : []
+        const idx = sizes.findIndex((s: { label?: string }) => s?.label === line.size)
+        if (idx < 0) continue
+        sizes[idx] = { ...sizes[idx], stockQuantity: (sizes[idx].stockQuantity ?? 0) + line.quantity }
+        await payload.update({ collection: 'products', id: line.productId, data: { sizes } })
+      } else {
+        const current = typeof product.stockQuantity === 'number' ? product.stockQuantity : 0
+        await payload.update({
+          collection: 'products',
+          id: line.productId,
+          data: { stockQuantity: current + line.quantity },
+        })
+      }
+    } catch (err) {
+      console.error(`[orders] Failed to restore stock for product ${line.productId}:`, err)
+    }
+  }
+}
+
+// ── Route ────────────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { customerName, customerPhone, customerEmail, deliveryAddress, area, items, notes, paymentMethod } = body
-
-    if (!customerName || !customerPhone || !deliveryAddress || !area || !items?.length) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    if (!rateLimit(`orders:${clientIp(req)}`, 5, 10 * 60_000)) {
+      return NextResponse.json(
+        { error: 'Too many orders from this connection. Please wait a few minutes and try again.' },
+        { status: 429 },
+      )
     }
 
-    const subtotal = items.reduce(
-      (sum: number, item: { priceAtPurchase: number; quantity: number }) =>
-        sum + item.priceAtPurchase * item.quantity,
-      0,
-    )
-    const deliveryFee = 0 // set delivery fee logic here later
-    const total = subtotal + deliveryFee
+    const body = await req.json().catch(() => null)
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    }
+
+    // Honeypot — real users never see this field. Pretend success so bots move on.
+    if (body.website) {
+      return NextResponse.json({ orderId: 0, orderNumber: generateOrderNumber() }, { status: 201 })
+    }
+
+    const customerName = cleanString(body.customerName, 120)
+    const customerPhone = cleanString(body.customerPhone, 40)
+    const deliveryAddress = cleanString(body.deliveryAddress, 500)
+    const area = cleanString(body.area, 120)
+    const customerEmail = cleanOptional(body.customerEmail, 160)
+    const notes = cleanOptional(body.notes, 1000)
+    const paymentMethod: 'cod' | 'bank_transfer' =
+      body.paymentMethod === 'bank_transfer' ? 'bank_transfer' : 'cod'
+
+    if (!customerName || !customerPhone || !deliveryAddress || !area || customerEmail === null || notes === null) {
+      return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+    }
+
+    const phoneDigits = customerPhone.replace(/[\s()-]/g, '')
+    if (!/^\+?\d{7,15}$/.test(phoneDigits)) {
+      return NextResponse.json({ error: 'Please enter a valid phone number.' }, { status: 400 })
+    }
+
+    const rawItems = Array.isArray(body.items) ? body.items : []
+    if (rawItems.length === 0 || rawItems.length > MAX_DISTINCT_ITEMS) {
+      return NextResponse.json({ error: 'Invalid items' }, { status: 400 })
+    }
+
+    // The client sends only { productId, quantity, size? } — duplicates merged here.
+    // A line is product + size; the same product in two sizes is two lines.
+    const qtyByLine = new Map<string, { productId: number; size?: string; quantity: number }>()
+    for (const raw of rawItems) {
+      const productId = Number(raw?.productId)
+      const quantity = Number(raw?.quantity)
+      const size = cleanOptional(raw?.size, 40)
+      if (
+        !Number.isInteger(productId) || productId <= 0 ||
+        !Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY_PER_ITEM ||
+        size === null
+      ) {
+        return NextResponse.json({ error: 'Invalid items' }, { status: 400 })
+      }
+      const key = `${productId}|${size ?? ''}`
+      const existing = qtyByLine.get(key)
+      qtyByLine.set(key, { productId, size, quantity: (existing?.quantity ?? 0) + quantity })
+    }
 
     const payload = await getPayload()
 
-    const order = await payload.create({
-      collection: 'orders',
-      data: {
-        orderNumber: generateOrderNumber(),
-        customerName,
-        customerPhone,
-        customerEmail,
-        deliveryAddress,
-        area,
-        items,
-        subtotal,
-        deliveryFee,
-        total,
-        paymentMethod: paymentMethod || 'cod',
-        paymentStatus: 'pending',
-        orderStatus: 'pending',
-        notes,
+    // Prices, titles, and images come from the database — never from the client.
+    const productIds = [...new Set([...qtyByLine.values()].map((l) => l.productId))]
+    const { docs: products } = await payload.find({
+      collection: 'products',
+      where: {
+        id: { in: productIds },
+        status: { equals: 'published' },
       },
+      limit: MAX_DISTINCT_ITEMS,
+      depth: 0,
     })
 
+    if (products.length !== productIds.length) {
+      return NextResponse.json(
+        { error: 'Some items in your cart are no longer available. Please review your cart.' },
+        { status: 409 },
+      )
+    }
+
+    const productById = new Map(products.map((p) => [Number(p.id), p]))
+
+    // Validate sizes against the catalog before touching stock or money.
+    for (const line of qtyByLine.values()) {
+      const product = productById.get(line.productId)!
+      const sizes = getSizes(product)
+      if (sizes.length > 0) {
+        if (!line.size || !sizes.some((s) => s.label === line.size)) {
+          return NextResponse.json(
+            { error: `Please pick a size for "${product.title}".` },
+            { status: 400 },
+          )
+        }
+      } else {
+        line.size = undefined // unsized product — ignore any stray size value
+      }
+    }
+
+    const items = [...qtyByLine.values()].map((line) => {
+      const product = productById.get(line.productId)!
+      const images = Array.isArray(product.images) ? product.images : []
+      return {
+        productId: String(product.id),
+        titleAtPurchase: product.title,
+        size: line.size,
+        priceAtPurchase: product.price,
+        quantity: line.quantity,
+        imageUrl: images[0]?.url ?? undefined,
+      }
+    })
+    const subtotal = items.reduce((sum, item) => sum + item.priceAtPurchase * item.quantity, 0)
+
+    // Delivery fee comes from the configured zones, never from the client.
+    // Validate before touching stock so invalid submissions fail cleanly.
+    let settings: Record<string, unknown> = {}
+    try {
+      settings = (await payload.findGlobal({ slug: 'site-settings' })) as Record<string, unknown>
+    } catch {
+      // fresh install without the global — free-text area mode, fee 0
+    }
+    const deliveryFee = resolveDeliveryFee(settings, area, subtotal)
+    if (deliveryFee === null) {
+      return NextResponse.json({ error: 'Please select a valid delivery area.' }, { status: 400 })
+    }
+    const total = subtotal + deliveryFee
+
+    const decremented: StockLine[] = []
+    for (const line of qtyByLine.values()) {
+      const product = productById.get(line.productId)!
+      if (!(await decrementStock(payload, line))) {
+        await restoreStock(payload, decremented)
+        const label = line.size ? `"${product.title}" in size ${line.size}` : `"${product.title}"`
+        return NextResponse.json(
+          { error: `${label} is no longer available in the requested quantity. Please update your cart.` },
+          { status: 409 },
+        )
+      }
+      decremented.push({ productId: line.productId, quantity: line.quantity, size: line.size })
+    }
+
+    let order
+    try {
+      order = await payload.create({
+        collection: 'orders',
+        data: {
+          orderNumber: generateOrderNumber(),
+          customerName,
+          customerPhone,
+          customerEmail,
+          deliveryAddress,
+          area,
+          items,
+          subtotal,
+          deliveryFee,
+          total,
+          paymentMethod,
+          paymentStatus: 'pending',
+          orderStatus: 'pending',
+          notes,
+        },
+      })
+    } catch (err) {
+      await restoreStock(payload, decremented)
+      throw err
+    }
+
+    // Stock changed via raw SQL (bypasses Payload hooks) — refresh the cached pages
+    safeRevalidatePath('/shop')
+    safeRevalidatePath('/')
+    for (const product of products) {
+      if (product.slug) safeRevalidatePath(`/product/${product.slug}`)
+    }
+
+    const zonesConfigured = getDeliveryZones(settings).length > 0
     const notificationData = {
       orderId: String(order.id),
-      orderNumber: order.orderNumber,
+      orderNumber: order.orderNumber as string,
       customerName,
       customerPhone,
       customerEmail,
@@ -60,12 +301,26 @@ export async function POST(req: NextRequest) {
       items,
       subtotal,
       total,
-      paymentMethod: (paymentMethod || 'cod') as 'cod' | 'bank_transfer',
+      paymentMethod,
+      deliveryFeeLabel: zonesConfigured
+        ? deliveryFee === 0
+          ? 'Free'
+          : `$${deliveryFee.toFixed(2)}`
+        : undefined,
+      bankInstructions:
+        paymentMethod === 'bank_transfer' && typeof settings.bankTransferInstructions === 'string'
+          ? settings.bankTransferInstructions
+          : undefined,
     }
 
-    // Fire-and-forget — notifications must never block the order response
-    void sendOrderConfirmationEmail(notificationData)
-    void sendOrderWhatsAppAlert(notificationData)
+    // after() keeps the serverless function alive past the response —
+    // a plain void'd promise can be frozen before it completes on Vercel.
+    after(() =>
+      Promise.allSettled([
+        sendOrderConfirmationEmail(notificationData),
+        sendOrderWhatsAppAlert(notificationData),
+      ]),
+    )
 
     return NextResponse.json({ orderId: order.id, orderNumber: order.orderNumber }, { status: 201 })
   } catch (err) {

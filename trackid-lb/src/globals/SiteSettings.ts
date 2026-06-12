@@ -1,10 +1,20 @@
 import type { GlobalConfig } from 'payload'
+import { safeRevalidatePath, safeRevalidateTag } from '../lib/revalidate'
 
 export const SiteSettings: GlobalConfig = {
   slug: 'site-settings',
   admin: {
     group: 'Site Configuration',
     description: 'Global brand settings — store name, colors, announcement bar, footer text.',
+  },
+  hooks: {
+    // Settings feed the layout (theme, nav, footer) of every page — bust everything
+    afterChange: [
+      () => {
+        safeRevalidateTag('site-settings')
+        safeRevalidatePath('/', 'layout')
+      },
+    ],
   },
   fields: [
     {
@@ -42,6 +52,53 @@ export const SiteSettings: GlobalConfig = {
               name: 'whatsappNumber',
               type: 'text',
               admin: { description: 'Full number with country code, e.g. +96170123456' },
+            },
+          ],
+        },
+
+        // ── COMMERCE ────────────────────────────────────────────────────────
+        {
+          label: 'Commerce',
+          fields: [
+            {
+              name: 'deliveryZones',
+              type: 'array',
+              admin: {
+                description:
+                  'Delivery areas and their fees. When configured, checkout shows these as a dropdown and the fee is added to the total. Leave empty to keep free-text area entry with no fee.',
+              },
+              fields: [
+                {
+                  name: 'label',
+                  type: 'text',
+                  required: true,
+                  admin: { description: 'e.g. "Beirut", "Mount Lebanon", "Tripoli & North"' },
+                },
+                {
+                  name: 'fee',
+                  type: 'number',
+                  required: true,
+                  min: 0,
+                  admin: { description: 'Delivery fee in USD for this zone' },
+                },
+              ],
+            },
+            {
+              name: 'freeDeliveryThreshold',
+              type: 'number',
+              min: 0,
+              admin: {
+                description:
+                  'Order subtotal (USD) at or above which delivery is free. Leave empty to disable.',
+              },
+            },
+            {
+              name: 'bankTransferInstructions',
+              type: 'textarea',
+              admin: {
+                description:
+                  'Shown at checkout, on the order confirmation page, and in the confirmation email when the customer picks Bank Transfer — bank name, account/IBAN, and what to put as the transfer reference.',
+              },
             },
           ],
         },

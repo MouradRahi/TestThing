@@ -438,3 +438,51 @@ trackid-lb/
   - `page.tsx` now a 10-line RSC — fetches Homepage global (depth: 2) and delegates entirely to BlockRenderer
   - Restart dev server and go to Admin → Site Configuration → Homepage to build the homepage
 - Next: Phase 9 — Extended Page Builder
+
+### Session 8 — 2026-06-11
+- Full codebase audit + production build verification
+- Fixed 6 TypeScript errors (the "zero TS errors" claim had gone stale):
+  - `next.config.ts` — removed invalid `configPath` option from `withPayload`
+  - `product/[slug]/page.tsx` — typed `tags.map()` params
+  - Removed 3 stale `@ts-expect-error` directives in `(payload)/admin` pages
+- `npm run build` passes — 16 pages, zero type errors
+- Created **`IMPROVEMENTS.md`** (repo root) — the full audit findings + prioritized roadmap. Read it before doing any new work. Highlights:
+  - P0: orders API trusts client prices ($0-order exploit), no stock check/decrement, no rate limiting, `void`-ed notifications can be killed on Vercel (use `after()`), HTML injection in email, announcement bar hidden behind fixed nav, order confirmation page fetches nothing, `PAYLOAD_SECRET` fallback still hardcoded, no slug normalization (live `/product/Jeans`), role field enforces nothing
+  - P1: delivery fees, bank transfer instructions, product sizes/variants, broken "Load More", search/sort, status-update emails
+  - P2 white-label: dead SiteSettings fields (logoUrl/ogImage/contactEmail/tagline/whatsappNumber never rendered), ~10 hardcoded brand strings, no font/radius/favicon settings
+  - P3: Media upload collection (replace paste-a-URL workflow), generate payload-types.ts, drafts/preview, instant revalidation hooks
+- Proposed execution order: Phases 9a/9b (security + launch UX) → 10 (commerce depth) → 11 (true white-label) → 12 (admin UX) — see IMPROVEMENTS.md
+- Doc corrections needed in this file: images are Supabase (two sections still say Cloudinary); `/shop` is dynamic, not ISR; Session 3's PAYLOAD_SECRET fix is incomplete
+
+### Session 9 — 2026-06-11
+- Completed **Phase 9a — Trust the server** (all P0 order-integrity items from IMPROVEMENTS.md):
+  - `POST /api/orders` rewritten: client now sends only `{ productId, quantity }`; prices, titles, and images are resolved from the DB; unknown/unpublished products rejected; quantities validated (integer 1–99, ≤30 distinct items, duplicates merged)
+  - Stock: atomic conditional decrement (`UPDATE products SET stock_quantity = stock_quantity - $1 WHERE … AND stock_quantity >= $1` via `payload.db.pool`, with payload.update fallback); decrements rolled back if a later item is out of stock or order creation fails; 409 with the item name on insufficient stock
+  - Orders `afterChange` hook: cancelling restocks items, un-cancelling re-decrements (floored at 0); order delete is now admin-only
+  - `src/lib/api-guards.ts` (new): in-memory sliding-window rate limit + string length/shape validators; orders 5/10min/IP, custom requests 3/10min/IP; honeypot field `website` on both forms (bots get fake success)
+  - Notifications now run inside `after()` from `next/server` (a `void`-ed promise can be frozen on Vercel before completing); all customer-supplied values in the email HTML are escaped (`escapeHtml`)
+  - `payload.config.ts` throws at startup in production if `PAYLOAD_SECRET` is unset (dev-only fallback retained)
+  - `src/lib/access.ts` (new) `isAdmin()`; Users collection: only admins create/delete users, users may edit themselves but the `role` field is admin-only (no self-promotion)
+  - Cart: `CartItem.maxQuantity` added; add/update clamp to available stock; cart page + button disables at max (UI nicety — server re-validates regardless)
+- Build verified passing after all changes; IMPROVEMENTS.md checkboxes updated (1.1, 1.2, 1.4, 1.5, 1.6, 1.9, 1.11 ☑)
+- Deliberately skipped: auto-unpublishing one-of-a-kind at stock 0 — page stays live showing "Sold Out" so shared links don't 404
+- Completed **Phase 9b — Launch UX** in the same session:
+  - Slug normalization: `src/lib/slug.ts` (`slugify` + `formatSlug` beforeValidate hook) on Products/Artists/Categories/Pages; slugs auto-generate from title/name when empty; one-off DB fix normalized existing data (`Jeans` → `jeans`, one category)
+  - SiteSettings → new **Commerce** tab: `deliveryZones[] { label, fee }`, `freeDeliveryThreshold`, `bankTransferInstructions`
+  - Checkout split into RSC page + `src/components/checkout/CheckoutForm.tsx` (client): area becomes a zone dropdown with live fee in the summary (falls back to free text when no zones configured), bank-transfer instructions box, client phone validation
+  - Orders API: delivery fee computed server-side from zones (rejects unknown areas when zones exist, validated **before** stock decrement), generic international phone validation, fee/total + bank instructions passed to email/WhatsApp
+  - Email: Delivery + Total rows in totals table; bank instructions rendered (escaped) when set
+  - Order confirmation rebuilt at `/order/[orderNumber]` (folder renamed from `[id]`): fetches the order, 404s on bad numbers, shows items/totals/fee/status/address/payment + "How to pay" bank box
+  - Header stack fixed: announcement bar + nav share one `sticky top-0` wrapper, nav no longer `fixed`, `pt-14` removed — announcement bar finally visible
+  - Mobile nav: hamburger menu (cart + badge stay visible, CMS links collapse into a panel)
+  - Shop pagination: honest "Next Page →" / "← First Page" (was a "Load More" that replaced the grid)
+  - Product page: quantity selector (clamped to stock, hidden for single-stock pieces) + "Added ✓" button feedback; `CartContext.addItem` accepts a quantity
+- Build verified passing after 9a + 9b; IMPROVEMENTS.md updated (1.7, 1.8, 1.10, 2.1, 2.2, 2.4 ☑; 2.5 partial)
+- Completed **Phase 10 — Commerce depth** in the same session:
+  - **Instant revalidation** (1.3): `src/lib/revalidate.ts` (`safeRevalidatePath`/`safeRevalidateTag`); afterChange/afterDelete hooks on Products/Artists/Categories/Pages and all three globals; `unstable_cache` calls tagged (`site-settings`, `navigation`); the orders route revalidates affected product pages + /shop directly (its raw-SQL decrement bypasses hooks). Admin edits and stock changes now appear immediately — the 1h ISR window is gone.
+  - **Sizes/variants** (2.3): `Products.sizes[] { label, stockQuantity }` (hidden for one-of-a-kind; flat stockQuantity used when empty); `src/lib/stock.ts` (`getSizes`, `totalStock`) centralizes semantics; `Orders.items.size` field added. Size picker on product page with per-size sold-out states. Cart lines keyed `product|size` (`cartLineKey` in cart.ts; CartContext remove/update take the line key; old localStorage carts backfilled on read). Orders API validates the size against the catalog and decrements `products_sizes` atomically (SQL conditional update, read-modify-write fallback); restock-on-cancel hook is size-aware. Size shown in cart, checkout summary, confirmation page, email, WhatsApp.
+  - **Status updates** (2.6): `sendOrderStatusEmail` in notifications.ts (confirmed/in_production/shipped/delivered/cancelled copy); Orders afterChange hook emails the customer on status transitions (skipped on create). `/track` page (RSC + small client form) redirects to `/order/[orderNumber]`; linked in footer fallback.
+  - **Search/sort/discovery** (2.7): shop `?q=` search (title + tags via `like`, plain GET form, zero JS), sort Newest/Price↑/Price↓ (price sorts are single 60-item pages — createdAt cursor only applies to newest), sold-out badge + dimmed image on ProductCard (shop/featured/related), "Only X left" hint (≤2, non-one-of-a-kind), related products on product detail ("More from {artist}", category fallback)
+- **Schema note**: new `products_sizes` table + `orders_items.size` column required a dev-server boot to push (Payload only pushes schema in dev) — first prod build failed with `relation "products_sizes" does not exist`, fixed by running `npm run dev` once. Remember this for any future field additions before a production deploy (or set up proper Payload migrations).
+- Build verified passing (17 pages incl. /track); deferred from 2.7: artist filter chips → dropdown at scale
+- Next: **Phase 11 — True white-label** (IMPROVEMENTS.md §3: dead SiteSettings fields, Copy tab for hardcoded strings, fonts, radius, favicon + §4.2 generate payload-types)

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
+import { totalStock } from '@/lib/stock'
 
 type Props = {
   sectionTitle?: string
@@ -62,6 +63,7 @@ export async function FeaturedSection({
               imageUrl={images[0]?.url}
               imageAlt={images[0]?.alt ?? undefined}
               artistName={artist?.name}
+              soldOut={totalStock(product) === 0}
             />
           )
         })}
