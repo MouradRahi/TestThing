@@ -12,11 +12,19 @@ type CartContextValue = {
   clearCart: () => void
   itemCount: number
   total: number
+  /** CMS-driven copy shown on the empty cart page (SiteSettings → Copy). */
+  emptyCartMessage: string
 }
 
 const CartContext = createContext<CartContextValue | null>(null)
 
-export function CartProvider({ children }: { children: React.ReactNode }) {
+export function CartProvider({
+  children,
+  emptyCartMessage = 'Find a piece that speaks to you.',
+}: {
+  children: React.ReactNode
+  emptyCartMessage?: string
+}) {
   const [items, setItems] = useState<CartItem[]>([])
 
   // Hydrate from localStorage after mount to avoid SSR mismatch
@@ -66,7 +74,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, itemCount, total }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, itemCount, total, emptyCartMessage }}>
       {children}
     </CartContext.Provider>
   )

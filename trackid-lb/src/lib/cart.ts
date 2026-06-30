@@ -13,7 +13,9 @@ export type CartItem = {
   maxQuantity?: number
 }
 
-const CART_KEY = 'trackid-cart'
+// Namespaced per brand so a second deployment doesn't collide on shared origins
+// (e.g. localhost during dev). Set NEXT_PUBLIC_CART_KEY to override at build time.
+const CART_KEY = process.env.NEXT_PUBLIC_CART_KEY || 'trackid-cart'
 
 export function cartLineKey(id: string, size?: string): string {
   return `${id}|${size ?? ''}`

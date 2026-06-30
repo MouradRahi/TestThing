@@ -21,6 +21,23 @@ export type OrderNotificationData = {
   deliveryFeeLabel?: string
   /** Bank transfer payment details from SiteSettings, only set for bank_transfer orders */
   bankInstructions?: string
+  /** Brand voice from SiteSettings → Copy tab. Defaults applied when omitted. */
+  brand?: BrandCopy
+}
+
+// Mirror of site-settings.ts BrandCopy — duplicated here so this stays a pure
+// renderer with no SiteSettings/Payload import. Callers pass resolved strings.
+export type BrandCopy = {
+  storeName: string
+  emailGreeting: string
+  emailFooterNote: string
+}
+
+const DEFAULT_BRAND: BrandCopy = {
+  storeName: 'trackID.lb',
+  emailGreeting:
+    'Thank you for supporting the music. Our team will reach out on WhatsApp to confirm your delivery details and arrange handoff.',
+  emailFooterNote: "Lebanon's music fashion brand.",
 }
 
 // Customer-supplied values go straight into email HTML — escape them so a
@@ -73,6 +90,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
     )
     .join('')
 
+  const brand = order.brand ?? DEFAULT_BRAND
   const paymentLabel = order.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Bank Transfer'
   const bankNote =
     order.paymentMethod === 'bank_transfer'
@@ -99,7 +117,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Brand header -->
           <tr>
             <td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
-              <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">TRACKID.LB</p>
+              <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
             </td>
           </tr>
 
@@ -118,7 +136,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Greeting -->
           <tr>
             <td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
-              <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(order.customerName)},<br><br>Thank you for supporting the music. Our team will reach out on WhatsApp to confirm your delivery details and arrange handoff.</p>
+              <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(order.customerName)},<br><br>${escapeHtml(brand.emailGreeting)}</p>
             </td>
           </tr>
 
@@ -172,7 +190,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Footer -->
           <tr>
             <td style="padding-top:32px;">
-              <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">trackID.lb — Lebanon's music fashion brand.<br>Questions? Reply to this email or WhatsApp us directly.</p>
+              <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">${escapeHtml(brand.storeName)} — ${escapeHtml(brand.emailFooterNote)}<br>Questions? Reply to this email or WhatsApp us directly.</p>
             </td>
           </tr>
 
@@ -191,6 +209,8 @@ export type StatusEmailData = {
   customerName: string
   customerEmail: string
   status: string
+  /** Brand voice from SiteSettings → Copy tab. Defaults applied when omitted. */
+  brand?: BrandCopy
 }
 
 const STATUS_EMAIL_COPY: Record<string, { subject: string; body: string }> = {
@@ -228,6 +248,7 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
 
   const resend = new Resend(apiKey)
   const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const brand = data.brand ?? DEFAULT_BRAND
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -237,7 +258,7 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
     <tr><td align="center" style="padding:48px 16px;">
       <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
         <tr><td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
-          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">TRACKID.LB</p>
+          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
         </td></tr>
         <tr><td style="padding:36px 0 6px;">
           <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">${copy.subject}</h1>

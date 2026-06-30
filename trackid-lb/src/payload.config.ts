@@ -33,7 +33,9 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     meta: {
-      titleSuffix: '— trackID.lb Admin',
+      // Config loads before the DB, so the admin title can't read storeName from
+      // SiteSettings — set NEXT_PUBLIC_STORE_NAME to rebrand the admin tab title.
+      titleSuffix: `— ${process.env.NEXT_PUBLIC_STORE_NAME || 'trackID.lb'} Admin`,
     },
     // Local admin component paths (e.g. '/components/...') resolve relative to src/
     importMap: {

@@ -6,13 +6,13 @@ import { useCart } from '@/components/cart/CartContext'
 import { Button } from '@/components/ui/Button'
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, total, itemCount } = useCart()
+  const { items, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
 
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-6 py-32 text-center">
         <h1 className="text-2xl font-bold text-foreground mb-3">Your cart is empty</h1>
-        <p className="text-muted text-sm mb-10">Find a piece that speaks to you.</p>
+        <p className="text-muted text-sm mb-10">{emptyCartMessage}</p>
         <Button href="/shop">Browse Shop</Button>
       </div>
     )

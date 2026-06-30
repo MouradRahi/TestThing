@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
 import { resolveAlt } from '@/lib/image'
+import { getSiteSettings, resolveStoreName } from '@/lib/site-settings'
 
 export const revalidate = 3600
 
@@ -34,9 +35,10 @@ export async function generateMetadata({
   const artist = docs[0]
   if (!artist) return {}
 
+  const storeName = resolveStoreName(await getSiteSettings())
   const description = artist.bio
     ? `${artist.bio.slice(0, 140)}...`
-    : `Hand-painted pieces inspired by ${artist.name} — trackID.lb`
+    : `Hand-painted pieces inspired by ${artist.name} — ${storeName}`
 
   return {
     title: artist.name,

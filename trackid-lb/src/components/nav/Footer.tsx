@@ -16,7 +16,7 @@ export async function Footer() {
   const logoUrl = (settings.logoUrl as string) || ''
   const tagline = (settings.footerTagline as string) || 'Hand-painted clothing for the artists you love. Made in Lebanon.'
   const footerNote = (settings.footerNote as string) || 'Cash on Delivery · Lebanon only'
-  const copyright = resolveCopyright((settings.copyrightText as string) || '')
+  const copyright = resolveCopyright((settings.copyrightText as string) || '', storeName)
   const socialLinks = Array.isArray(settings.socialLinks) ? settings.socialLinks : []
 
   const footerColumns = Array.isArray(nav.footerColumns) ? nav.footerColumns : []
