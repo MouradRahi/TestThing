@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { AddToCart } from '@/components/product/AddToCart'
 import { ProductCard } from '@/components/product/ProductCard'
 import { getSizes, totalStock } from '@/lib/stock'
+import { resolveAlt } from '@/lib/image'
 
 export const revalidate = 3600
 
@@ -153,7 +154,7 @@ export default async function ProductPage({
             {primaryImage?.url ? (
               <Image
                 src={primaryImage.url}
-                alt={primaryImage.alt || product.title}
+                alt={resolveAlt(primaryImage) || product.title}
                 fill
                 className="object-cover"
                 priority
@@ -175,7 +176,7 @@ export default async function ProductPage({
                   {img.url && (
                     <Image
                       src={img.url}
-                      alt={img.alt || product.title}
+                      alt={resolveAlt(img) || product.title}
                       fill
                       className="object-cover"
                       sizes="120px"
@@ -277,7 +278,7 @@ export default async function ProductPage({
                   title={rel.title}
                   price={rel.price}
                   imageUrl={relImages[0]?.url}
-                  imageAlt={relImages[0]?.alt ?? undefined}
+                  imageAlt={resolveAlt(relImages[0]) || undefined}
                   artistName={relArtist?.name}
                   soldOut={totalStock(rel) === 0}
                 />

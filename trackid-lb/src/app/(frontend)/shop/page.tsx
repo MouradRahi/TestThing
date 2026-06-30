@@ -3,6 +3,7 @@ import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
 import { totalStock } from '@/lib/stock'
+import { resolveAlt } from '@/lib/image'
 import type { Where } from 'payload'
 
 export const revalidate = 30
@@ -194,7 +195,7 @@ export default async function ShopPage({
                 title={product.title}
                 price={product.price}
                 imageUrl={images[0]?.url}
-                imageAlt={images[0]?.alt ?? undefined}
+                imageAlt={resolveAlt(images[0]) || undefined}
                 artistName={artistObj?.name}
                 soldOut={totalStock(product) === 0}
               />

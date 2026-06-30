@@ -207,6 +207,18 @@ Pages and Homepage edits go live instantly (within cache TTL) with no undo.
 - ☐ New-order admin notification badge is covered by WhatsApp alert (Phase 3) — activate keys at launch
 - ☐ Seed script (`npm run seed`) creating demo artist/category/products/settings — makes fresh white-label installs demo-able in minutes
 
+### 4.6 Admin sales & analytics dashboard 📊 (new — requested Session 10)
+A stats view inside the Payload admin so the owner sees business health at a glance instead of scrolling the Orders list. All data already exists on the `Orders` collection (totals, status, items[], paymentMethod, area, createdAt) — this is aggregation + visualization, no new data capture.
+- ☐ Custom admin view at `/admin/analytics` (registered like the Media grid via `admin.components` + importMap) — or a `beforeDashboard` summary card row on the admin home
+- ☐ **Headline KPIs**: total revenue, order count, average order value, pending-fulfilment count — each for selectable ranges (today / 7d / 30d / all-time)
+- ☐ **Revenue over time** chart (orders grouped by day/week) — server-aggregated via `payload.db.pool` SQL (date_trunc) for speed; render with a lightweight chart lib (e.g. recharts) in a client subcomponent
+- ☐ **Breakdowns**: top products (by qty & revenue), top artists, orders by status, COD vs bank transfer split, sales by delivery zone/area
+- ☐ **Operational widgets**: low-stock list (per-size aware via `src/lib/stock.ts`), new custom-requests count, orders awaiting confirmation
+- ☐ Revenue rule: count paid/confirmed vs. cancelled correctly — exclude `cancelled`; decide whether `pending` counts as revenue or pipeline (likely show both "confirmed revenue" and "pipeline")
+- ☐ Admin-only access gate (reuse `isAdmin` from `src/lib/access.ts`)
+- Open questions to confirm before building: which KPIs matter most to the owner, currency display (USD only?), and whether this should also email a weekly summary (ties to `after()`/Resend already in place)
+- Note: this is **first-party** order analytics (revenue, fulfilment) — distinct from 6.x web analytics (GA4/Pixel page-traffic). Both can coexist.
+
 ---
 
 ## 5. P4 — Storefront QoL & Polish
@@ -253,8 +265,8 @@ Pages and Homepage edits go live instantly (within cache TTL) with no undo.
 | **9a — Trust the server** ☑ DONE (Session 9) | Order integrity & security | 1.1, 1.2, 1.4, 1.5, 1.6, 1.9, 1.11 |
 | **9b — Launch UX** ☑ DONE (Session 9; 2.5 partial — cart revalidation + per-field errors remain) | Customer-facing launch blockers | 1.7, 1.8, 1.10, 2.1, 2.2, 2.4, 2.5, mobile nav |
 | **10 — Commerce depth** ☑ DONE (Session 9; artist-filter dropdown scaling deferred) | 2.3 variants, 2.6 status updates, 2.7 search/sort, 1.3 revalidation hooks |
-| **11 — True white-label** | 3.1–3.5 (dead fields, Copy tab, fonts, radius, favicon) + 4.2 types |
-| **12 — Admin experience** | 4.1 media uploads, 4.3 drafts/preview, 4.5 seed script, Phase 9 blocks-on-pages (3.6) |
+| **11 — True white-label** (in progress, Session 10) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · remaining: 3.2 Copy tab, 3.3 fonts, 3.4 radius, 4.2 types |
+| **12 — Admin experience** | 4.1 media uploads ☑ (Session 10) · remaining: 4.6 sales/analytics dashboard, 4.3 drafts/preview, 4.5 seed script, Phase 9 blocks-on-pages (3.6) |
 | **13 — Growth** | Section 6 as the business demands |
 
 ---

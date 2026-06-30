@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
+import { resolveAlt } from '@/lib/image'
 
 export const revalidate = 3600
 
@@ -155,7 +156,7 @@ export default async function ArtistPage({
                     title={product.title}
                     price={product.price}
                     imageUrl={images[0]?.url}
-                    imageAlt={images[0]?.alt ?? undefined}
+                    imageAlt={resolveAlt(images[0]) || undefined}
                     artistName={artist.name}
                   />
                 )
