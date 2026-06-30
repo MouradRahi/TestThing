@@ -1,13 +1,24 @@
 import type { Metadata } from 'next'
+import { Inter, Space_Grotesk, Playfair_Display, DM_Sans, Manrope } from 'next/font/google'
 import { CartProvider } from '@/components/cart/CartContext'
 import { NavWrapper } from '@/components/nav/NavWrapper'
 import { Footer } from '@/components/nav/Footer'
 import { AnnouncementBar } from '@/components/AnnouncementBar'
 import { WhatsAppButton } from '@/components/WhatsAppButton'
-import { getSiteSettings, buildThemeCssVars } from '@/lib/site-settings'
+import { getSiteSettings, buildThemeCssVars, resolveFontStack } from '@/lib/site-settings'
 import './globals.css'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://trackid.lb'
+
+// Curated font set, self-hosted by next/font. All variables are attached to the
+// body; only the fonts referenced by the chosen stacks are actually downloaded.
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' })
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], display: 'swap', variable: '--font-space-grotesk' })
+const playfair = Playfair_Display({ subsets: ['latin'], display: 'swap', variable: '--font-playfair' })
+const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-dm-sans' })
+const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font-manrope' })
+
+const fontVariables = [inter, spaceGrotesk, playfair, dmSans, manrope].map((f) => f.variable).join(' ')
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings()
@@ -43,13 +54,17 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function FrontendLayout({ children }: { children: React.ReactNode }) {
   const settings = await getSiteSettings()
   const cssVars = buildThemeCssVars(settings)
+  const fontVars = {
+    '--font-heading': resolveFontStack(settings.headingFont),
+    '--font-body': resolveFontStack(settings.bodyFont),
+  } as React.CSSProperties
 
   return (
     <html lang="en">
       <head>
         <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
       </head>
-      <body>
+      <body className={fontVariables} style={fontVars}>
         <CartProvider>
           {/* Announcement + nav stick together; nav is in normal flow so the bar is never covered */}
           <div className="sticky top-0 z-50">

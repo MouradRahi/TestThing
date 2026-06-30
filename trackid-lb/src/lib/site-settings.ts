@@ -101,9 +101,17 @@ export function resolveColorTokens(settings: AnyRecord): ColorTokens {
   return COLOR_SCHEMES[scheme] ?? COLOR_SCHEMES.dark
 }
 
+// Border-radius presets override Tailwind's radius scale at runtime, so every
+// `rounded-*` utility (except `rounded-full`) follows the chosen brand shape.
+const RADIUS_PRESETS: Record<string, string[]> = {
+  sharp: ['--radius:0px', '--radius-xs:0px', '--radius-sm:0px', '--radius-md:0px', '--radius-lg:0px', '--radius-xl:0px', '--radius-2xl:0px'],
+  // soft = Tailwind defaults (no overrides)
+  round: ['--radius:0.5rem', '--radius-xs:0.25rem', '--radius-sm:0.5rem', '--radius-md:0.625rem', '--radius-lg:0.875rem', '--radius-xl:1.125rem', '--radius-2xl:1.5rem'],
+}
+
 export function buildThemeCssVars(settings: AnyRecord): string {
   const t = resolveColorTokens(settings)
-  return [
+  const vars = [
     `--color-bg:${t.bg}`,
     `--color-surface:${t.surface}`,
     `--color-border:${t.border}`,
@@ -112,7 +120,10 @@ export function buildThemeCssVars(settings: AnyRecord): string {
     `--color-accent:${t.accent}`,
     `--color-accent-hover:${t.accentHover}`,
     `--color-on-accent:${t.onAccent}`,
-  ].join(';')
+  ]
+  const radius = RADIUS_PRESETS[(settings.borderRadius as string) ?? 'soft']
+  if (radius) vars.push(...radius)
+  return vars.join(';')
 }
 
 // ── Commerce helpers ─────────────────────────────────────────────────────────
@@ -141,6 +152,35 @@ export function resolveDeliveryFee(settings: AnyRecord, area: string, subtotal: 
     typeof settings.freeDeliveryThreshold === 'number' ? settings.freeDeliveryThreshold : null
   if (threshold !== null && subtotal >= threshold) return 0
   return zone.fee
+}
+
+// ── Typography ───────────────────────────────────────────────────────────────
+
+const SYSTEM_STACK = "system-ui, -apple-system, 'Segoe UI', sans-serif"
+
+// Each key maps to a CSS font stack. The var(--font-*) names are provided by
+// next/font in the frontend layout; the chosen ones are the only fonts the
+// browser actually downloads.
+export const FONT_STACKS: Record<string, string> = {
+  system: SYSTEM_STACK,
+  inter: `var(--font-inter), ${SYSTEM_STACK}`,
+  'space-grotesk': `var(--font-space-grotesk), ${SYSTEM_STACK}`,
+  playfair: `var(--font-playfair), Georgia, 'Times New Roman', serif`,
+  'dm-sans': `var(--font-dm-sans), ${SYSTEM_STACK}`,
+  manrope: `var(--font-manrope), ${SYSTEM_STACK}`,
+}
+
+export const FONT_OPTIONS = [
+  { label: 'System (default)', value: 'system' },
+  { label: 'Inter', value: 'inter' },
+  { label: 'Space Grotesk', value: 'space-grotesk' },
+  { label: 'Playfair Display (serif)', value: 'playfair' },
+  { label: 'DM Sans', value: 'dm-sans' },
+  { label: 'Manrope', value: 'manrope' },
+]
+
+export function resolveFontStack(key: unknown): string {
+  return (typeof key === 'string' && FONT_STACKS[key]) || SYSTEM_STACK
 }
 
 // ── Misc helpers ─────────────────────────────────────────────────────────────

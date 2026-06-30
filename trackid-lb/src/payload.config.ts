@@ -39,6 +39,10 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    components: {
+      // Sales analytics above the default admin dashboard
+      beforeDashboard: ['/components/admin/SalesDashboard#SalesDashboard'],
+    },
   },
   collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Users],
   globals: [SiteSettings, Navigation, Homepage],
@@ -76,6 +80,10 @@ export default buildConfig({
         process.env.ACCESS_KEY_ID_SUPABASE && process.env.SECRET_ACCESS_KEY_SUPABASE,
       ),
       bucket: process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'products',
+      // Upload straight from the browser to Supabase via a presigned URL, so large
+      // images don't hit Vercel's ~4.5MB serverless request-body limit. Requires a
+      // CORS rule on the bucket allowing PUT from the site origin (see DEPLOY.md).
+      clientUploads: true,
       collections: {
         media: {
           prefix: 'media',

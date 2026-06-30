@@ -159,14 +159,14 @@ Plan:
 - ☐ JSON-LD + meta descriptions built from `storeName` + CMS copy
 - ☐ Derive cart key / order-number prefix (`TRK`) from a configurable `brandSlug` / `orderPrefix` field
 
-### 3.3 Typography — the missing half of brand identity
+### 3.3 Typography — the missing half of brand identity — ☑ DONE (Session 10)
 Colors are fully theme-able; type is locked to `system-ui`. Editorial identity needs fonts.
-- ☐ SiteSettings Theme tab: `headingFont` + `bodyFont` selects from a curated set (e.g. Inter, Space Grotesk, Playfair Display, DM Sans, IBM Plex — loaded via `next/font`, subset, swap)
-- ☐ Expose as `--font-heading` / `--font-body` CSS vars alongside the color vars
+- ☑ SiteSettings Theme tab: `headingFont` + `bodyFont` selects (System, Inter, Space Grotesk, Playfair Display, DM Sans, Manrope) — loaded via `next/font/google` in the frontend layout (subset latin, display swap); only the chosen fonts download
+- ☑ Exposed as `--font-heading` / `--font-body` on `<body>`; `globals.css` applies body font everywhere + heading font to `h1–h6`. Helpers `FONT_STACKS` / `resolveFontStack` in `site-settings.ts`
 - ☐ Optional: `baseFontSize` / letter-spacing personality toggle (tight editorial vs airy minimal)
 
-### 3.4 Shape & feel tokens
-- ☐ `borderRadius` setting (sharp 0 / soft 6px / round 12px) as `--radius` var — single cheapest lever to make the same site read as a different brand
+### 3.4 Shape & feel tokens — ☑ borderRadius DONE (Session 10)
+- ☑ `borderRadius` setting (Sharp 0 / Soft default / Round) overrides Tailwind's `--radius-*` scale at runtime via the same injection as colors (`RADIUS_PRESETS` in `site-settings.ts`); every `rounded-*` utility except `rounded-full` follows it
 - ☐ Button style variant setting (filled / outline / underline-link) if we want to go further
 
 ### 3.5 Favicon & head branding
@@ -215,16 +215,15 @@ Pages and Homepage edits go live instantly (within cache TTL) with no undo.
 - ☐ New-order admin notification badge is covered by WhatsApp alert (Phase 3) — activate keys at launch
 - ☐ Seed script (`npm run seed`) creating demo artist/category/products/settings — makes fresh white-label installs demo-able in minutes
 
-### 4.6 Admin sales & analytics dashboard 📊 (new — requested Session 10)
-A stats view inside the Payload admin so the owner sees business health at a glance instead of scrolling the Orders list. All data already exists on the `Orders` collection (totals, status, items[], paymentMethod, area, createdAt) — this is aggregation + visualization, no new data capture.
-- ☐ Custom admin view at `/admin/analytics` (registered like the Media grid via `admin.components` + importMap) — or a `beforeDashboard` summary card row on the admin home
-- ☐ **Headline KPIs**: total revenue, order count, average order value, pending-fulfilment count — each for selectable ranges (today / 7d / 30d / all-time)
-- ☐ **Revenue over time** chart (orders grouped by day/week) — server-aggregated via `payload.db.pool` SQL (date_trunc) for speed; render with a lightweight chart lib (e.g. recharts) in a client subcomponent
-- ☐ **Breakdowns**: top products (by qty & revenue), top artists, orders by status, COD vs bank transfer split, sales by delivery zone/area
-- ☐ **Operational widgets**: low-stock list (per-size aware via `src/lib/stock.ts`), new custom-requests count, orders awaiting confirmation
-- ☐ Revenue rule: count paid/confirmed vs. cancelled correctly — exclude `cancelled`; decide whether `pending` counts as revenue or pipeline (likely show both "confirmed revenue" and "pipeline")
-- ☐ Admin-only access gate (reuse `isAdmin` from `src/lib/access.ts`)
-- Open questions to confirm before building: which KPIs matter most to the owner, currency display (USD only?), and whether this should also email a weekly summary (ties to `after()`/Resend already in place)
+### 4.6 Admin sales & analytics dashboard 📊 (requested Session 10) — ☑ v1 DONE (Session 10)
+A stats view inside the Payload admin so the owner sees business health at a glance instead of scrolling the Orders list. All data already exists on the `Orders` collection — pure aggregation, no new data capture / no schema change.
+- ☑ Rendered via `admin.components.beforeDashboard` (`src/components/admin/SalesDashboard.tsx`, server component, JS aggregation over orders — fine for launch volumes); registered in importMap
+- ☑ **Headline KPIs**: revenue (30d + all-time), order counts, average order value, awaiting-fulfilment count
+- ☑ **Revenue by period** table (Today / 7d / 30d / All time) — *static ranges, not an interactive selector or chart yet*
+- ☑ **Breakdowns**: top products (by qty), orders by status, COD vs bank transfer split
+- ☑ **Operational widgets**: low-stock list (≤3, per-size aware via `totalStock`), new custom-requests count, orders awaiting fulfilment
+- ☑ Revenue rule: excludes `cancelled` orders
+- ☐ Remaining for v2: interactive range selector (`?range=`), revenue-over-time **chart** (recharts), top **artists** + sales by **area/zone**, revenue/qty for top products, switch JS aggregation → `payload.db.pool` SQL at scale, **admin-only gate** (`isAdmin` — currently any panel user sees it), optional weekly email summary
 - Note: this is **first-party** order analytics (revenue, fulfilment) — distinct from 6.x web analytics (GA4/Pixel page-traffic). Both can coexist.
 
 ---

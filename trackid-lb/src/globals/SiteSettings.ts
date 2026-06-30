@@ -220,6 +220,45 @@ export const SiteSettings: GlobalConfig = {
           label: 'Theme',
           fields: [
             {
+              name: 'headingFont',
+              type: 'select',
+              defaultValue: 'system',
+              admin: { description: 'Font for headings / the logo wordmark.' },
+              options: [
+                { label: 'System (default)', value: 'system' },
+                { label: 'Inter', value: 'inter' },
+                { label: 'Space Grotesk', value: 'space-grotesk' },
+                { label: 'Playfair Display (serif)', value: 'playfair' },
+                { label: 'DM Sans', value: 'dm-sans' },
+                { label: 'Manrope', value: 'manrope' },
+              ],
+            },
+            {
+              name: 'bodyFont',
+              type: 'select',
+              defaultValue: 'system',
+              admin: { description: 'Font for body text and UI.' },
+              options: [
+                { label: 'System (default)', value: 'system' },
+                { label: 'Inter', value: 'inter' },
+                { label: 'Space Grotesk', value: 'space-grotesk' },
+                { label: 'Playfair Display (serif)', value: 'playfair' },
+                { label: 'DM Sans', value: 'dm-sans' },
+                { label: 'Manrope', value: 'manrope' },
+              ],
+            },
+            {
+              name: 'borderRadius',
+              type: 'select',
+              defaultValue: 'soft',
+              admin: { description: 'Corner style for cards, buttons, inputs, and images.' },
+              options: [
+                { label: 'Sharp (0 — editorial)', value: 'sharp' },
+                { label: 'Soft (default)', value: 'soft' },
+                { label: 'Round (friendly)', value: 'round' },
+              ],
+            },
+            {
               name: 'colorScheme',
               type: 'select',
               defaultValue: 'dark',
