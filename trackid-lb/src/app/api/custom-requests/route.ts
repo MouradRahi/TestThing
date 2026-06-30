@@ -2,8 +2,6 @@ import { getPayload } from '@/lib/payload'
 import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
 import { NextRequest, NextResponse } from 'next/server'
 
-const GARMENT_TYPES = ['hoodie', 'tee', 'jacket', 'other'] as const
-
 export async function POST(req: NextRequest) {
   try {
     if (!rateLimit(`custom-requests:${clientIp(req)}`, 3, 10 * 60_000)) {
@@ -29,13 +27,23 @@ export async function POST(req: NextRequest) {
     const email = cleanOptional(body.email, 160)
     const referenceArtist = cleanOptional(body.referenceArtist, 200)
     const referenceSong = cleanOptional(body.referenceSong, 200)
-    const garmentType = GARMENT_TYPES.includes(body.garmentType) ? body.garmentType : undefined
 
     if (!name || !phone || !description || email === null || referenceArtist === null || referenceSong === null) {
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
     }
 
     const payload = await getPayload()
+
+    // Validate the garment type against the admin-managed list (ignore if unknown)
+    let garmentType: string | number | undefined = undefined
+    if (body.garmentType) {
+      try {
+        const gt = await payload.findByID({ collection: 'garment-types', id: body.garmentType, depth: 0 })
+        if (gt) garmentType = gt.id
+      } catch {
+        garmentType = undefined
+      }
+    }
 
     await payload.create({
       collection: 'custom-requests',

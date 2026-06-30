@@ -44,13 +44,9 @@ export const CustomRequests: CollectionConfig = {
     },
     {
       name: 'garmentType',
-      type: 'select',
-      options: [
-        { label: 'Hoodie', value: 'hoodie' },
-        { label: 'T-Shirt', value: 'tee' },
-        { label: 'Jacket', value: 'jacket' },
-        { label: 'Other', value: 'other' },
-      ],
+      type: 'relationship',
+      relationTo: 'garment-types',
+      admin: { description: 'Managed under Collections → Garment Types.' },
     },
     {
       name: 'status',

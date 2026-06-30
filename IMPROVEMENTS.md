@@ -173,6 +173,14 @@ Colors are fully theme-able; type is locked to `system-ui`. Editorial identity n
 - ☑ `faviconUrl` in SiteSettings (SEO tab) → `icons` in layout metadata
 - ☑ OG image: SiteSettings `ogImage` is now the site-wide default; page-specific OG (product/artist) still overrides per route
 
+### 3.7 Admin-managed garment types (requested Session 10) — ☑ DONE (Session 10)
+The custom-request `garmentType` was a hardcoded `select` (hoodie/tee/jacket/other) duplicated in the collection, the form, and the API — a second brand couldn't change it. Part of the "EVERYTHING customisable from admin" goal.
+- ☑ `GarmentTypes` collection (name + auto slug), mirrors Categories; seeded with the 4 defaults via config `onInit` (only when empty) so the brand keeps its options out-of-the-box and can rename/add/remove freely
+- ☑ `CustomRequests.garmentType` → `relationship` to `garment-types` (was a fixed `select`)
+- ☑ Custom-request page split: server `page.tsx` fetches garment types → client `CustomRequestForm.tsx` renders them as a dropdown (field hidden if none configured); `/api/custom-requests` validates the submitted id against the collection
+- ⚠️ Schema push needed (new `garment_types` table + `garment_type_id` column; old enum dropped — loses any existing `garmentType` values, fine pre-launch)
+- Pattern to reuse for any other hardcoded option list (e.g. order/status labels) if full white-label is pursued
+
 ### 3.6 Phase 9 (already planned) — blocks on Pages
 - ☐ Reuse the homepage `sections` blocks field in the Pages collection so any CMS page can be a full landing page, not just rich text — this completes "build any page from admin"
 

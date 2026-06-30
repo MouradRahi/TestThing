@@ -1,10 +1,10 @@
 import { getPayload } from '@/lib/payload'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import Image from 'next/image'
 import Link from 'next/link'
 import { AddToCart } from '@/components/product/AddToCart'
 import { ProductCard } from '@/components/product/ProductCard'
+import { ProductGallery } from '@/components/product/ProductGallery'
 import { getSizes, totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
 
@@ -78,7 +78,9 @@ export default async function ProductPage({
   if (!product) notFound()
 
   const images = Array.isArray(product.images) ? product.images : []
-  const primaryImage = images[0]
+  const galleryImages = images
+    .filter((img): img is typeof img & { url: string } => Boolean(img.url))
+    .map((img) => ({ url: img.url, alt: resolveAlt(img) || product.title }))
   const artist =
     product.artist && typeof product.artist === 'object' && 'name' in product.artist
       ? product.artist
@@ -107,12 +109,15 @@ export default async function ProductPage({
     },
   }
 
-  // Related pieces — same artist first, same category as fallback
-  let related: typeof docs = []
+  // Two related strips: (1) more from the same artist, (2) more of the same
+  // garment type. Each is independent and only renders if it has results — so a
+  // lone product from an artist never shows another artist's piece under "More from".
   const relatedBase = {
     status: { equals: 'published' as const },
     slug: { not_equals: product.slug },
   }
+
+  let sameArtist: typeof docs = []
   if (artist && 'id' in artist) {
     const res = await payload.find({
       collection: 'products',
@@ -121,18 +126,53 @@ export default async function ProductPage({
       sort: '-createdAt',
       depth: 1,
     })
-    related = res.docs
+    sameArtist = res.docs
   }
-  if (related.length === 0 && category && 'id' in category) {
+
+  const garmentType =
+    product.garmentType && typeof product.garmentType === 'object' && 'name' in product.garmentType
+      ? product.garmentType
+      : null
+
+  let sameGarment: typeof docs = []
+  if (garmentType && 'id' in garmentType) {
+    // Exclude the current product and anything already shown in the artist strip
+    const excludeIds = [product.id, ...sameArtist.map((p) => p.id)]
     const res = await payload.find({
       collection: 'products',
-      where: { ...relatedBase, category: { equals: category.id } },
+      where: {
+        ...relatedBase,
+        garmentType: { equals: garmentType.id },
+        id: { not_in: excludeIds },
+      },
       limit: 4,
       sort: '-createdAt',
       depth: 1,
     })
-    related = res.docs
+    sameGarment = res.docs
   }
+
+  const renderRelatedGrid = (items: typeof docs) => (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+      {items.map((rel) => {
+        const relImages = Array.isArray(rel.images) ? rel.images : []
+        const relArtist =
+          rel.artist && typeof rel.artist === 'object' && 'name' in rel.artist ? rel.artist : null
+        return (
+          <ProductCard
+            key={rel.id}
+            slug={rel.slug}
+            title={rel.title}
+            price={rel.price}
+            imageUrl={relImages[0]?.url}
+            imageAlt={resolveAlt(relImages[0]) || undefined}
+            artistName={relArtist?.name}
+            soldOut={totalStock(rel) === 0}
+          />
+        )
+      })}
+    </div>
+  )
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
@@ -149,44 +189,7 @@ export default async function ProductPage({
 
       <div className="grid md:grid-cols-2 gap-10 lg:gap-16 items-start">
         {/* Images */}
-        <div className="space-y-2">
-          <div className="aspect-[3/4] bg-surface relative overflow-hidden border border-border">
-            {primaryImage?.url ? (
-              <Image
-                src={primaryImage.url}
-                alt={resolveAlt(primaryImage) || product.title}
-                fill
-                className="object-cover"
-                priority
-                sizes="(max-width: 768px) 100vw, 50vw"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted text-xs uppercase tracking-widest">
-                No image
-              </div>
-            )}
-          </div>
-          {images.length > 1 && (
-            <div className="grid grid-cols-4 gap-2">
-              {images.slice(1, 5).map((img, i) => (
-                <div
-                  key={i}
-                  className="aspect-square bg-surface relative overflow-hidden border border-border"
-                >
-                  {img.url && (
-                    <Image
-                      src={img.url}
-                      alt={resolveAlt(img) || product.title}
-                      fill
-                      className="object-cover"
-                      sizes="120px"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <ProductGallery images={galleryImages} />
 
         {/* Details */}
         <div className="md:sticky md:top-24 space-y-6">
@@ -221,7 +224,7 @@ export default async function ProductPage({
               slug={product.slug}
               title={product.title}
               price={product.price}
-              imageUrl={primaryImage?.url}
+              imageUrl={galleryImages[0]?.url}
               outOfStock={stock === 0}
               maxQuantity={sizes.length > 0 ? undefined : (product.stockQuantity ?? 1)}
               sizes={sizes}
@@ -260,31 +263,23 @@ export default async function ProductPage({
         </div>
       </div>
 
-      {/* Related pieces */}
-      {related.length > 0 && (
+      {/* More from this artist — only ever real same-artist pieces */}
+      {sameArtist.length > 0 && artist && 'name' in artist && (
         <section className="mt-24 pt-12 border-t border-border">
           <h2 className="text-xs uppercase tracking-[0.25em] text-muted mb-8">
-            {artist && 'name' in artist ? `More from ${artist.name}` : 'You may also like'}
+            More from {artist.name}
           </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            {related.map((rel) => {
-              const relImages = Array.isArray(rel.images) ? rel.images : []
-              const relArtist =
-                rel.artist && typeof rel.artist === 'object' && 'name' in rel.artist ? rel.artist : null
-              return (
-                <ProductCard
-                  key={rel.id}
-                  slug={rel.slug}
-                  title={rel.title}
-                  price={rel.price}
-                  imageUrl={relImages[0]?.url}
-                  imageAlt={resolveAlt(relImages[0]) || undefined}
-                  artistName={relArtist?.name}
-                  soldOut={totalStock(rel) === 0}
-                />
-              )
-            })}
-          </div>
+          {renderRelatedGrid(sameArtist)}
+        </section>
+      )}
+
+      {/* More like this — same garment type, any artist */}
+      {sameGarment.length > 0 && (
+        <section className={`${sameArtist.length > 0 ? 'mt-16' : 'mt-24'} pt-12 border-t border-border`}>
+          <h2 className="text-xs uppercase tracking-[0.25em] text-muted mb-8">
+            More like this
+          </h2>
+          {renderRelatedGrid(sameGarment)}
         </section>
       )}
     </div>
