@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { formatSlug } from '../lib/slug'
 import { safeRevalidatePath } from '../lib/revalidate'
+import { mediaUrl } from '../lib/media-fill'
 
 export const Products: CollectionConfig = {
   slug: 'products',
@@ -9,6 +10,21 @@ export const Products: CollectionConfig = {
     defaultColumns: ['title', 'artist', 'category', 'status', 'price', 'updatedAt'],
   },
   hooks: {
+    // When an image is picked from the Media library, copy its public URL into the
+    // `url` text field that the storefront reads — so no component needs to change.
+    beforeValidate: [
+      async ({ data, req }) => {
+        if (data && Array.isArray(data.images)) {
+          for (const row of data.images) {
+            if (row?.image) {
+              const url = await mediaUrl(req.payload, row.image)
+              if (url) row.url = url
+            }
+          }
+        }
+        return data
+      },
+    ],
     // Edits (price, stock, publish state) must show on the storefront immediately,
     // not after the ISR window (up to 1h on product pages)
     afterChange: [
@@ -63,10 +79,19 @@ export const Products: CollectionConfig = {
       minRows: 1,
       fields: [
         {
+          name: 'image',
+          type: 'upload',
+          relationTo: 'media',
+          admin: {
+            description: 'Pick from the Media library or upload a new image. Fills the URL below automatically on save.',
+          },
+        },
+        {
           name: 'url',
           type: 'text',
-          required: true,
-          admin: { description: 'Supabase Storage URL — copy the public URL from the Supabase Storage dashboard (e.g. https://bdbhygelwizizepxewxv.supabase.co/storage/v1/object/public/products/filename.jpg)' },
+          admin: {
+            description: 'Auto-filled from the image above. You can also paste a Supabase Storage public URL directly.',
+          },
         },
         {
           name: 'alt',

@@ -12,9 +12,15 @@ export const HeroBlock: Block = {
     { name: 'secondaryCtaLabel', type: 'text' },
     { name: 'secondaryCtaHref', type: 'text' },
     {
+      name: 'bgImageMedia',
+      type: 'upload',
+      relationTo: 'media',
+      admin: { description: 'Pick or upload a full-bleed background image. Fills the URL below.' },
+    },
+    {
       name: 'bgImage',
       type: 'text',
-      admin: { description: 'Supabase Storage public URL — used as full-bleed background image' },
+      admin: { description: 'Auto-filled from the image above, or paste a Supabase Storage public URL.' },
     },
     {
       name: 'bgColor',

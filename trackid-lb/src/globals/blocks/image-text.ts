@@ -5,10 +5,15 @@ export const ImageTextBlock: Block = {
   labels: { singular: 'Image + Text', plural: 'Image + Text Sections' },
   fields: [
     {
+      name: 'imageMedia',
+      type: 'upload',
+      relationTo: 'media',
+      admin: { description: 'Pick or upload the section image. Fills the URL below.' },
+    },
+    {
       name: 'image',
       type: 'text',
-      required: true,
-      admin: { description: 'Supabase Storage public URL' },
+      admin: { description: 'Auto-filled from the image above, or paste a Supabase Storage public URL.' },
     },
     { name: 'imageAlt', type: 'text' },
     { name: 'eyebrow', type: 'text' },

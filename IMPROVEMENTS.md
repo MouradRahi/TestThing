@@ -135,11 +135,11 @@ Status changes (confirmed → shipped) happen in admin but the customer never he
 The stated goal: a business owner expresses their **entire** brand from the admin. Today, the theme/nav/footer are CMS-driven, but brand-specific copy is baked into code in ~10 places, and several SiteSettings fields are dead.
 
 ### 3.1 Dead SiteSettings fields (defined, never rendered) 🐛
-- ☐ `logoUrl` — Nav and Footer only ever render the text logo. Render `next/image` logo when set (nav, footer, email header)
-- ☐ `ogImage` (SEO tab) — never added to metadata. Wire into layout `generateMetadata` as the default OG/Twitter image
+- ☑ `logoUrl` — rendered in Nav + Footer (text logo when blank); fixed-height `<img>` keeps the true aspect ratio. Email header still text-only (revisit with 3.2)
+- ☑ `ogImage` (SEO tab) — wired into layout `generateMetadata` as the default OG/Twitter image
 - ☐ `contactEmail` — described as "reply-to for order emails", never used. Set `replyTo` in Resend call; show in footer
 - ☐ `tagline` (Brand tab) — unused anywhere (only `footerTagline` is). Use on homepage empty state / metadata, or remove the field
-- ☐ `whatsappNumber` — unused on the frontend. Add floating WhatsApp chat button (huge for the Lebanese market) + "WhatsApp us" links
+- ☑ `whatsappNumber` — floating WhatsApp chat button (`src/components/WhatsAppButton.tsx`, rendered in frontend layout); `getWhatsAppLink` helper sanitizes to a `wa.me` link. Renders only when a number is set
 
 ### 3.2 Hardcoded brand strings that must move to CMS
 A second brand deploying this code would still say "trackID.lb" and "Beirut" in all of these:
@@ -170,8 +170,8 @@ Colors are fully theme-able; type is locked to `system-ui`. Editorial identity n
 - ☐ Button style variant setting (filled / outline / underline-link) if we want to go further
 
 ### 3.5 Favicon & head branding
-- ☐ `faviconUrl` in SiteSettings → `icons` in metadata
-- ☐ OG image fallback chain: page-specific → SiteSettings `ogImage` → none
+- ☑ `faviconUrl` in SiteSettings (SEO tab) → `icons` in layout metadata
+- ☑ OG image: SiteSettings `ogImage` is now the site-wide default; page-specific OG (product/artist) still overrides per route
 
 ### 3.6 Phase 9 (already planned) — blocks on Pages
 - ☐ Reuse the homepage `sections` blocks field in the Pages collection so any CMS page can be a full landing page, not just rich text — this completes "build any page from admin"
@@ -180,11 +180,13 @@ Colors are fully theme-able; type is locked to `system-ui`. Editorial identity n
 
 ## 4. P3 — Admin & Developer QoL
 
-### 4.1 Media upload collection ⚠️ biggest admin pain point
+### 4.1 Media upload collection ⚠️ biggest admin pain point — ☑ DONE (Session 10)
 Every image today is "upload to Supabase dashboard by hand, copy the public URL, paste into a text field". That's not workable for a non-technical owner.
-- ☐ Add a `Media` upload collection using `@payloadcms/storage-s3` pointed at Supabase Storage's S3-compatible endpoint (same project, same bucket)
-- ☐ Payload generates sizes/thumbnails (sharp is already installed); alt text lives with the file
-- ☐ Migrate image fields (`products.images`, `artists.photo`, hero/slideshow `bgImage`, `logoUrl`, `ogImage`) to `upload` relations — keep the URL text fields working during transition, then deprecate
+- ☑ `Media` upload collection (`src/collections/Media.ts`) via `@payloadcms/storage-s3@3.84.1` pointed at Supabase Storage's S3 endpoint (`forcePathStyle`, public-CDN URLs via `generateFileURL`, `disablePayloadAccessControl`). Plugin is `enabled` only when S3 creds are present — falls back to local disk otherwise so the app still boots
+- ☑ Sharp generates thumbnail/card/feature sizes on upload; `alt` text lives with the file
+- ☑ **Picker (not migration)**: added an `upload`-relation field next to every existing URL field — `products.images[].image`, `artists.photoMedia`, SiteSettings `logo`/`ogImageMedia`/`faviconMedia`, hero/cta-banner `bgImageMedia`, slideshow `slides[].bgImageMedia`, image-text `imageMedia`. A `beforeValidate` hook (`src/lib/media-fill.ts → mediaUrl`) copies the picked media's public URL into the text field the storefront already reads — **zero component changes, existing URLs and manual entry still work**. Required URL fields relaxed to optional so the admin's client-side validation doesn't block picking media
+- ⚠️ Schema push needed: new `media` table + upload-relation columns only push on `npm run dev` (Payload dev-only schema sync) — run dev once before any prod build or it fails with `relation "media" does not exist`
+- ☐ Later: drop the now-redundant URL text fields once all content is migrated to uploads (keep during transition)
 
 ### 4.2 Generate Payload types (config exists, file doesn't)
 `payload-types.ts` was never generated — every global/product is typed `Record<string, any>`, which is how dead fields (3.1) went unnoticed.

@@ -11,9 +11,15 @@ export const SlideshowBlock: Block = {
       admin: { description: 'Each slide is a full-screen panel. Add at least one.' },
       fields: [
         {
+          name: 'bgImageMedia',
+          type: 'upload',
+          relationTo: 'media',
+          admin: { description: 'Pick or upload a slide background. Fills the URL below.' },
+        },
+        {
           name: 'bgImage',
           type: 'text',
-          admin: { description: 'Supabase Storage public URL' },
+          admin: { description: 'Auto-filled from the image above, or paste a Supabase Storage public URL.' },
         },
         {
           name: 'bgColor',

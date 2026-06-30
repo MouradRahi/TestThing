@@ -10,9 +10,10 @@ export async function NavWrapper() {
   const [settings, nav] = await Promise.all([getSiteSettings(), getNavigation()])
 
   const storeName = (settings.storeName as string) || 'trackID.lb'
+  const logoUrl = (settings.logoUrl as string) || undefined
   const headerLinks = Array.isArray(nav.headerLinks) && nav.headerLinks.length > 0
     ? (nav.headerLinks as NavLink[])
     : DEFAULT_LINKS
 
-  return <Nav storeName={storeName} links={headerLinks} />
+  return <Nav storeName={storeName} links={headerLinks} logoUrl={logoUrl} />
 }

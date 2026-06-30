@@ -9,9 +9,15 @@ export const CTABannerBlock: Block = {
     { name: 'ctaLabel', type: 'text' },
     { name: 'ctaHref', type: 'text' },
     {
+      name: 'bgImageMedia',
+      type: 'upload',
+      relationTo: 'media',
+      admin: { description: 'Pick or upload an optional full-bleed background. Fills the URL below.' },
+    },
+    {
       name: 'bgImage',
       type: 'text',
-      admin: { description: 'Supabase Storage public URL — optional full-bleed background' },
+      admin: { description: 'Auto-filled from the image above, or paste a Supabase Storage public URL.' },
     },
     {
       name: 'bgColor',

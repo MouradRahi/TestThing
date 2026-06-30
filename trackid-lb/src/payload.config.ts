@@ -1,6 +1,7 @@
 import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { s3Storage } from '@payloadcms/storage-s3'
 import sharp from 'sharp'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -11,6 +12,7 @@ import { Categories } from './collections/Categories'
 import { Orders } from './collections/Orders'
 import { CustomRequests } from './collections/CustomRequests'
 import { Pages } from './collections/Pages'
+import { Media } from './collections/Media'
 import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
@@ -32,8 +34,12 @@ export default buildConfig({
     meta: {
       titleSuffix: '— trackID.lb Admin',
     },
+    // Local admin component paths (e.g. '/components/...') resolve relative to src/
+    importMap: {
+      baseDir: path.resolve(dirname),
+    },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, Users],
   globals: [SiteSettings, Navigation, Homepage],
   editor: lexicalEditor(),
   secret,
@@ -46,5 +52,37 @@ export default buildConfig({
     },
     // Indexes defined per-collection in the collections files
   }),
+  plugins: [
+    s3Storage({
+      // Disable cleanly (falls back to local disk) until S3 credentials are set,
+      // so the app still boots and uploads work in local dev without keys.
+      enabled: Boolean(
+        process.env.ACCESS_KEY_ID_SUPABASE && process.env.SECRET_ACCESS_KEY_SUPABASE,
+      ),
+      bucket: process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'products',
+      collections: {
+        media: {
+          prefix: 'media',
+          // Serve files straight from Supabase's public CDN, not proxied through Payload
+          disablePayloadAccessControl: true,
+          generateFileURL: ({ filename, prefix }) => {
+            const base = process.env.NEXT_PUBLIC_SUPABASE_URL
+            const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'products'
+            const key = [prefix, filename].filter(Boolean).join('/')
+            return `${base}/storage/v1/object/public/${bucket}/${key}`
+          },
+        },
+      },
+      config: {
+        endpoint: process.env.SUPABASE_S3_ENDPOINT,
+        region: process.env.SUPABASE_S3_REGION,
+        forcePathStyle: true, // required for Supabase's S3-compatible endpoint
+        credentials: {
+          accessKeyId: process.env.ACCESS_KEY_ID_SUPABASE || '',
+          secretAccessKey: process.env.SECRET_ACCESS_KEY_SUPABASE || '',
+        },
+      },
+    }),
+  ],
   sharp,
 })

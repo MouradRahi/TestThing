@@ -1,5 +1,6 @@
 import type { GlobalConfig } from 'payload'
 import { safeRevalidatePath, safeRevalidateTag } from '../lib/revalidate'
+import { mediaUrl } from '../lib/media-fill'
 
 export const SiteSettings: GlobalConfig = {
   slug: 'site-settings',
@@ -8,6 +9,25 @@ export const SiteSettings: GlobalConfig = {
     description: 'Global brand settings — store name, colors, announcement bar, footer text.',
   },
   hooks: {
+    // Picked Media → copy its public URL into the text field each component reads
+    beforeValidate: [
+      async ({ data, req }) => {
+        if (!data) return data
+        if (data.logo) {
+          const url = await mediaUrl(req.payload, data.logo)
+          if (url) data.logoUrl = url
+        }
+        if (data.ogImageMedia) {
+          const url = await mediaUrl(req.payload, data.ogImageMedia)
+          if (url) data.ogImage = url
+        }
+        if (data.faviconMedia) {
+          const url = await mediaUrl(req.payload, data.faviconMedia)
+          if (url) data.faviconUrl = url
+        }
+        return data
+      },
+    ],
     // Settings feed the layout (theme, nav, footer) of every page — bust everything
     afterChange: [
       () => {
@@ -31,11 +51,19 @@ export const SiteSettings: GlobalConfig = {
               admin: { description: 'Displayed in the nav, footer, email subjects, and page titles.' },
             },
             {
+              name: 'logo',
+              type: 'upload',
+              relationTo: 'media',
+              admin: {
+                description: 'Pick or upload a logo. Fills the URL below automatically. Leave blank to use the text logo.',
+              },
+            },
+            {
               name: 'logoUrl',
               type: 'text',
               admin: {
                 description:
-                  'Supabase Storage public URL for a logo image. Leave blank to use the text logo.',
+                  'Auto-filled from the logo above, or paste a Supabase Storage public URL. Leave blank to use the text logo.',
               },
             },
             {
@@ -270,11 +298,35 @@ export const SiteSettings: GlobalConfig = {
                 'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.',
             },
             {
+              name: 'ogImageMedia',
+              type: 'upload',
+              relationTo: 'media',
+              admin: {
+                description: 'Default social share image. Pick or upload (recommended 1200×630px). Fills the URL below.',
+              },
+            },
+            {
               name: 'ogImage',
               type: 'text',
               admin: {
                 description:
-                  'Default social share image — Supabase Storage URL. Recommended: 1200×630px.',
+                  'Auto-filled from the image above, or paste a Supabase Storage URL. Recommended: 1200×630px.',
+              },
+            },
+            {
+              name: 'faviconMedia',
+              type: 'upload',
+              relationTo: 'media',
+              admin: {
+                description: 'Browser tab icon — square PNG/ICO/SVG. Pick or upload; fills the URL below.',
+              },
+            },
+            {
+              name: 'faviconUrl',
+              type: 'text',
+              admin: {
+                description:
+                  'Auto-filled from the icon above, or paste a Supabase Storage URL. Leave blank to use the Next.js default.',
               },
             },
           ],

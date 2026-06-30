@@ -148,3 +148,16 @@ export function resolveDeliveryFee(settings: AnyRecord, area: string, subtotal: 
 export function resolveCopyright(template: string): string {
   return (template || '© {year} trackID.lb').replace('{year}', String(new Date().getFullYear()))
 }
+
+/**
+ * Build a wa.me link from a stored WhatsApp number.
+ * wa.me wants digits only (country code included, no +, spaces, or dashes).
+ * Returns null when no usable number is configured.
+ */
+export function getWhatsAppLink(number: unknown, prefilledText?: string): string | null {
+  if (typeof number !== 'string') return null
+  const digits = number.replace(/\D/g, '')
+  if (digits.length < 7) return null
+  const base = `https://wa.me/${digits}`
+  return prefilledText ? `${base}?text=${encodeURIComponent(prefilledText)}` : base
+}

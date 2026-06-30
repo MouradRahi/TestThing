@@ -13,6 +13,7 @@ export async function Footer() {
   const [settings, nav] = await Promise.all([getSiteSettings(), getNavigation()])
 
   const storeName = (settings.storeName as string) || 'trackID.lb'
+  const logoUrl = (settings.logoUrl as string) || ''
   const tagline = (settings.footerTagline as string) || 'Hand-painted clothing for the artists you love. Made in Lebanon.'
   const footerNote = (settings.footerNote as string) || 'Cash on Delivery · Lebanon only'
   const copyright = resolveCopyright((settings.copyrightText as string) || '')
@@ -27,8 +28,13 @@ export async function Footer() {
 
         {/* Brand */}
         <div>
-          <Link href="/" className="text-accent font-bold tracking-[0.2em] text-sm uppercase">
-            {storeName}
+          <Link href="/" className="text-accent font-bold tracking-[0.2em] text-sm uppercase inline-block">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- admin logo of unknown dimensions; fixed height + auto width keeps the true aspect ratio
+              <img src={logoUrl} alt={storeName} className="h-7 w-auto object-contain" />
+            ) : (
+              storeName
+            )}
           </Link>
           <p className="text-muted text-xs leading-relaxed mt-3 max-w-[200px]">
             {tagline}

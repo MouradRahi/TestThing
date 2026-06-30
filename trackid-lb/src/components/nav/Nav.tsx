@@ -13,9 +13,10 @@ export type NavLink = {
 type Props = {
   storeName: string
   links: NavLink[]
+  logoUrl?: string
 }
 
-export function Nav({ storeName, links }: Props) {
+export function Nav({ storeName, links, logoUrl }: Props) {
   const { itemCount } = useCart()
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -37,7 +38,12 @@ export function Nav({ storeName, links }: Props) {
         onClick={() => setMenuOpen(false)}
         className="text-accent font-bold tracking-[0.2em] text-sm uppercase"
       >
-        {storeName}
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- admin logo of unknown dimensions; fixed height + auto width keeps the true aspect ratio
+          <img src={logoUrl} alt={storeName} className="h-7 w-auto object-contain" />
+        ) : (
+          storeName
+        )}
       </Link>
 
       {/* Desktop */}
