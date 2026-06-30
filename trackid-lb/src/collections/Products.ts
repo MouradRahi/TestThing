@@ -112,6 +112,16 @@ export const Products: CollectionConfig = {
       index: true,
     },
     {
+      name: 'garmentType',
+      type: 'relationship',
+      relationTo: 'garment-types',
+      index: true,
+      admin: {
+        description:
+          'Powers the "More like this" suggestions on the product page. Managed under Collections → Garment Types.',
+      },
+    },
+    {
       name: 'tags',
       type: 'array',
       fields: [

@@ -13,6 +13,7 @@ import { Orders } from './collections/Orders'
 import { CustomRequests } from './collections/CustomRequests'
 import { Pages } from './collections/Pages'
 import { Media } from './collections/Media'
+import { GarmentTypes } from './collections/GarmentTypes'
 import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
@@ -39,8 +40,23 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Users],
   globals: [SiteSettings, Navigation, Homepage],
+  // Seed the default garment types once, so the custom-request form works out of
+  // the box. The brand can rename/add/remove them in admin afterwards.
+  onInit: async (payload) => {
+    try {
+      const { totalDocs } = await payload.count({ collection: 'garment-types' })
+      if (totalDocs === 0) {
+        const defaults = ['Hoodie', 'T-Shirt', 'Jacket', 'Other']
+        for (const name of defaults) {
+          await payload.create({ collection: 'garment-types', data: { name } })
+        }
+      }
+    } catch {
+      // Table may not exist yet (schema not pushed); seeding will run on a later boot.
+    }
+  },
   editor: lexicalEditor(),
   secret,
   typescript: {
