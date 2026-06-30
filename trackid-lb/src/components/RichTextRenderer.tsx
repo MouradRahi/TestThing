@@ -1,4 +1,14 @@
 import type { ReactNode } from 'react'
+import Image from 'next/image'
+
+type LexicalUploadValue = {
+  id?: string | number
+  url?: string
+  alt?: string
+  filename?: string
+  width?: number
+  height?: number
+}
 
 type LexicalNode = {
   type: string
@@ -10,6 +20,8 @@ type LexicalNode = {
   listType?: 'bullet' | 'number'
   url?: string
   fields?: { url?: string; newTab?: boolean }
+  relationTo?: string
+  value?: LexicalUploadValue | string | number
 }
 
 type LexicalContent = {
@@ -108,6 +120,32 @@ function serialize(node: LexicalNode, key: number): ReactNode {
 
     case 'horizontalrule':
       return <hr key={key} className="border-border my-6" />
+
+    case 'upload': {
+      // Lexical upload node — an image embedded from the Media library.
+      // `value` is the populated media doc (depth >= 1); skip if only an id.
+      const media = typeof node.value === 'object' ? node.value : null
+      const url = media?.url
+      if (!url) return null
+      const alt = media?.alt || media?.filename || ''
+      return (
+        <figure key={key} className="my-6">
+          {media?.width && media?.height ? (
+            <Image
+              src={url}
+              alt={alt}
+              width={media.width}
+              height={media.height}
+              sizes="(max-width: 768px) 100vw, 672px"
+              className="rounded-sm w-full h-auto"
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element -- media missing dimensions
+            <img src={url} alt={alt} className="rounded-sm w-full h-auto" />
+          )}
+        </figure>
+      )
+    }
 
     default:
       if (node.children) return <span key={key}>{serializeChildren(node.children)}</span>

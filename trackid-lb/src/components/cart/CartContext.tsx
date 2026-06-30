@@ -2,13 +2,13 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import type { CartItem } from '@/lib/cart'
-import { readCart, writeCart } from '@/lib/cart'
+import { readCart, writeCart, cartLineKey } from '@/lib/cart'
 
 type CartContextValue = {
   items: CartItem[]
-  addItem: (item: Omit<CartItem, 'quantity'>) => void
-  removeItem: (id: string) => void
-  updateQuantity: (id: string, qty: number) => void
+  addItem: (item: Omit<CartItem, 'quantity' | 'key'>, quantity?: number) => void
+  removeItem: (key: string) => void
+  updateQuantity: (key: string, qty: number) => void
   clearCart: () => void
   itemCount: number
   total: number
@@ -24,29 +24,34 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems(readCart())
   }, [])
 
-  const addItem = useCallback((item: Omit<CartItem, 'quantity'>) => {
+  const addItem = useCallback((item: Omit<CartItem, 'quantity' | 'key'>, quantity = 1) => {
+    const key = cartLineKey(item.id, item.size)
     setItems(prev => {
-      const existing = prev.find(i => i.id === item.id)
+      const existing = prev.find(i => i.key === key)
+      const max = item.maxQuantity ?? existing?.maxQuantity ?? Infinity
       const next = existing
-        ? prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i)
-        : [...prev, { ...item, quantity: 1 }]
+        ? prev.map(i => i.key === key
+            ? { ...i, quantity: Math.min(i.quantity + quantity, max), maxQuantity: item.maxQuantity ?? i.maxQuantity }
+            : i)
+        : [...prev, { ...item, key, quantity: Math.min(quantity, max) }]
       writeCart(next)
       return next
     })
   }, [])
 
-  const removeItem = useCallback((id: string) => {
+  const removeItem = useCallback((key: string) => {
     setItems(prev => {
-      const next = prev.filter(i => i.id !== id)
+      const next = prev.filter(i => i.key !== key)
       writeCart(next)
       return next
     })
   }, [])
 
-  const updateQuantity = useCallback((id: string, qty: number) => {
+  const updateQuantity = useCallback((key: string, qty: number) => {
     if (qty < 1) return
     setItems(prev => {
-      const next = prev.map(i => i.id === id ? { ...i, quantity: qty } : i)
+      const next = prev.map(i =>
+        i.key === key ? { ...i, quantity: Math.min(qty, i.maxQuantity ?? Infinity) } : i)
       writeCart(next)
       return next
     })

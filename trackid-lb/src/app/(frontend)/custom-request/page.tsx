@@ -1,10 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import type { Metadata } from 'next'
-
-// Note: metadata export is ignored in client components — set via generateMetadata in a server wrapper if needed.
-// For now the layout template handles the title suffix.
+import { Button } from '@/components/ui/Button'
+import { Field, TextareaField, SelectField, SectionLabel } from '@/components/ui/FormField'
 
 type FormState = {
   name: string
@@ -14,6 +12,7 @@ type FormState = {
   referenceArtist: string
   referenceSong: string
   garmentType: string
+  website: string // honeypot — must stay empty; bots that fill it are silently dropped
 }
 
 const GARMENT_OPTIONS = [
@@ -32,6 +31,7 @@ export default function CustomRequestPage() {
     referenceArtist: '',
     referenceSong: '',
     garmentType: '',
+    website: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -92,6 +92,21 @@ export default function CustomRequestPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {/* Honeypot — hidden from real users, bots fill it and get silently dropped */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', height: 0, overflow: 'hidden' }}>
+          <label>
+            Website
+            <input
+              type="text"
+              name="website"
+              value={form.website}
+              onChange={handleChange}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </label>
+        </div>
+
         <SectionLabel>You</SectionLabel>
 
         <Field label="Full Name *" name="name" value={form.name} onChange={handleChange} required />
@@ -115,20 +130,15 @@ export default function CustomRequestPage() {
 
         <SectionLabel className="pt-4">The Piece</SectionLabel>
 
-        <div>
-          <label className="block text-[10px] uppercase tracking-[0.2em] text-muted mb-2">
-            What do you want? *
-          </label>
-          <textarea
-            name="description"
-            value={form.description}
-            onChange={handleChange}
-            required
-            rows={4}
-            placeholder="Describe the design, mood, or idea — as much detail as you want…"
-            className="w-full bg-surface border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted/40 focus:border-accent/70 outline-none transition-colors resize-none"
-          />
-        </div>
+        <TextareaField
+          label="What do you want? *"
+          name="description"
+          value={form.description}
+          onChange={handleChange}
+          required
+          rows={4}
+          placeholder="Describe the design, mood, or idea — as much detail as you want…"
+        />
 
         <Field
           label="Artist / Band Reference"
@@ -145,84 +155,32 @@ export default function CustomRequestPage() {
           placeholder="e.g. Karma Police, Ya Rayah…"
         />
 
-        <div>
-          <label className="block text-[10px] uppercase tracking-[0.2em] text-muted mb-2">
-            Garment Type
-          </label>
-          <select
-            name="garmentType"
-            value={form.garmentType}
-            onChange={handleChange}
-            className="w-full bg-surface border border-border text-foreground px-3 py-2.5 text-sm focus:border-accent/70 outline-none transition-colors appearance-none"
-          >
-            <option value="">Select a garment…</option>
-            {GARMENT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SelectField
+          label="Garment Type"
+          name="garmentType"
+          value={form.garmentType}
+          onChange={handleChange}
+        >
+          <option value="">Select a garment…</option>
+          {GARMENT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </SelectField>
 
         {error && (
           <p className="text-sm text-red-400 border border-red-400/30 px-3 py-2">{error}</p>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full py-4 text-xs uppercase tracking-[0.25em] bg-accent text-bg font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-        >
+        <Button type="submit" fullWidth disabled={loading} className="mt-2">
           {loading ? 'Sending…' : 'Send Request'}
-        </button>
+        </Button>
 
         <p className="text-[11px] text-muted text-center pt-1">
           We'll get back to you on WhatsApp with a quote and timeline.
         </p>
       </form>
-    </div>
-  )
-}
-
-function SectionLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <p className={`text-[10px] uppercase tracking-[0.2em] text-muted pb-1 border-b border-border ${className}`}>
-      {children}
-    </p>
-  )
-}
-
-function Field({
-  label,
-  name,
-  value,
-  onChange,
-  required,
-  type = 'text',
-  placeholder,
-}: {
-  label: string
-  name: string
-  value: string
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  required?: boolean
-  type?: string
-  placeholder?: string
-}) {
-  return (
-    <div>
-      <label className="block text-[10px] uppercase tracking-[0.2em] text-muted mb-2">
-        {label}
-      </label>
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        required={required}
-        placeholder={placeholder}
-        className="w-full bg-surface border border-border text-foreground px-3 py-2.5 text-sm placeholder:text-muted/40 focus:border-accent/70 outline-none transition-colors"
-      />
     </div>
   )
 }

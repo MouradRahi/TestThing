@@ -1,4 +1,6 @@
 import type { CollectionConfig } from 'payload'
+import { isAdmin } from '../lib/access'
+import { sendOrderStatusEmail } from '../lib/notifications'
 
 export const Orders: CollectionConfig = {
   slug: 'orders',
@@ -11,7 +13,73 @@ export const Orders: CollectionConfig = {
     create: () => true,
     read: ({ req }) => !!req.user,
     update: ({ req }) => !!req.user,
-    delete: ({ req }) => !!req.user,
+    delete: ({ req }) => isAdmin(req.user),
+  },
+  hooks: {
+    afterChange: [
+      // Tell the customer when their order moves forward (shipped, delivered…).
+      // Skipped on creation — the confirmation email already covers that.
+      async ({ doc, previousDoc }) => {
+        const prev = previousDoc?.orderStatus
+        const next = doc?.orderStatus
+        if (!prev || prev === next || !doc?.customerEmail) return
+        try {
+          await sendOrderStatusEmail({
+            orderNumber: doc.orderNumber,
+            customerName: doc.customerName,
+            customerEmail: doc.customerEmail,
+            status: next,
+          })
+        } catch (err) {
+          console.error('[orders] Status email failed:', err)
+        }
+      },
+      // Cancelling an order returns its items to stock; un-cancelling takes
+      // them back out (floored at 0 if something sold in the meantime).
+      async ({ doc, previousDoc, req }) => {
+        const prev = previousDoc?.orderStatus
+        const next = doc?.orderStatus
+        if (!prev || prev === next) return
+
+        const cancelled = next === 'cancelled' && prev !== 'cancelled'
+        const reactivated = prev === 'cancelled' && next !== 'cancelled'
+        if (!cancelled && !reactivated) return
+
+        const direction = cancelled ? 1 : -1
+        const items: Array<{ productId?: string; quantity?: number; size?: string | null }> =
+          Array.isArray(doc.items) ? doc.items : []
+
+        for (const item of items) {
+          const id = Number(item.productId)
+          const quantity = Number(item.quantity)
+          if (!Number.isInteger(id) || !Number.isInteger(quantity) || quantity < 1) continue
+          try {
+            const product = await req.payload.findByID({ collection: 'products', id, depth: 0 })
+            if (item.size && Array.isArray(product.sizes)) {
+              const sizes = [...product.sizes]
+              const idx = sizes.findIndex((s: { label?: string }) => s?.label === item.size)
+              if (idx < 0) continue
+              sizes[idx] = {
+                ...sizes[idx],
+                stockQuantity: Math.max(0, (sizes[idx].stockQuantity ?? 0) + direction * quantity),
+              }
+              await req.payload.update({ collection: 'products', id, data: { sizes } })
+            } else {
+              const current = typeof product.stockQuantity === 'number' ? product.stockQuantity : 0
+              await req.payload.update({
+                collection: 'products',
+                id,
+                data: { stockQuantity: Math.max(0, current + direction * quantity) },
+              })
+            }
+          } catch (err) {
+            req.payload.logger.error(
+              `[orders] Failed to adjust stock for product ${item.productId} after status change: ${String(err)}`,
+            )
+          }
+        }
+      },
+    ],
   },
   fields: [
     {
@@ -62,6 +130,11 @@ export const Orders: CollectionConfig = {
           name: 'titleAtPurchase',
           type: 'text',
           required: true,
+        },
+        {
+          name: 'size',
+          type: 'text',
+          admin: { description: 'Chosen size — empty for unsized/one-of-a-kind pieces' },
         },
         {
           name: 'priceAtPurchase',

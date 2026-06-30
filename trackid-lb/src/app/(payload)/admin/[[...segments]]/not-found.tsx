@@ -7,7 +7,6 @@ type Args = {
   searchParams: Promise<{ [key: string]: string | string[] }>
 }
 
-// @ts-expect-error — buildConfig is async, so config IS the Promise NotFoundPage expects
 const NotFound = ({ params, searchParams }: Args) =>
   NotFoundPage({ config, importMap, params, searchParams })
 
