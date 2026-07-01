@@ -370,6 +370,71 @@ export const SiteSettings: GlobalConfig = {
             },
           ],
         },
+
+        // ── COPY ────────────────────────────────────────────────────────────
+        // Brand-voice strings the storefront and emails used to hardcode. Every
+        // field falls back to its defaultValue, so a fresh install reads the same
+        // as before — a second brand just edits them here, no code change.
+        {
+          label: 'Copy',
+          fields: [
+            {
+              name: 'productBlurb',
+              type: 'textarea',
+              defaultValue:
+                'Hand-painted in Beirut. Each piece is unique — colours and details may vary slightly from the photo.',
+              admin: { description: 'Short note shown under the details on every product page.' },
+            },
+            {
+              name: 'productMetaTagline',
+              type: 'text',
+              defaultValue: 'One-of-a-kind piece, made in Lebanon.',
+              admin: {
+                description:
+                  'Appended to each product’s SEO/social description: "Hand-painted by {store} — {product}. {this}".',
+              },
+            },
+            {
+              name: 'emptyCartMessage',
+              type: 'text',
+              defaultValue: 'Find a piece that speaks to you.',
+              admin: { description: 'Shown on the cart page when the cart is empty.' },
+            },
+            {
+              name: 'orderThankYouNote',
+              type: 'textarea',
+              defaultValue:
+                'Our team will reach out shortly to confirm your delivery details. Keep your phone nearby.',
+              admin: { description: 'Subtitle on the order-confirmation page after checkout.' },
+            },
+            {
+              name: 'emailGreeting',
+              type: 'textarea',
+              defaultValue:
+                'Thank you for supporting the music. Our team will reach out on WhatsApp to confirm your delivery details and arrange handoff.',
+              admin: { description: 'Opening line of the order-confirmation email (after "Hi {name},").' },
+            },
+            {
+              name: 'emailFooterNote',
+              type: 'text',
+              defaultValue: "Lebanon's music fashion brand.",
+              admin: {
+                description:
+                  'Email footer tagline. Rendered as "{store name} — {this}". Leave the store name out; it is added automatically.',
+              },
+            },
+            {
+              name: 'orderNumberPrefix',
+              type: 'text',
+              defaultValue: 'TRK',
+              maxLength: 6,
+              admin: {
+                description:
+                  'Prefix for generated order numbers, e.g. "TRK" → TRK-123456-AB12. Letters/numbers only; changing it does not rename existing orders.',
+              },
+            },
+          ],
+        },
       ],
     },
   ],

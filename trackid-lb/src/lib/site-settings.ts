@@ -185,8 +185,42 @@ export function resolveFontStack(key: unknown): string {
 
 // ── Misc helpers ─────────────────────────────────────────────────────────────
 
-export function resolveCopyright(template: string): string {
-  return (template || '© {year} trackID.lb').replace('{year}', String(new Date().getFullYear()))
+export function resolveCopyright(template: string, storeName = 'trackID.lb'): string {
+  return (template || `© {year} ${storeName}`).replace('{year}', String(new Date().getFullYear()))
+}
+
+// ── Brand copy (Copy tab) ────────────────────────────────────────────────────
+// Resolved strings handed to the email templates so notifications.ts stays a
+// pure renderer with no SiteSettings import. Each falls back to the field's
+// defaultValue so a fresh/empty install reads identically to the old hardcode.
+
+export const DEFAULT_STORE_NAME = 'trackID.lb'
+export const DEFAULT_EMAIL_GREETING =
+  'Thank you for supporting the music. Our team will reach out on WhatsApp to confirm your delivery details and arrange handoff.'
+export const DEFAULT_EMAIL_FOOTER_NOTE = "Lebanon's music fashion brand."
+export const DEFAULT_PRODUCT_BLURB =
+  'Hand-painted in Beirut. Each piece is unique — colours and details may vary slightly from the photo.'
+export const DEFAULT_PRODUCT_META_TAGLINE = 'One-of-a-kind piece, made in Lebanon.'
+export const DEFAULT_EMPTY_CART_MESSAGE = 'Find a piece that speaks to you.'
+export const DEFAULT_ORDER_THANKYOU_NOTE =
+  'Our team will reach out shortly to confirm your delivery details. Keep your phone nearby.'
+
+export type BrandCopy = {
+  storeName: string
+  emailGreeting: string
+  emailFooterNote: string
+}
+
+export function resolveBrandCopy(settings: AnyRecord): BrandCopy {
+  return {
+    storeName: (settings.storeName as string) || DEFAULT_STORE_NAME,
+    emailGreeting: (settings.emailGreeting as string) || DEFAULT_EMAIL_GREETING,
+    emailFooterNote: (settings.emailFooterNote as string) || DEFAULT_EMAIL_FOOTER_NOTE,
+  }
+}
+
+export function resolveStoreName(settings: AnyRecord): string {
+  return (settings.storeName as string) || DEFAULT_STORE_NAME
 }
 
 /**

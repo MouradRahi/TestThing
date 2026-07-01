@@ -7,6 +7,12 @@ import { ProductCard } from '@/components/product/ProductCard'
 import { ProductGallery } from '@/components/product/ProductGallery'
 import { getSizes, totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
+import {
+  getSiteSettings,
+  resolveStoreName,
+  DEFAULT_PRODUCT_BLURB,
+  DEFAULT_PRODUCT_META_TAGLINE,
+} from '@/lib/site-settings'
 
 export const revalidate = 3600
 
@@ -37,9 +43,13 @@ export async function generateMetadata({
   const product = docs[0]
   if (!product) return {}
 
+  const settings = await getSiteSettings()
+  const storeName = resolveStoreName(settings)
+  const metaTagline = (settings.productMetaTagline as string) || DEFAULT_PRODUCT_META_TAGLINE
+
   const images = Array.isArray(product.images) ? product.images : []
   const ogImage = images[0]?.url
-  const description = `Hand-painted by trackID.lb — ${product.title}. One-of-a-kind piece made in Lebanon.`
+  const description = `Hand-painted by ${storeName} — ${product.title}. ${metaTagline}`
 
   return {
     title: product.title,
@@ -67,15 +77,21 @@ export default async function ProductPage({
   const { slug } = await params
   const payload = await getPayload()
 
-  const { docs } = await payload.find({
-    collection: 'products',
-    where: { slug: { equals: slug }, status: { equals: 'published' } },
-    limit: 1,
-    depth: 2,
-  })
+  const [{ docs }, settings] = await Promise.all([
+    payload.find({
+      collection: 'products',
+      where: { slug: { equals: slug }, status: { equals: 'published' } },
+      limit: 1,
+      depth: 2,
+    }),
+    getSiteSettings(),
+  ])
 
   const product = docs[0]
   if (!product) notFound()
+
+  const storeName = resolveStoreName(settings)
+  const productBlurb = (settings.productBlurb as string) || DEFAULT_PRODUCT_BLURB
 
   const images = Array.isArray(product.images) ? product.images : []
   const galleryImages = images
@@ -97,15 +113,15 @@ export default async function ProductPage({
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.title,
-    description: `Hand-painted by trackID.lb — ${product.title}`,
-    brand: { '@type': 'Brand', name: 'trackID.lb' },
+    description: `Hand-painted by ${storeName} — ${product.title}`,
+    brand: { '@type': 'Brand', name: storeName },
     image: images.map((img) => img.url).filter(Boolean),
     offers: {
       '@type': 'Offer',
       price: product.price,
       priceCurrency: 'USD',
       availability: stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-      seller: { '@type': 'Organization', name: 'trackID.lb' },
+      seller: { '@type': 'Organization', name: storeName },
     },
   }
 
@@ -255,9 +271,8 @@ export default async function ProductPage({
                 ))}
               </div>
             )}
-            <p className="pt-2 leading-relaxed text-muted">
-              Hand-painted in Beirut. Each piece is unique — colours and details may vary slightly
-              from the photo.
+            <p className="pt-2 leading-relaxed text-muted whitespace-pre-line">
+              {productBlurb}
             </p>
           </div>
         </div>

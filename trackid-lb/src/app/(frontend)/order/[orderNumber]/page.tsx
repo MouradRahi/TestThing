@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { getPayload } from '@/lib/payload'
-import { getSiteSettings } from '@/lib/site-settings'
+import { getSiteSettings, DEFAULT_ORDER_THANKYOU_NOTE } from '@/lib/site-settings'
 import { Button } from '@/components/ui/Button'
 
 export const metadata: Metadata = { title: 'Order Confirmed' }
@@ -40,8 +40,9 @@ export default async function OrderConfirmationPage({ params }: Props) {
   }> = Array.isArray(order.items) ? order.items : []
 
   const isBankTransfer = order.paymentMethod === 'bank_transfer'
-  const settings = isBankTransfer ? await getSiteSettings() : {}
+  const settings = await getSiteSettings()
   const bankInstructions = (settings.bankTransferInstructions as string) || ''
+  const thankYouNote = (settings.orderThankYouNote as string) || DEFAULT_ORDER_THANKYOU_NOTE
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-20">
@@ -52,8 +53,8 @@ export default async function OrderConfirmationPage({ params }: Props) {
         </div>
         <h1 className="text-2xl font-bold text-foreground mb-3">Order received</h1>
         <p className="font-mono text-accent text-base tracking-wider mb-4">{order.orderNumber}</p>
-        <p className="text-xs text-muted leading-relaxed max-w-xs mx-auto">
-          Our team will reach out shortly to confirm your delivery details. Keep your phone nearby.
+        <p className="text-xs text-muted leading-relaxed max-w-xs mx-auto whitespace-pre-line">
+          {thankYouNote}
         </p>
       </div>
 

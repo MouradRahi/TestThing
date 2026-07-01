@@ -1,7 +1,7 @@
 import { getPayload } from '@/lib/payload'
 import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
 import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
-import { resolveDeliveryFee, getDeliveryZones } from '@/lib/site-settings'
+import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy } from '@/lib/site-settings'
 import { getSizes } from '@/lib/stock'
 import { safeRevalidatePath } from '@/lib/revalidate'
 import { NextRequest, NextResponse, after } from 'next/server'
@@ -10,12 +10,14 @@ import type { Payload } from 'payload'
 const MAX_DISTINCT_ITEMS = 30
 const MAX_QUANTITY_PER_ITEM = 99
 
-function generateOrderNumber(): string {
+function generateOrderNumber(prefix?: unknown): string {
   // 6-digit ms timestamp tail + 4 random alphanumeric chars — no module state,
   // collision-safe across cold starts and concurrent Vercel instances
+  const safePrefix =
+    (typeof prefix === 'string' ? prefix.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : '') || 'TRK'
   const ts = Date.now().toString().slice(-6)
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase()
-  return `TRK-${ts}-${rand}`
+  return `${safePrefix}-${ts}-${rand}`
 }
 
 // ── Stock ────────────────────────────────────────────────────────────────────
@@ -261,7 +263,7 @@ export async function POST(req: NextRequest) {
       order = await payload.create({
         collection: 'orders',
         data: {
-          orderNumber: generateOrderNumber(),
+          orderNumber: generateOrderNumber(settings.orderNumberPrefix),
           customerName,
           customerPhone,
           customerEmail,
@@ -311,6 +313,7 @@ export async function POST(req: NextRequest) {
         paymentMethod === 'bank_transfer' && typeof settings.bankTransferInstructions === 'string'
           ? settings.bankTransferInstructions
           : undefined,
+      brand: resolveBrandCopy(settings),
     }
 
     // after() keeps the serverless function alive past the response —

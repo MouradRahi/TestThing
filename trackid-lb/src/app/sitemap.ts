@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next'
 import { getPayload } from '@/lib/payload'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://trackid.lb'
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const payload = await getPayload()
 
   const [{ docs: products }, { docs: artists }, { docs: pages }] = await Promise.all([

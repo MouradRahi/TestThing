@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { isAdmin } from '../lib/access'
 import { sendOrderStatusEmail } from '../lib/notifications'
+import { resolveBrandCopy } from '../lib/site-settings'
 
 export const Orders: CollectionConfig = {
   slug: 'orders',
@@ -19,16 +20,24 @@ export const Orders: CollectionConfig = {
     afterChange: [
       // Tell the customer when their order moves forward (shipped, delivered…).
       // Skipped on creation — the confirmation email already covers that.
-      async ({ doc, previousDoc }) => {
+      async ({ doc, previousDoc, req }) => {
         const prev = previousDoc?.orderStatus
         const next = doc?.orderStatus
         if (!prev || prev === next || !doc?.customerEmail) return
         try {
+          let brand
+          try {
+            const settings = await req.payload.findGlobal({ slug: 'site-settings' })
+            brand = resolveBrandCopy(settings as Record<string, unknown>)
+          } catch {
+            // fresh install without the global — notifications.ts applies defaults
+          }
           await sendOrderStatusEmail({
             orderNumber: doc.orderNumber,
             customerName: doc.customerName,
             customerEmail: doc.customerEmail,
             status: next,
+            brand,
           })
         } catch (err) {
           console.error('[orders] Status email failed:', err)

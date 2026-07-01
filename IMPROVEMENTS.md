@@ -141,7 +141,7 @@ The stated goal: a business owner expresses their **entire** brand from the admi
 - ☐ `tagline` (Brand tab) — unused anywhere (only `footerTagline` is). Use on homepage empty state / metadata, or remove the field
 - ☑ `whatsappNumber` — floating WhatsApp chat button (`src/components/WhatsAppButton.tsx`, rendered in frontend layout); `getWhatsAppLink` helper sanitizes to a `wa.me` link. Renders only when a number is set
 
-### 3.2 Hardcoded brand strings that must move to CMS
+### 3.2 Hardcoded brand strings that must move to CMS — ☑ DONE (Session 11)
 A second brand deploying this code would still say "trackID.lb" and "Beirut" in all of these:
 - `product/[slug]/page.tsx` — meta description ("Hand-painted by trackID.lb… made in Lebanon"), JSON-LD `brand`/`seller`, the "Hand-painted in Beirut…" paragraph
 - `order/[orderNumber]` page — "Thank you for supporting the music."
@@ -154,10 +154,11 @@ A second brand deploying this code would still say "trackID.lb" and "Beirut" in 
 - `cart.ts` — localStorage key `trackid-cart`
 
 Plan:
-- ☐ SiteSettings → new **Copy** tab (or `UIStrings` group): productPageBlurb, orderThankYouMessage, emptyCartMessage, emailGreeting, emailFooter, brandNameForSchema — each with the current text as `defaultValue`
-- ☐ Email template: derive brand name, colors (from theme tokens), logo, and copy from SiteSettings
-- ☐ JSON-LD + meta descriptions built from `storeName` + CMS copy
-- ☐ Derive cart key / order-number prefix (`TRK`) from a configurable `brandSlug` / `orderPrefix` field
+- ☑ SiteSettings → new **Copy** tab: `productBlurb`, `productMetaTagline`, `emptyCartMessage`, `orderThankYouNote`, `emailGreeting`, `emailFooterNote`, `orderNumberPrefix` — each with the current text as `defaultValue` (brandNameForSchema = existing `storeName`)
+- ☑ Email template: brand name, greeting, and footer copy now from SiteSettings (threaded via `OrderNotificationData.brand` / `StatusEmailData.brand`, resolved by `resolveBrandCopy`). Email keeps its dark shell — **theme-color derivation deferred** (transactional legibility > matching a light scheme; revisit as a v2 if needed)
+- ☑ JSON-LD + meta descriptions built from `storeName` + CMS copy (product + artist pages)
+- ☑ Order-number prefix derived from `orderNumberPrefix` field (default `TRK`). Cart key is client-side (read before any DB call) so it's env-driven: `NEXT_PUBLIC_CART_KEY`; admin title likewise `NEXT_PUBLIC_STORE_NAME` (config loads before DB)
+- ☐ Remaining brand-voice nicety: the 5 `STATUS_EMAIL_COPY` lines in `notifications.ts` are still hardcoded tone (not name-locked) — leave until a brand asks to customize per-status copy
 
 ### 3.3 Typography — the missing half of brand identity — ☑ DONE (Session 10)
 Colors are fully theme-able; type is locked to `system-ui`. Editorial identity needs fonts.
@@ -272,7 +273,7 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 | **9a — Trust the server** ☑ DONE (Session 9) | Order integrity & security | 1.1, 1.2, 1.4, 1.5, 1.6, 1.9, 1.11 |
 | **9b — Launch UX** ☑ DONE (Session 9; 2.5 partial — cart revalidation + per-field errors remain) | Customer-facing launch blockers | 1.7, 1.8, 1.10, 2.1, 2.2, 2.4, 2.5, mobile nav |
 | **10 — Commerce depth** ☑ DONE (Session 9; artist-filter dropdown scaling deferred) | 2.3 variants, 2.6 status updates, 2.7 search/sort, 1.3 revalidation hooks |
-| **11 — True white-label** (in progress, Session 10) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · remaining: 3.2 Copy tab, 3.3 fonts, 3.4 radius, 4.2 types |
+| **11 — True white-label** (Session 11) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · remaining: 4.2 types (blocked on Node LTS), 3.1 leftovers (contactEmail reply-to, tagline) |
 | **12 — Admin experience** | 4.1 media uploads ☑ (Session 10) · remaining: 4.6 sales/analytics dashboard, 4.3 drafts/preview, 4.5 seed script, Phase 9 blocks-on-pages (3.6) |
 | **13 — Growth** | Section 6 as the business demands |
 
