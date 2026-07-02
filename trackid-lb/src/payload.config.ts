@@ -15,6 +15,8 @@ import { Pages } from './collections/Pages'
 import { Media } from './collections/Media'
 import { GarmentTypes } from './collections/GarmentTypes'
 import { Discounts } from './collections/Discounts'
+import { Customers } from './collections/Customers'
+import { Carts } from './collections/Carts'
 import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
@@ -47,7 +49,7 @@ export default buildConfig({
       beforeDashboard: ['/components/admin/SalesDashboard#SalesDashboard'],
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Customers, Carts, Users],
   // Content localization — mirrors the storefront locales (src/i18n/routing.ts).
   // Fields marked `localized: true` store a value per locale; everything else is
   // shared. Add a locale here + in routing.ts + a messages/<locale>.json to grow.

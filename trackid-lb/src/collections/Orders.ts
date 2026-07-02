@@ -114,6 +114,13 @@ export const Orders: CollectionConfig = {
       type: 'email',
     },
     {
+      name: 'customer',
+      type: 'relationship',
+      relationTo: 'customers',
+      index: true,
+      admin: { readOnly: true, description: 'Linked customer account — guest orders have none.' },
+    },
+    {
       name: 'deliveryAddress',
       type: 'textarea',
       required: true,

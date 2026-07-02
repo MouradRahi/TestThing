@@ -22,6 +22,17 @@ export function Nav({ storeName, links, logoUrl }: Props) {
   const { itemCount, openCart } = useCart()
   const [menuOpen, setMenuOpen] = useState(false)
   const t = useTranslations('nav')
+  const ta = useTranslations('account')
+
+  const accountLink = (
+    <Link
+      href="/account"
+      onClick={() => setMenuOpen(false)}
+      className="hover:text-foreground transition-colors uppercase tracking-widest"
+    >
+      {ta('account')}
+    </Link>
+  )
 
   const cartLink = (
     <button
@@ -76,6 +87,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
             {link.label}
           </Link>
         ))}
+        {accountLink}
         {cartLink}
         <LocaleSwitcher />
       </nav>
@@ -118,6 +130,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
               {link.label}
             </Link>
           ))}
+          {accountLink}
           <div className="pt-2 border-t border-border">
             <LocaleSwitcher />
           </div>

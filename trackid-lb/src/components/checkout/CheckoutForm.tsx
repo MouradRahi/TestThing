@@ -20,13 +20,16 @@ type FormState = {
   website: string // honeypot — must stay empty; bots that fill it are silently dropped
 }
 
+type SavedAddress = { label?: string; area?: string; deliveryAddress?: string }
+
 type Props = {
   zones: DeliveryZone[]
   freeDeliveryThreshold: number | null
   bankTransferInstructions: string
+  prefill?: { name?: string; phone?: string; email?: string; addresses?: SavedAddress[] }
 }
 
-export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstructions }: Props) {
+export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstructions, prefill }: Props) {
   const router = useRouter()
   const t = useTranslations('checkout')
   const { items, total, clearCart } = useCart()
@@ -36,16 +39,23 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
   const [discount, setDiscount] = useState<{ code: string; type: 'percentage' | 'fixed'; value: number } | null>(null)
   const [discountMsg, setDiscountMsg] = useState('')
   const [discountLoading, setDiscountLoading] = useState(false)
+  const savedAddresses = prefill?.addresses ?? []
   const [form, setForm] = useState<FormState>({
-    customerName: '',
-    customerPhone: '',
-    customerEmail: '',
+    customerName: prefill?.name ?? '',
+    customerPhone: prefill?.phone ?? '',
+    customerEmail: prefill?.email ?? '',
     deliveryAddress: '',
     area: '',
     notes: '',
     paymentMethod: 'cod',
     website: '',
   })
+
+  const applySavedAddress = (i: number) => {
+    const a = savedAddresses[i]
+    if (!a) return
+    setForm((prev) => ({ ...prev, area: a.area ?? '', deliveryAddress: a.deliveryAddress ?? '' }))
+  }
 
   const hasZones = zones.length > 0
   const selectedZone = hasZones ? zones.find((z) => z.label === form.area) : undefined
@@ -176,6 +186,25 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           <Field label={t('email')} name="customerEmail" value={form.customerEmail} onChange={handleChange} type="email" />
 
           <SectionLabel className="pt-4">{t('delivery')}</SectionLabel>
+
+          {savedAddresses.length > 0 && (
+            <SelectField
+              label={t('savedAddress')}
+              name="savedAddress"
+              defaultValue=""
+              onChange={(e) => {
+                const i = Number(e.target.value)
+                if (!Number.isNaN(i)) applySavedAddress(i)
+              }}
+            >
+              <option value="">{t('savedAddressDefault')}</option>
+              {savedAddresses.map((a, i) => (
+                <option key={i} value={i}>
+                  {a.label || a.area || `#${i + 1}`}
+                </option>
+              ))}
+            </SelectField>
+          )}
 
           {hasZones ? (
             <SelectField label={t('areaCity')} name="area" value={form.area} onChange={handleChange} required>
