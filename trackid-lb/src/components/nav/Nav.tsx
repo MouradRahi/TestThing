@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useTranslations } from 'next-intl'
+import { Link } from '@/i18n/navigation'
 import { useCart } from '@/components/cart/CartContext'
+import { LocaleSwitcher } from '@/components/nav/LocaleSwitcher'
 
 export type NavLink = {
   label: string
@@ -19,6 +21,7 @@ type Props = {
 export function Nav({ storeName, links, logoUrl }: Props) {
   const { itemCount, openCart } = useCart()
   const [menuOpen, setMenuOpen] = useState(false)
+  const t = useTranslations('nav')
 
   const cartLink = (
     <button
@@ -27,20 +30,20 @@ export function Nav({ storeName, links, logoUrl }: Props) {
         setMenuOpen(false)
         openCart()
       }}
-      aria-label={`Open cart, ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`}
+      aria-label={t('openCart', { count: itemCount })}
       className="hover:text-foreground transition-colors relative uppercase tracking-widest"
     >
-      Cart
+      {t('cart')}
       {itemCount > 0 && (
         <span
           aria-hidden="true"
-          className="absolute -top-2 -right-4 bg-accent text-on-accent text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none tabular-nums"
+          className="absolute -top-2 -end-4 bg-accent text-on-accent text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none tabular-nums"
         >
           {itemCount > 9 ? '9+' : itemCount}
         </span>
       )}
       <span className="sr-only" aria-live="polite">
-        {itemCount} {itemCount === 1 ? 'item' : 'items'} in cart
+        {t('itemsInCart', { count: itemCount })}
       </span>
     </button>
   )
@@ -74,6 +77,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
           </Link>
         ))}
         {cartLink}
+        <LocaleSwitcher />
       </nav>
 
       {/* Mobile: cart stays visible, links collapse behind the hamburger */}
@@ -81,7 +85,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
         {cartLink}
         <button
           onClick={() => setMenuOpen((open) => !open)}
-          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
           aria-expanded={menuOpen}
           className="text-foreground p-1 -mr-1"
         >
@@ -114,6 +118,9 @@ export function Nav({ storeName, links, logoUrl }: Props) {
               {link.label}
             </Link>
           ))}
+          <div className="pt-2 border-t border-border">
+            <LocaleSwitcher />
+          </div>
         </nav>
       )}
     </header>

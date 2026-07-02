@@ -52,5 +52,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }))
 
-  return [...staticRoutes, ...productRoutes, ...artistRoutes, ...pageRoutes]
+  // English (default) is unprefixed; add an /ar variant of every URL for the
+  // Arabic locale (mirrors localePrefix: 'as-needed' in src/i18n/routing.ts).
+  const enRoutes = [...staticRoutes, ...productRoutes, ...artistRoutes, ...pageRoutes]
+  const arRoutes = enRoutes.map((r) => ({ ...r, url: r.url.replace(siteUrl, `${siteUrl}/ar`) }))
+  return [...enRoutes, ...arRoutes]
 }

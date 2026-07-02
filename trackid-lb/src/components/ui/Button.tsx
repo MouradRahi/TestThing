@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { Link } from '@/i18n/navigation'
 import type { ComponentPropsWithoutRef } from 'react'
 
 export type ButtonVariant = 'primary' | 'secondary'

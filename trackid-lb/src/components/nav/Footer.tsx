@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { getTranslations, getLocale } from 'next-intl/server'
+import { Link } from '@/i18n/navigation'
 import { getSiteSettings, getNavigation, resolveCopyright } from '@/lib/site-settings'
 
 const SOCIAL_LABELS: Record<string, string> = {
@@ -24,7 +25,8 @@ const SOCIAL_ICON_PATHS: Record<string, string> = {
 }
 
 export async function Footer() {
-  const [settings, nav] = await Promise.all([getSiteSettings(), getNavigation()])
+  const locale = await getLocale()
+  const [settings, nav, t] = await Promise.all([getSiteSettings(locale), getNavigation(locale), getTranslations('footer')])
 
   const storeName = (settings.storeName as string) || 'trackID.lb'
   const logoUrl = (settings.logoUrl as string) || ''
@@ -84,14 +86,14 @@ export async function Footer() {
 
         {/* Dynamic footer columns from Navigation global */}
         {footerColumns.length > 0
-          ? footerColumns.map((col: { columnTitle: string; links: { label: string; href: string; openInNewTab?: boolean }[] }) => (
-              <div key={col.columnTitle}>
+          ? footerColumns.map((col: { columnTitle: string; links: { label: string; href: string; openInNewTab?: boolean }[] }, ci: number) => (
+              <div key={col.columnTitle ?? ci}>
                 <p className="text-[10px] uppercase tracking-[0.3em] text-muted mb-4">
                   {col.columnTitle}
                 </p>
                 <ul className="space-y-3">
-                  {(col.links || []).map((link) => (
-                    <li key={link.href}>
+                  {(col.links || []).map((link, li: number) => (
+                    <li key={link.href ?? li}>
                       <Link
                         href={link.href}
                         target={link.openInNewTab ? '_blank' : undefined}
@@ -107,21 +109,21 @@ export async function Footer() {
             ))
           : /* Fallback if no footer columns configured */
             <div>
-              <p className="text-[10px] uppercase tracking-[0.3em] text-muted mb-4">Explore</p>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-muted mb-4">{t('explore')}</p>
               <ul className="space-y-3">
                 <li>
                   <Link href="/shop" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
-                    Shop
+                    {t('shop')}
                   </Link>
                 </li>
                 <li>
                   <Link href="/custom-request" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
-                    Custom Request
+                    {t('customRequest')}
                   </Link>
                 </li>
                 <li>
                   <Link href="/track" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
-                    Track Order
+                    {t('trackOrder')}
                   </Link>
                 </li>
               </ul>

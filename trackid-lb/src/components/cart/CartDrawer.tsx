@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import Link from 'next/link'
+import { useTranslations } from 'next-intl'
+import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 
@@ -10,6 +11,8 @@ import { useCart } from '@/components/cart/CartContext'
 // full /cart and /checkout pages remain the source of truth.
 export function CartDrawer() {
   const { items, isOpen, closeCart, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
+  const t = useTranslations('cart')
+  const tp = useTranslations('product')
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
 
@@ -56,12 +59,12 @@ export function CartDrawer() {
       >
         <div className="flex items-center justify-between px-5 h-14 border-b border-border shrink-0">
           <h2 className="text-xs uppercase tracking-[0.2em] text-foreground">
-            Cart{itemCount > 0 ? ` · ${itemCount}` : ''}
+            {t('title')}{itemCount > 0 ? ` · ${itemCount}` : ''}
           </h2>
           <button
             ref={closeRef}
             onClick={closeCart}
-            aria-label="Close cart"
+            aria-label={t('close')}
             className="text-muted hover:text-foreground transition-colors p-1 -mr-1"
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
@@ -78,7 +81,7 @@ export function CartDrawer() {
               onClick={closeCart}
               className="text-xs uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
             >
-              Browse the shop →
+              {t('browse')}
             </Link>
           </div>
         ) : (
@@ -102,7 +105,7 @@ export function CartDrawer() {
                       </Link>
                       <button
                         onClick={() => removeItem(item.key)}
-                        aria-label={`Remove ${item.title} from cart`}
+                        aria-label={t('remove', { title: item.title })}
                         className="text-muted hover:text-foreground transition-colors shrink-0 -mt-0.5 p-0.5"
                       >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
@@ -111,14 +114,14 @@ export function CartDrawer() {
                       </button>
                     </div>
                     {item.size && (
-                      <p className="text-[10px] uppercase tracking-wider text-muted mt-1">Size: {item.size}</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted mt-1">{tp('size')}: {item.size}</p>
                     )}
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => updateQuantity(item.key, item.quantity - 1)}
                           disabled={item.quantity <= 1}
-                          aria-label="Decrease quantity"
+                          aria-label={t('decrease')}
                           className="w-6 h-6 border border-border text-foreground hover:border-accent flex items-center justify-center text-xs disabled:opacity-30 transition-colors"
                         >
                           −
@@ -127,7 +130,7 @@ export function CartDrawer() {
                         <button
                           onClick={() => updateQuantity(item.key, item.quantity + 1)}
                           disabled={item.maxQuantity != null && item.quantity >= item.maxQuantity}
-                          aria-label="Increase quantity"
+                          aria-label={t('increase')}
                           className="w-6 h-6 border border-border text-foreground hover:border-accent flex items-center justify-center text-xs disabled:opacity-30 transition-colors"
                         >
                           +
@@ -142,23 +145,23 @@ export function CartDrawer() {
 
             <div className="border-t border-border p-5 space-y-4 shrink-0">
               <div className="flex justify-between text-sm">
-                <span className="text-muted uppercase tracking-widest text-xs">Subtotal</span>
+                <span className="text-muted uppercase tracking-widest text-xs">{t('subtotal')}</span>
                 <span className="text-foreground tabular-nums">${total.toFixed(0)}</span>
               </div>
-              <p className="text-[10px] text-muted/70">Delivery calculated at checkout.</p>
+              <p className="text-[10px] text-muted/70">{t('deliveryNote')}</p>
               <Link
                 href="/checkout"
                 onClick={closeCart}
                 className="block w-full text-center bg-accent text-on-accent text-xs uppercase tracking-widest font-medium py-3.5 hover:bg-accent-hover transition-colors"
               >
-                Checkout
+                {t('checkout')}
               </Link>
               <Link
                 href="/cart"
                 onClick={closeCart}
                 className="block text-center text-xs uppercase tracking-widest text-muted hover:text-foreground transition-colors"
               >
-                View full cart
+                {t('viewFullCart')}
               </Link>
             </div>
           </>

@@ -174,6 +174,17 @@ export const Orders: CollectionConfig = {
       defaultValue: 0,
     },
     {
+      name: 'discountCode',
+      type: 'text',
+      admin: { readOnly: true, description: 'Discount code applied at checkout (if any).' },
+    },
+    {
+      name: 'discountAmount',
+      type: 'number',
+      defaultValue: 0,
+      admin: { readOnly: true, description: 'Amount taken off the subtotal by the discount code.' },
+    },
+    {
       name: 'total',
       type: 'number',
       required: true,

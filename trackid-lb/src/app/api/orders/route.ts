@@ -2,6 +2,7 @@ import { getPayload } from '@/lib/payload'
 import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
 import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
 import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy } from '@/lib/site-settings'
+import { resolveDiscount } from '@/lib/discounts'
 import { getSizes } from '@/lib/stock'
 import { safeRevalidatePath } from '@/lib/revalidate'
 import { NextRequest, NextResponse, after } from 'next/server'
@@ -141,10 +142,14 @@ export async function POST(req: NextRequest) {
     const area = cleanString(body.area, 120)
     const customerEmail = cleanOptional(body.customerEmail, 160)
     const notes = cleanOptional(body.notes, 1000)
+    const discountCodeInput = cleanOptional(body.discountCode, 40)
     const paymentMethod: 'cod' | 'bank_transfer' =
       body.paymentMethod === 'bank_transfer' ? 'bank_transfer' : 'cod'
 
-    if (!customerName || !customerPhone || !deliveryAddress || !area || customerEmail === null || notes === null) {
+    if (
+      !customerName || !customerPhone || !deliveryAddress || !area ||
+      customerEmail === null || notes === null || discountCodeInput === null
+    ) {
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
     }
 
@@ -242,7 +247,23 @@ export async function POST(req: NextRequest) {
     if (deliveryFee === null) {
       return NextResponse.json({ error: 'Please select a valid delivery area.' }, { status: 400 })
     }
-    const total = subtotal + deliveryFee
+
+    // Discount is recomputed here from the DB — the client code is only a request.
+    // A now-invalid code blocks checkout (before any stock is touched) with a clear message.
+    let discountCode: string | undefined
+    let discountAmount = 0
+    let discountId: string | number | undefined
+    if (discountCodeInput) {
+      const result = await resolveDiscount(payload, discountCodeInput, subtotal)
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+      discountCode = result.code
+      discountAmount = result.amount
+      discountId = result.id
+    }
+
+    const total = Math.max(0, subtotal - discountAmount) + deliveryFee
 
     const decremented: StockLine[] = []
     for (const line of qtyByLine.values()) {
@@ -272,6 +293,8 @@ export async function POST(req: NextRequest) {
           items,
           subtotal,
           deliveryFee,
+          discountCode,
+          discountAmount,
           total,
           paymentMethod,
           paymentStatus: 'pending',
@@ -282,6 +305,25 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       await restoreStock(payload, decremented)
       throw err
+    }
+
+    // Record the redemption (non-fatal — never fail a placed order over this)
+    if (discountId != null) {
+      try {
+        const pool = getPool(payload)
+        if (pool) {
+          await pool.query('UPDATE discounts SET usage_count = usage_count + 1 WHERE id = $1', [discountId])
+        } else {
+          const current = await payload.findByID({ collection: 'discounts', id: discountId, depth: 0 })
+          await payload.update({
+            collection: 'discounts',
+            id: discountId,
+            data: { usageCount: (Number(current.usageCount) || 0) + 1 },
+          })
+        }
+      } catch (err) {
+        console.error('[orders] Failed to increment discount usage:', err)
+      }
     }
 
     // Stock changed via raw SQL (bypasses Payload hooks) — refresh the cached pages
@@ -302,6 +344,8 @@ export async function POST(req: NextRequest) {
       area,
       items,
       subtotal,
+      discountCode,
+      discountAmount: discountAmount > 0 ? discountAmount : undefined,
       total,
       paymentMethod,
       deliveryFeeLabel: zonesConfigured

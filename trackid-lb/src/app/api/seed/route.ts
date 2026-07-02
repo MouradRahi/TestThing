@@ -145,13 +145,33 @@ async function ensureBySlug(
   return { id: doc.id, created: true }
 }
 
-async function runSeed(payload: Payload) {
+// Opt-in wipe of the demo-able catalog collections. Used to recover a clean
+// slate after a destructive schema change (e.g. enabling localization blanks
+// existing localized fields). Only the catalog is cleared — orders, media,
+// users, discounts, and globals are left untouched.
+async function resetCatalog(payload: Payload) {
+  const collections = ['products', 'artists', 'categories', 'pages'] as const
+  const deleted: Record<string, number> = {}
+  for (const collection of collections) {
+    const res = await payload.delete({ collection, where: { id: { exists: true } } })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    deleted[collection] = Array.isArray((res as any)?.docs) ? (res as any).docs.length : 0
+  }
+  return deleted
+}
+
+async function runSeed(payload: Payload, reset = false) {
   const summary = {
+    reset: reset ? {} as Record<string, number> : undefined,
     categories: { created: 0, existing: 0 },
     artists: { created: 0, existing: 0 },
     products: { created: 0, existing: 0 },
     homepage: 'skipped' as 'seeded' | 'skipped',
     siteSettings: 'skipped' as 'seeded' | 'skipped',
+  }
+
+  if (reset) {
+    summary.reset = await resetCatalog(payload)
   }
 
   // Categories
@@ -281,8 +301,12 @@ export async function POST(req: NextRequest) {
     )
   }
   try {
+    const url = new URL(req.url)
+    const body = await req.json().catch(() => ({}))
+    const reset =
+      body?.reset === true || url.searchParams.get('reset') === '1' || url.searchParams.get('reset') === 'true'
     const payload = await getPayload()
-    const summary = await runSeed(payload)
+    const summary = await runSeed(payload, reset)
     return NextResponse.json({ ok: true, summary })
   } catch (err) {
     console.error('[seed] failed:', err)

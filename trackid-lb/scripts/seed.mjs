@@ -8,7 +8,11 @@
 const base = (process.env.SEED_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/$/, '')
 const url = `${base}/api/seed`
 
-console.log(`Seeding via ${url} ...`)
+// `npm run seed -- --reset` wipes the catalog (products/artists/categories/pages)
+// before seeding — use to recover a clean slate after a destructive schema change.
+const reset = process.argv.includes('--reset') || process.env.SEED_RESET === '1'
+
+console.log(`Seeding via ${url}${reset ? ' (reset)' : ''} ...`)
 
 try {
   const res = await fetch(url, {
@@ -17,6 +21,7 @@ try {
       'content-type': 'application/json',
       ...(process.env.SEED_SECRET ? { 'x-seed-secret': process.env.SEED_SECRET } : {}),
     },
+    body: JSON.stringify({ reset }),
   })
   const body = await res.json().catch(() => ({}))
   console.log(JSON.stringify(body, null, 2))

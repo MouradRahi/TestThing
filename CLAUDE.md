@@ -25,9 +25,11 @@
 | Database | PostgreSQL via Supabase | Relational (orders/products/users need joins), free tier, built-in connection pooler |
 | ORM | Payload's built-in (Drizzle under the hood) | Payload manages its own schema |
 | Images | Supabase Storage | Same project as DB, public CDN bucket — Cloudinary unavailable in Lebanon |
-| Email | Resend | Order confirmation emails, simple API |
+| Email | Resend | Order confirmation + status emails, simple API |
 | WhatsApp | WhatsApp Cloud API (Meta) | Notify team on new order — free tier |
-| Hosting | Vercel | Zero-config Next.js deployment, edge CDN |
+| i18n | next-intl (UI) + Payload localization (content) | English/Arabic + RTL; English unprefixed, `/ar` prefixed |
+| Analytics | Vercel Analytics + optional GA4 / Meta Pixel | Pixel/GA IDs pasted in admin, scripts render conditionally |
+| Hosting | Vercel | Zero-config Next.js deployment, edge CDN; runs Node LTS (migrate CLI works there) |
 
 **Estimated monthly cost at launch: $0–$20**
 
@@ -56,7 +58,7 @@ Critical indexes defined on:
 - `orders.created_at` (sort for admin)
 
 ### 5. Image Pipeline
-All product images go through Cloudinary. `next/image` component used everywhere with explicit `width`/`height` and `sizes` to prevent layout shift and over-fetching.
+All images are stored in **Supabase Storage** (public CDN bucket; Cloudinary is unavailable in Lebanon). Managed via a Payload `Media` upload collection (S3 plugin → Supabase, browser-direct `clientUploads`), with a picker that fills the URL text fields the storefront reads. `next/image` is used everywhere with explicit `sizes` to prevent layout shift and over-fetching.
 
 ### 6. No Client-Side Data Fetching on Load
 Initial page renders are fully server-rendered. Client-side fetching only for interactive actions (add to cart, filter changes).
@@ -67,10 +69,12 @@ Initial page renders are fully server-rendered. Client-side fetching only for in
 
 ### Product
 ```
-id, title, slug, description (rich text), price (USD), status (draft|published)
-images[] → Cloudinary URLs
+id, title (localized), slug, description (rich text, localized), price (USD), status (draft|published)
+images[] → { image (Media upload), url (Supabase Storage URL), alt }
+sizes[] → { label, stockQuantity }   # per-size stock; flat stock_quantity used when empty
 artist → relation to Artist
 category → relation to Category
+garmentType → relation to GarmentType ("more like this")
 tags[] (e.g., "hand-painted", "hoodie", "limited")
 stock_quantity
 is_one_of_a_kind (boolean — for single unique pieces)
@@ -79,7 +83,7 @@ created_at, updated_at
 
 ### Artist
 ```
-id, name, slug, bio, genre, photo → Cloudinary URL
+id, name, slug, bio (localized), genre (localized), photoMedia (Media upload), photo → Supabase Storage URL
 ```
 
 ### Category
@@ -89,11 +93,11 @@ id, name, slug (e.g., hoodies, tees, accessories)
 
 ### Order
 ```
-id, order_number (human-readable, e.g., TRK-0042)
+id, order_number (human-readable, e.g., TRK-123456-AB12)
 customer_name, customer_phone, customer_email
 delivery_address (text), area (Lebanon area/city)
-items[] → { product_id, quantity, price_at_purchase, title_at_purchase }
-subtotal, delivery_fee, total
+items[] → { product_id, quantity, size, price_at_purchase, title_at_purchase, image_url }
+subtotal, delivery_fee, discount_code, discount_amount, total
 payment_method (cod | bank_transfer)
 payment_status (pending | paid)
 order_status (pending | confirmed | in_production | shipped | delivered | cancelled)
@@ -101,30 +105,51 @@ notes (customer notes)
 created_at, updated_at
 ```
 
+### Discount
+```
+id, code (unique, uppercased), type (percentage | fixed), value
+enabled, min_subtotal, expires_at, usage_limit, usage_count (auto)
+— validated + recomputed server-side in the orders API; usage_count bumped on redemption
+```
+
+### GarmentType
+```
+id, name (localized), slug   # admin-managed list for CustomRequest + product "more like this"
+```
+
 ### CustomRequest
 ```
 id, name, phone, email
 description (what they want)
 reference_artist, reference_song
-garment_type (hoodie, tee, etc.)
+garment_type → relation to GarmentType
 status (new | reviewing | quoted | accepted | rejected)
 created_at
 ```
 
-### Page (CMS content)
+### Media (Payload upload collection)
 ```
-id, title, slug, content (rich text blocks)
-— used for About, Artist Stories, FAQ, etc.
+id, alt, url (Supabase Storage public CDN), sizes (thumbnail/card/feature)
 ```
 
-### SiteSettings (Payload Global)
+### Page (CMS content)
 ```
-storeName, logoUrl, tagline
-contactEmail, whatsappNumber
-announcementEnabled, announcementText, announcementBgColor, announcementTextColor, announcementHref
-footerTagline, footerNote, copyrightText ({year} placeholder), socialLinks[]
-colorScheme (dark|light|warm|custom), customColors { bg, surface, border, foreground, muted, accent, accentHover, onAccent }
-metaDescription, ogImage
+id, title (localized), slug, status (draft | published)
+content (rich text, localized), sections[] (block builder — same blocks as Homepage)
+seo { metaTitle, metaDescription, ogImage }
+— serves at /<slug> and /p/<slug>; used for About, FAQ, landing pages, etc.
+```
+
+### SiteSettings (Payload Global) — tabbed: Brand / Commerce / Announcement / Footer / Theme / SEO / Copy
+```
+Brand:        storeName, logo/logoUrl, tagline*, contactEmail, whatsappNumber
+Commerce:     deliveryZones[]{label,fee}, freeDeliveryThreshold, bankTransferInstructions
+Announcement: announcementEnabled, announcementText*, bg/text colors, href
+Footer:       footerTagline*, footerNote*, copyrightText ({year}), socialLinks[]
+Theme:        headingFont, bodyFont, borderRadius, colorScheme (dark|light|warm|custom), customColors{8 tokens}
+SEO:          metaDescription*, ogImage/ogImageMedia, faviconUrl/faviconMedia, gaMeasurementId, metaPixelId
+Copy:         productBlurb*, productMetaTagline, emptyCartMessage*, orderThankYouNote*, emailGreeting, emailFooterNote, orderNumberPrefix
+   (* = localized)
 ```
 
 ### Navigation (Payload Global)
@@ -142,9 +167,9 @@ footerColumns[] → { columnTitle, links[{ label, href, openInNewTab }] }
 - [x] Payload collections defined: Products, Artists, Categories, Orders, CustomRequests, Pages, Users
 - [x] Database indexes applied via `index: true` on all hot query fields
 - [x] Project folder structure established (route groups: `(frontend)` + `(payload)`)
-- [x] ISR configured: homepage `revalidate=60`, catalog `revalidate=30`, product pages `revalidate=3600`
+- [x] ISR configured: homepage `revalidate=60`, product pages `revalidate=3600` (⚠️ `/shop` is now `force-dynamic` — it reads searchParams — not ISR; instant revalidation hooks keep stock/price fresh)
 - [x] Cursor-based pagination in shop catalog (avoids offset slowdown at scale)
-- [x] `next/image` with Cloudinary remote pattern + AVIF/WebP formats enabled
+- [x] `next/image` with Supabase Storage (`*.supabase.co`) + `placehold.co` (demo seed) remote patterns + AVIF/WebP formats enabled
 - [x] Payload Local API singleton (`src/lib/payload.ts`) — zero HTTP overhead in RSC
 - [x] Order creation API route (`POST /api/orders`) — COD only, generates TRK-XXXX order numbers
 - [x] Zero TypeScript errors
@@ -248,11 +273,13 @@ Homepage is now fully CMS-driven. Go to Admin → Site Configuration → Homepag
 - [x] Renderers show full-width `BlockRenderer` when a page has visible sections; fall back to title + richText otherwise (backward compatible)
 - [x] Fixed latent revalidation bug — Pages now revalidate both `/p/<slug>` and the clean `/<slug>`
 
-### Phase 10 — Translation / i18n (OPTIONAL — post-launch)
-- Payload built-in localization: `locales: ['en', 'ar']`, all text fields `localized: true`
-- `next-intl` for static UI strings
-- RTL support via `dir` attribute on `<html>`
-- URL structure: `/ar/shop` vs `/shop`
+### Phase 10 — Translation / i18n (IN PROGRESS — Session 18)
+- [x] `next-intl` v4 for UI strings + routing; `localePrefix: 'as-needed'` → English unprefixed (`/shop`), Arabic prefixed (`/ar/shop`)
+- [x] All `(frontend)` routes moved under `app/[locale]/`; `dir="rtl"` on `<html>` for Arabic (locale-set driven, so adding an LTR locale later needs no RTL change)
+- [x] Payload localization enabled (`locales: ['en','ar']`, defaultLocale `en`, `fallback: true`); content fields marked `localized` (products, artists, categories, garment types, pages, plus SiteSettings copy + Navigation labels); `locale` threaded through every storefront query + the cached settings helpers
+- [x] UI chrome translated (nav, cart, checkout, order confirmation, footer, product, product cards); locale switcher in the nav
+- **To add a 3rd locale (e.g. Japanese `ja`)**: add it to `src/i18n/routing.ts` locales, create `messages/ja.json`, add to `localization.locales` in `payload.config.ts` — RTL set + everything else adapts automatically
+- Deferred: homepage-block text + product-image alt localization; a few decorative shop/home strings; localized order emails
 
 ---
 
@@ -288,11 +315,15 @@ NEXT_PUBLIC_SITE_URL=https://trackid.lb
 - **Cursor pagination over offset** — `findMany({ cursor, limit })` not `findMany({ page, limit })`.
 - **ISR not SSR for product pages** — product data changes infrequently; edge caching > per-request DB hit.
 - **Supabase Storage not Cloudinary** — Cloudinary unavailable in Lebanon; Supabase serves images from same project as DB.
-- **Notifications are fire-and-forget** — email/WhatsApp calls are `void`-ed after order creation so a notification failure never blocks the order response.
-- **Globals use `unstable_cache` (5 min TTL)** — SiteSettings and Navigation are fetched on every layout render but cached server-side. Changes propagate within 5 minutes without a redeploy.
-- **CSS vars injected at layout level** — Theme colors live in SiteSettings; the layout RSC builds a `:root{...}` string and injects it as an inline `<style>` tag. This overrides the Tailwind `@theme` defaults at runtime with zero client JS. Changing the color scheme in admin takes effect on next request after cache expiry.
-- **Nav is client component, NavWrapper is server** — Nav needs `useCart` (client hook) but also needs nav links from DB. Pattern: server NavWrapper fetches data and passes as props to the client Nav.
-- **Fallback defaults on all globals** — if Navigation/SiteSettings global has no data yet (fresh install), every component falls back to sensible hardcoded defaults so nothing breaks.
+- **Notifications run in `after()`** — email/WhatsApp are dispatched via Next 15's `after()` from `next/server` after the order response, so a notification failure never blocks the order and the serverless function isn't frozen before they complete (a plain `void` can be).
+- **Server is authoritative for money** — the orders API resolves prices, delivery fee, and discount from the DB (client sends only `{ productId, quantity, size }` + a discount code); stock is decremented atomically. Never trust client-supplied totals.
+- **Globals use `unstable_cache`** — SiteSettings/Navigation cached server-side, tagged (`site-settings`/`navigation`) and busted by afterChange hooks; `getSiteSettings(locale)`/`getNavigation(locale)` cache per locale.
+- **CSS vars injected at layout level** — Theme colors/fonts/radius live in SiteSettings; the layout RSC injects a `:root{...}` inline `<style>`, overriding Tailwind `@theme` at runtime with zero client JS.
+- **Nav is client, NavWrapper is server** — server wrapper fetches globals and passes props to the client Nav (which needs `useCart`).
+- **Fallback defaults on all globals** — fresh install with empty globals still renders via hardcoded fallbacks.
+- **No `localStorage`, ever** — customer data must be server-backed via customer accounts. The cart is the only current localStorage user and gets replaced in the accounts phase. (See memory `no-localstorage-use-accounts`.)
+- **i18n: English default unprefixed, others prefixed** — `next-intl` `localePrefix: 'as-needed'` (`/shop` = en, `/ar/shop` = ar); routes live under `app/[locale]/`; Payload `localization` for content, next-intl catalogs for UI chrome; RTL driven by a locale set so adding an LTR locale needs no change. Adding a locale = 1 line in `i18n/routing.ts` + a `messages/*.json` + a `payload.config` locale.
+- **Schema changes go through migrations, not push** — prod `push: false` (migration-only); dev keeps push against a *disposable* dev DB. The `migrate:*` CLI needs Node LTS (fails on Node 25). Localize-field migrations must copy data into the `en` locale or values blank. (See `MIGRATIONS.md` + memory `schema-migrations-workflow`.)
 
 ---
 
@@ -301,49 +332,35 @@ NEXT_PUBLIC_SITE_URL=https://trackid.lb
 ```
 trackid-lb/
 ├── src/
+│   ├── middleware.ts            # next-intl locale routing (excludes api/admin/_next)
+│   ├── i18n/                    # routing.ts (locales, as-needed, RTL set) · navigation.ts · request.ts
 │   ├── app/
-│   │   ├── (frontend)/          # storefront routes
-│   │   │   ├── layout.tsx       # async — injects CSS vars, generates metadata from DB
-│   │   │   ├── globals.css      # Tailwind v4 @theme defaults (overridden at runtime by layout)
-│   │   │   ├── page.tsx         # homepage
-│   │   │   ├── shop/            # catalog
-│   │   │   ├── product/[slug]/  # product detail (ISR)
-│   │   │   ├── artist/[slug]/   # artist profile (ISR)
-│   │   │   ├── p/[slug]/        # generic CMS page renderer
-│   │   │   ├── cart/
-│   │   │   ├── checkout/
-│   │   │   ├── custom-request/
-│   │   │   └── order/[id]/      # order confirmation
+│   │   ├── [locale]/            # locale segment (en unprefixed, /ar prefixed)
+│   │   │   └── (frontend)/      # storefront routes
+│   │   │       ├── layout.tsx   # async — lang/dir, CSS vars, NextIntlClientProvider, metadata
+│   │   │       ├── globals.css  # Tailwind v4 @theme defaults (overridden at runtime by layout)
+│   │   │       ├── page.tsx · shop/ · product/[slug]/ · artist/[slug]/
+│   │   │       ├── [slug]/ · p/[slug]/   # CMS pages (clean URL + /p alias)
+│   │   │       ├── cart/ · checkout/ · custom-request/ · track/
+│   │   │       └── order/[orderNumber]/  # order confirmation
+│   │   ├── api/                 # orders · custom-requests · discounts/validate · seed
+│   │   ├── sitemap.ts · robots.ts · not-found.tsx
 │   │   └── (payload)/           # Payload admin routes (auto-generated)
-│   ├── collections/             # Payload collection definitions
-│   │   ├── Products.ts
-│   │   ├── Artists.ts
-│   │   ├── Categories.ts
-│   │   ├── Orders.ts
-│   │   ├── CustomRequests.ts
-│   │   └── Pages.ts
-│   ├── globals/                 # Payload Global definitions
-│   │   ├── SiteSettings.ts      # brand, announcement bar, footer, theme, SEO
-│   │   └── Navigation.ts        # header links + footer columns
-│   ├── components/
-│   │   ├── nav/
-│   │   │   ├── Nav.tsx          # client component (cart badge) — accepts storeName + links props
-│   │   │   ├── NavWrapper.tsx   # server wrapper — fetches globals, passes to Nav
-│   │   │   └── Footer.tsx       # server component — driven by Navigation + SiteSettings globals
-│   │   ├── AnnouncementBar.tsx  # server component — toggleable from SiteSettings
-│   │   ├── cart/
-│   │   ├── product/
-│   │   └── ui/
-│   │       ├── Button.tsx       # polymorphic button/link component
-│   │       └── FormField.tsx    # shared form field components
-│   ├── payload.config.ts        # Payload root config
-│   └── lib/
-│       ├── payload.ts           # Payload local API client (singleton)
-│       ├── site-settings.ts     # getSiteSettings, getNavigation, buildThemeCssVars, COLOR_SCHEMES
-│       ├── notifications.ts     # Resend email + WhatsApp Cloud API
-│       └── utils.ts
-├── CLAUDE.md                    # this file
-└── .env.local
+│   ├── collections/             # Products, Artists, Categories, Orders, CustomRequests,
+│   │   │                        #   Pages, Media, GarmentTypes, Discounts, Users
+│   ├── globals/                 # SiteSettings, Navigation, Homepage (+ blocks/)
+│   ├── migrations/              # committed DB migrations (prod is migration-only) — see MIGRATIONS.md
+│   ├── components/              # nav/ (Nav, NavWrapper, Footer, LocaleSwitcher) · cart/ (CartContext,
+│   │   │                        #   CartDrawer) · product/ · sections/ · checkout/ · custom-request/ ·
+│   │   │                        #   admin/ (SalesDashboard, Media views) · Analytics · AnnouncementBar ·
+│   │   │                        #   WhatsAppButton · ui/ (Button, FormField)
+│   ├── payload.config.ts        # Payload root config (collections, globals, localization, migrations, S3)
+│   └── lib/                     # payload · site-settings · notifications · discounts · stock · slug ·
+│                                #   revalidate · media-fill · api-guards · access · image · cart
+├── messages/                    # en.json · ar.json (UI string catalogs)
+├── scripts/seed.mjs             # `npm run seed [-- --reset]`
+├── CLAUDE.md · IMPROVEMENTS.md · DEPLOY.md · MIGRATIONS.md
+└── .env.local (+ .env.local.example)
 ```
 
 ---
@@ -571,3 +588,41 @@ Focus: **P4 storefront polish** — user picked gallery+quick-wins, accessibilit
 - **Quick wins**: canonical URLs via `alternates.canonical` on product (`/product/<slug>`), artist (`/artist/<slug>`), CMS pages (clean `/<slug>` — dedupes the `/p/<slug>` alias), and `/shop` (base — dedupes filter/search/sort variants). Removed the dead `experimental.reactCompiler: false` from `next.config.ts`. Replaced `/shop`'s misleading `export const revalidate = 30` with `export const dynamic = 'force-dynamic'` (it reads searchParams — always dynamic).
 - ✅ `npx tsc --noEmit` clean. IMPROVEMENTS.md §5 updated (mobile nav, loading/error/not-found, gallery, cart drawer, a11y, canonicals, reactCompiler, /shop rendering all ☑).
 - **Deferred P4**: wishlist/save-for-later + recently-viewed strip (both localStorage features), announcement-bar contrast check. Next: those, or P5 growth. Code stays launch-ready.
+
+### Session 17 — 2026-07-02
+Focus: **P5 growth — discount codes + analytics** (user picked both).
+- **Discount codes** (full commerce feature, server-authoritative):
+  - `src/collections/Discounts.ts` — code (uppercased via beforeValidate, unique), type (percentage/fixed), value, enabled, minSubtotal, expiresAt, usageLimit, auto-updated readOnly usageCount. Admin group "Commerce", writes gated to `isAdmin`. Registered in payload.config.
+  - `src/lib/discounts.ts` — `resolveDiscount(payload, code, subtotal)` (shared) + `computeDiscountAmount` (clamped to subtotal, rounded to cents). Validates enabled/expiry/usage-limit/min-subtotal.
+  - `POST /api/discounts/validate` — live checkout feedback (rate-limited, display-only).
+  - **Orders API** recomputes the discount from the DB (never trusts the client), applies `total = max(0, subtotal − discount) + deliveryFee`, resolves it **before** touching stock (a now-invalid code fails cleanly with a clear message), stores `discountCode`+`discountAmount` on the order, and bumps `usageCount` after creation (non-fatal, atomic via pool with payload.update fallback).
+  - `Orders` collection: readOnly `discountCode` + `discountAmount` fields.
+  - `CheckoutForm`: apply/remove code UI (calls validate endpoint), discount summary line, sends `discountCode` in the order POST. Client discount is display-only; recomputed from type/value against the live subtotal.
+  - Discount line rendered on the confirmation page and in the email (HTML totals + plain text; code escaped in HTML).
+- **Analytics**:
+  - SiteSettings → SEO: `gaMeasurementId` (GA4) + `metaPixelId` (Meta Pixel) fields.
+  - `src/components/Analytics.tsx` — renders GA4 + Meta Pixel `next/script` tags **only when the matching ID is set** (no IDs → no third-party scripts). Mounted in the frontend layout with IDs from settings.
+  - Installed `@vercel/analytics` and mounted `<Analytics />` from `@vercel/analytics/next` (always on; reports on Vercel).
+- ⚠️ **Schema push**: new `discounts` table + `orders.discount_code`/`discount_amount` columns push only on `npm run dev` — run dev once before the next prod build.
+- ✅ `npx tsc --noEmit` clean. IMPROVEMENTS.md §6 updated (discount codes + analytics ☑).
+- Remaining P5 (deferred): newsletter capture (Resend Audiences), i18n/Arabic+RTL, WhatsApp activation (just needs Meta keys), Instagram embed (needs handle), customer accounts. Code stays launch-ready.
+
+### Session 18 — 2026-07-02
+Focus: **Phase 10 — Localization (i18n en/ar + RTL)**. User directives: (1) **no localStorage ever** — replace with server-backed **customer accounts** (only current localStorage user is the cart: `src/lib/cart.ts` + `CartContext`; removal deferred to the accounts phase); (2) **localization before accounts**; (3) English stays unprefixed, Arabic at `/ar`; (4) architect so a 3rd locale (Japanese `ja`) is a one-line add later.
+- **Phase A — foundation + UI (BUILD VERIFIED)**:
+  - `next-intl` v4: `src/i18n/routing.ts` (`localePrefix: 'as-needed'`, locales en/ar, RTL set `['ar']` + `isRtl()`), `navigation.ts` (locale-aware `Link`/`useRouter`/`usePathname`), `request.ts`, `src/middleware.ts` (matcher excludes `api`/`admin`/`_next`), plugin composed in `next.config.ts` as `withPayload(withNextIntl(...))`.
+  - **Moved all `(frontend)` routes → `app/[locale]/(frontend)/` via `git mv`** (required the user to stop the dev server — Windows file lock). Fixed root `not-found.tsx` globals.css import path. `[locale]/(frontend)/layout.tsx` now sets `<html lang dir>`, calls `setRequestLocale`, wraps `NextIntlClientProvider`, `generateStaticParams` for locales.
+  - Swapped every storefront `next/link`→`@/i18n/navigation` `Link` and the checkout/track `useRouter` (so Arabic nav keeps `/ar`). Admin components + root not-found stay on `next/link`.
+  - Message catalogs `messages/{en,ar}.json`; translated chrome: Nav (+ **LocaleSwitcher**), CartDrawer, cart page, AddToCart, CheckoutForm, order-confirmation, Footer fallback, product page labels, ProductCard (made async for `getTranslations`). RTL logical classes (`-end-4`, `start-2`, `ms-2`, `ltr:/rtl:` on skip link).
+  - ✅ `npm run build` passed — every page prerenders `/en` + `/ar`, middleware compiled.
+- **Phase B — Payload content localization**:
+  - `payload.config.ts`: `localization: { locales:[en,ar], defaultLocale:'en', fallback:true }`.
+  - `localized: true` on: Products (title, description), Artists (bio, genre), Categories (name), GarmentTypes (name), Pages (title, content), SiteSettings (tagline, announcementText, footerTagline, footerNote, metaDescription, productBlurb, emptyCartMessage, orderThankYouNote), Navigation (header/footer link labels + columnTitle).
+  - `getSiteSettings(locale)`/`getNavigation(locale)` are now locale-aware (locale is part of the `unstable_cache` key). `locale` threaded via `getLocale()` (or route param) into **every** storefront query: layout, NavWrapper, AnnouncementBar, Footer, homepage global, FeaturedSection, shop (+artist/category filters), product (meta + main + 2 related), artist, both page renderers, custom-request garment types, order page.
+  - `sitemap.ts` now emits `/ar` variants of every URL.
+  - ✅ **Full `npm run build` verified** after the schema push — every page prerenders `/en` + `/ar`, no schema errors.
+- ⚠️ **Localization schema push is DESTRUCTIVE to existing data**: when a field is newly marked `localized`, Payload moves it to a separate `_locales` table and the dev **push does NOT migrate the old column values** — existing titles/content/nav labels come back **blank** (surfaced as a missing-`alt` error in ProductCard and a missing-`key` error in Footer, both since hardened: `alt={imageAlt || title || ''}`, footer keys fall back to index). For real data, take a Supabase backup first and use a proper Payload **migration** (copy old column → `en` locale) instead of a raw push; for demo data, run **`npm run seed -- --reset`** (new: wipes products/artists/categories/pages then reseeds a clean demo catalog into `en`; orders/media/users/discounts/globals untouched). This session's blanked data was disposable test data — recovered via reset+seed.
+- **Memory saved**: `no-localstorage-use-accounts`, `localization-before-accounts`, `schema-migrations-workflow`.
+- **Migrations workflow set up** (durable fix for the destructive-push problem): `payload.config.ts` now sets `db.migrationDir = src/migrations` and `push: NODE_ENV!=='production' && PAYLOAD_MIGRATE!=='true'` — **prod is migration-only** (never auto-syncs), dev keeps push. Added `migrate:create`/`migrate`/`migrate:status`/`migrate:down`/`migrate:fresh` npm scripts (all set `PAYLOAD_MIGRATE=true`). New **`MIGRATIONS.md`** documents the workflow + the two-DB recommendation + a data-preserving localize-field migration example. DEPLOY.md updated: Vercel build command → `npm run migrate && npm run build`. ⚠️ The `migrate:*` CLI **fails on the dev's Node 25** (same extensionless-import issue as `generate:types`) — must run under Node LTS or on Vercel. Build re-verified green after the config change (behavior-preserving: prod push was already off during `next build`).
+- **Blanked test data recovered**: added an opt-in reset to the seed (`npm run seed -- --reset`) that wipes products/artists/categories/pages then reseeds a clean demo into `en`; the lost data was disposable test data.
+- Deferred: homepage-block text + product-image `alt` localization, a few decorative shop/home strings (search placeholder, sort labels, "Shop" heading), localized order emails. **Next: customer accounts** (also removes the localStorage cart — do it as a reviewed migration).

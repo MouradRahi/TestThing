@@ -2,7 +2,7 @@
 // The root layout returns only `children` (no HTML shell), so this page must
 // provide its own <html>/<body> to avoid the "Missing <html> and <body>" error.
 import Link from 'next/link'
-import './(frontend)/globals.css'
+import './[locale]/(frontend)/globals.css'
 
 export default function GlobalNotFound() {
   return (
