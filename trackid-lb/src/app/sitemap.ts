@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }),
     payload.find({
       collection: 'pages',
+      where: { status: { equals: 'published' } },
       limit: 200,
       select: { slug: true, updatedAt: true },
     }),

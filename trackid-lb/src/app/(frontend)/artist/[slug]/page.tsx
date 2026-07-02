@@ -43,6 +43,7 @@ export async function generateMetadata({
   return {
     title: artist.name,
     description,
+    alternates: { canonical: `/artist/${artist.slug}` },
     openGraph: {
       title: artist.name,
       description,

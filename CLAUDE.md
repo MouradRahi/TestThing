@@ -242,8 +242,11 @@ Homepage is now fully CMS-driven. Go to Admin → Site Configuration → Homepag
 - Every block has a `hidden` checkbox — toggle off without deleting
 - Empty state shown when no sections configured, pointing to admin URL
 
-### Phase 9 — Extended Page Builder (PLANNED)
-Add same blocks field to Pages collection so CMS pages (`/p/[slug]`) support full layout sections, not just richText.
+### Phase 9 — Extended Page Builder (COMPLETE — Session 12)
+- [x] Same `sections` blocks field added to the Pages collection — CMS pages (`/[slug]` and `/p/[slug]`) now support full layout sections, not just richText
+- [x] Block-media hook shared via `src/lib/media-fill.ts → fillBlocksMedia()` (Homepage + Pages use it identically)
+- [x] Renderers show full-width `BlockRenderer` when a page has visible sections; fall back to title + richText otherwise (backward compatible)
+- [x] Fixed latent revalidation bug — Pages now revalidate both `/p/<slug>` and the clean `/<slug>`
 
 ### Phase 10 — Translation / i18n (OPTIONAL — post-launch)
 - Payload built-in localization: `locales: ['en', 'ar']`, all text fields `localized: true`
@@ -520,3 +523,51 @@ Focus: **Phase 11 — 3.2 Copy tab** (the last brand-name lock-in before true wh
 - ✅ **Production build verified passing** — `npm run build`: 25 routes, zero TS errors (`npx tsc --noEmit` also clean), no `column does not exist`. App is deployable.
 - Leftover brand-voice nicety: the 5 `STATUS_EMAIL_COPY` lines stay hardcoded tone (not name-locked) — deferred.
 - Next: 4.2 generate types (Node LTS), 3.1 leftovers (contactEmail reply-to, tagline), or jump to the live deploy (DEPLOY.md) — code is launch-ready.
+
+### Session 12 — 2026-07-01
+Focus: **Phase 12 / 3.6 — Blocks-on-Pages** (the last "build any page from admin" gap — CMS pages could only be rich text). Picked from the deferred-features backlog.
+- **Shared the block-media hook**: extracted the homepage's inlined `beforeValidate` switch (picked Media → copy public URL into the text field each section reads) into `src/lib/media-fill.ts → fillBlocksMedia(payload, blocks)`. `Homepage.ts` now calls it (no behavior change, ~35 dup lines gone); `Pages.ts` reuses the same helper so both block builders behave identically.
+- **`Pages` collection** (`src/collections/Pages.ts`): added a `sections` blocks field with the same 7 blocks as the homepage (Hero, Slideshow, FeaturedProducts, ImageText, Statement, RichText, CTABanner) + the `fillBlocksMedia` beforeValidate hook. `content` (richText) description now notes it's ignored when sections are present.
+- **Renderers** (`(frontend)/[slug]/page.tsx` **and** `(frontend)/p/[slug]/page.tsx` — identical duplicates, both updated): when a page has any visible section (`sections.some(b => !b.hidden)`), render full-width via `BlockRenderer`; otherwise fall back to the classic title + rich-text layout. Backward compatible — existing text-only pages unchanged. Added `depth: 2` to the find so manual FeaturedProducts relations resolve.
+- **Fixed a latent revalidation bug**: pages serve at **both** `/p/<slug>` and the clean `/<slug>`, but Pages' afterChange/afterDelete only revalidated `/p/<slug>`. Added a `revalidatePage(slug)` helper that hits both paths.
+- ⚠️ **Schema push**: new `pages_blocks_*` tables push only on `npm run dev` (Payload dev-only sync) — user ran dev this session, tables present and working.
+- ✅ `npx tsc --noEmit` clean. IMPROVEMENTS.md 3.6 marked ☑; execution-order table updated.
+- Next remaining deferred: 4.3 drafts/versions/preview, 4.5 seed script, 4.6 dashboard v2, plus P4 storefront polish (cart drawer, gallery thumbnails, wishlist, a11y) and P5 growth. Code stays launch-ready.
+
+### Session 13 — 2026-07-01
+Focus: **4.3 — Draft/publish for Pages** (Pages just became full page builders in Session 12, so staging before going live matters now).
+- **Decision**: implemented a plain `status` (draft/published) field on Pages instead of Payload `versions.drafts`. Rationale: Payload versions add a separate `_status` that defaults **existing** live pages to `draft` (they'd vanish from storefront + sitemap until manually re-published), and duplicate Products' existing manual `status`. The simple field fixes the actual bug (pages public/into the sitemap the instant they're created) with **zero migration risk** — new column defaults to `published`, so existing pages stay live. Version history/rollback + live-preview iframe deferred (noted in IMPROVEMENTS.md 4.3). User picked this over the full-versions option when asked.
+- **`Pages` collection** (`src/collections/Pages.ts`): added `status` select (Draft/Published, `defaultValue: 'published'`, indexed, sidebar). Added to admin `defaultColumns`.
+- **Storefront filters `status: published`** everywhere pages are read: both renderers (`(frontend)/[slug]/page.tsx` + `(frontend)/p/[slug]/page.tsx`) in the main find, `generateMetadata`, and `generateStaticParams`; plus `sitemap.ts`. Draft pages 404 on the storefront and are excluded from the sitemap. Footer lists pages via the Navigation global (not a pages query), so no leak there.
+- Mirrors the existing Products `status` pattern for consistency. Pages' afterChange revalidation (both `/p/<slug>` and `/<slug>`, from Session 12) already covers publish/unpublish transitions.
+- ⚠️ **Schema push**: new `pages.status` column is additive (default `published`) — pushes only on `npm run dev`. Safe: existing pages auto-published.
+- ✅ `npx tsc --noEmit` clean. IMPROVEMENTS.md 4.3 status-field part marked ☑ (versions + live preview deferred).
+- Next remaining deferred: 4.5 seed script, 4.6 dashboard v2, P4 storefront polish, P5 growth. Code stays launch-ready.
+
+### Session 14 — 2026-07-01
+Focus: **4.5 — Seed script** (demo-able fresh installs).
+- **Delivered as a seed API route, not a CLI script**: `src/app/api/seed/route.ts` runs the seed inside the Next server (where payload.config's extensionless imports resolve); `scripts/seed.mjs` just POSTs to `/api/seed`; `npm run seed` runs the script. This deliberately sidesteps the Session 10 blocker where the standalone Payload CLI fails under Node 25 (`ERR_MODULE_NOT_FOUND`). The dev server (or any running instance) must be up.
+- **Seeds**: 3 categories (Hoodies/Tees/Accessories), 3 artists (Fairuz, Mashrou' Leila, Marcel Khalife — with bios/genre/photo), 6 products (mix of sized S–XL and one-of-a-kind, all `published`, `placehold.co` demo images). Added `placehold.co` to `next.config.ts` remotePatterns so next/image renders the demo art.
+- **Idempotent + non-destructive**: `ensureBySlug` creates catalog rows only when the slug is missing (safe to re-run). Homepage `sections` seeded (Hero + FeaturedProducts[latest] + Statement) only when currently empty. SiteSettings delivery zones + `bankTransferInstructions` + announcement seeded only when commerce is unconfigured — a real store's data is never overwritten.
+- **Prod guard**: `authorized()` allows dev freely; in production the route 403s unless `SEED_SECRET` env is set and passed via `x-seed-secret` header / `?secret=`. Documented `SEED_SECRET` + `SEED_URL` in `.env.local.example`.
+- ⚠️ Did **not** run it against the live dev DB (it would inject demo catalog rows into the real Supabase project) — left for the user to run on a fresh install.
+- ✅ `npx tsc --noEmit` clean. IMPROVEMENTS.md 4.5 marked ☑.
+- Next remaining deferred: 4.6 dashboard v2, P4 storefront polish (cart drawer, gallery thumbnails, wishlist, a11y), P5 growth. Code stays launch-ready.
+
+### Session 15 — 2026-07-01
+Focus: **4.6 — Sales dashboard v2**.
+- **Doc was stale**: `SalesDashboard.tsx` had already grown past what IMPROVEMENTS.md credited as "v1" — the interactive `?range=` selector (Today/7d/30d/90d/All), the 30-day revenue bar chart, top-artists, sales-by-area/zone, revenue+qty per product, and the `isAdmin(props.user)` gate were all already implemented. Corrected 4.6 in IMPROVEMENTS.md to mark them ☑.
+- **Added period-over-period comparison** (the real v2 gap): `rangeMsFor(key)` + `pctDelta(cur, prev)` compute the prior equal-length window; Revenue / Orders / AOV KPI cards now show a colored ▲/▼ % delta vs that prior period ("new" when there's no prior data, `±0%` when flat, hidden for All-time). Added a dedicated **Orders** KPI card (was only a sub-line). `Kpi` component extended with an optional `delta` badge. Pure JS over the orders already fetched — no new deps, no schema change, no new queries.
+- **Deliberately did NOT add recharts** — the existing dependency-free bar chart is theme-colored and zero-dep; adding a chart lib for one chart isn't worth the bundle. Noted in the doc.
+- **Deferred** (scale/infra, not launch-critical): JS→SQL aggregation via `payload.db.pool` at large order volumes; optional weekly email summary (needs a Vercel Cron hitting an API route — best wired at/after deploy).
+- ✅ `npx tsc --noEmit` clean. IMPROVEMENTS.md 4.6 marked ☑ v2; execution-order Phase 12 row updated (4.1/3.6/4.3/4.5/4.6 all ☑).
+- Phase 12 (Admin experience) is now essentially complete. Next: P4 storefront polish or P5 growth. Code stays launch-ready.
+
+### Session 16 — 2026-07-01
+Focus: **P4 storefront polish** — user picked gallery+quick-wins, accessibility, and the cart drawer.
+- **Two items were already done** (doc stale): the product gallery (`ProductGallery.tsx`) is already an interactive thumbnail-switching client component, and `loading.tsx`/`error.tsx`/`not-found.tsx` landed in Session 10. Marked ☑.
+- **Cart drawer** (slide-over mini-cart): new `src/components/cart/CartDrawer.tsx`, mounted in the frontend layout. CartContext gained `isOpen`/`openCart`/`closeCart`. Opens on add-to-cart (`AddToCart` calls `openCart()` after `addItem`) and from the nav cart button (Nav cart changed from a `/cart` Link to a button that opens the drawer). Drawer has per-line qty steppers + remove, subtotal, Checkout + View-full-cart links, empty state using the CMS `emptyCartMessage`. A11y: `role="dialog"` + `aria-modal`, Esc to close, overlay-click close, body-scroll lock while open, focus moves to the close button on open and returns to the trigger on close. The `/cart` + `/checkout` pages remain the source of truth.
+- **Accessibility pass**: Footer social links now render real SVG brand glyphs with `aria-label`+`title` (replaced the "IG"/"TK" text; unknown platforms fall back to a text label). Nav cart badge: visual count is `aria-hidden`, with an `sr-only` `aria-live="polite"` "N items in cart" announcement. Skip-to-content link added in the layout (`sr-only` → visible on focus) targeting `<main id="main-content" tabIndex={-1}>`. *Deferred*: automated contrast check on admin-set announcement-bar colors.
+- **Quick wins**: canonical URLs via `alternates.canonical` on product (`/product/<slug>`), artist (`/artist/<slug>`), CMS pages (clean `/<slug>` — dedupes the `/p/<slug>` alias), and `/shop` (base — dedupes filter/search/sort variants). Removed the dead `experimental.reactCompiler: false` from `next.config.ts`. Replaced `/shop`'s misleading `export const revalidate = 30` with `export const dynamic = 'force-dynamic'` (it reads searchParams — always dynamic).
+- ✅ `npx tsc --noEmit` clean. IMPROVEMENTS.md §5 updated (mobile nav, loading/error/not-found, gallery, cart drawer, a11y, canonicals, reactCompiler, /shop rendering all ☑).
+- **Deferred P4**: wishlist/save-for-later + recently-viewed strip (both localStorage features), announcement-bar contrast check. Next: those, or P5 growth. Code stays launch-ready.
