@@ -265,6 +265,16 @@ export async function POST(req: NextRequest) {
 
     const total = Math.max(0, subtotal - discountAmount) + deliveryFee
 
+    // Link the order to the logged-in customer account, if any (guest orders have none)
+    let customerId: string | number | undefined
+    try {
+      const { user } = await payload.auth({ headers: req.headers })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (user && (user as any).collection === 'customers') customerId = user.id
+    } catch {
+      // not signed in — guest order
+    }
+
     const decremented: StockLine[] = []
     for (const line of qtyByLine.values()) {
       const product = productById.get(line.productId)!
@@ -288,6 +298,7 @@ export async function POST(req: NextRequest) {
           customerName,
           customerPhone,
           customerEmail,
+          ...(customerId ? { customer: customerId } : {}),
           deliveryAddress,
           area,
           items,

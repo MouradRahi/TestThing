@@ -6,6 +6,7 @@ import { Link } from '@/i18n/navigation'
 import { AddToCart } from '@/components/product/AddToCart'
 import { ProductCard } from '@/components/product/ProductCard'
 import { ProductGallery } from '@/components/product/ProductGallery'
+import { WishlistButton } from '@/components/account/WishlistButton'
 import { getSizes, totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
 import {
@@ -252,6 +253,9 @@ export default async function ProductPage({
               maxQuantity={sizes.length > 0 ? undefined : (product.stockQuantity ?? 1)}
               sizes={sizes}
             />
+            <div className="pt-3">
+              <WishlistButton productId={String(product.id)} fetchState />
+            </div>
           </div>
 
           <div className="pt-4 border-t border-border space-y-2 text-xs text-muted">
