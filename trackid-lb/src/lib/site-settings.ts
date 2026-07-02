@@ -54,11 +54,17 @@ type AnyRecord = Record<string, any>
 
 const TTL = process.env.NODE_ENV === 'development' ? 1 : 300
 
+// The optional `locale` arg is part of unstable_cache's key, so each locale is
+// cached separately. Localized settings fields (tagline, footer, announcement,
+// copy) return the requested locale's value, falling back to the default.
 export const getSiteSettings = unstable_cache(
-  async (): Promise<AnyRecord> => {
+  async (locale?: string): Promise<AnyRecord> => {
     try {
       const payload = await getPayload()
-      return (await payload.findGlobal({ slug: 'site-settings' })) as AnyRecord
+      return (await payload.findGlobal({
+        slug: 'site-settings',
+        ...(locale ? { locale: locale as 'en' | 'ar' } : {}),
+      })) as AnyRecord
     } catch {
       return {}
     }
@@ -68,10 +74,13 @@ export const getSiteSettings = unstable_cache(
 )
 
 export const getNavigation = unstable_cache(
-  async (): Promise<AnyRecord> => {
+  async (locale?: string): Promise<AnyRecord> => {
     try {
       const payload = await getPayload()
-      return (await payload.findGlobal({ slug: 'navigation' })) as AnyRecord
+      return (await payload.findGlobal({
+        slug: 'navigation',
+        ...(locale ? { locale: locale as 'en' | 'ar' } : {}),
+      })) as AnyRecord
     } catch {
       return {}
     }

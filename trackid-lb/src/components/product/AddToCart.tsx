@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useCart } from '@/components/cart/CartContext'
 import { Button } from '@/components/ui/Button'
 
@@ -19,6 +20,7 @@ type Props = {
 
 export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQuantity, sizes = [] }: Props) {
   const { addItem, openCart } = useCart()
+  const t = useTranslations('product')
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
@@ -28,7 +30,7 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQua
   if (outOfStock) {
     return (
       <Button fullWidth variant="secondary" disabled>
-        Sold Out
+        {t('soldOut')}
       </Button>
     )
   }
@@ -73,7 +75,7 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQua
     <div className="space-y-4">
       {hasSizes && (
         <div className="space-y-2">
-          <span className="block text-[10px] uppercase tracking-[0.2em] text-muted">Size</span>
+          <span className="block text-[10px] uppercase tracking-[0.2em] text-muted">{t('size')}</span>
           <div className="flex flex-wrap gap-2">
             {sizes.map((size) => {
               const soldOut = size.stockQuantity <= 0
@@ -97,17 +99,17 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQua
               )
             })}
           </div>
-          {sizeError && <p className="text-xs text-red-400">Please pick a size first.</p>}
+          {sizeError && <p className="text-xs text-red-400">{t('pickSize')}</p>}
         </div>
       )}
 
       {showQuantity && (
         <div className="flex items-center gap-3">
-          <span className="text-[10px] uppercase tracking-[0.2em] text-muted">Qty</span>
+          <span className="text-[10px] uppercase tracking-[0.2em] text-muted">{t('quantity')}</span>
           <button
             onClick={() => setQuantity((q) => Math.max(1, q - 1))}
             disabled={quantity <= 1}
-            aria-label="Decrease quantity"
+            aria-label={t('decrease')}
             className="w-8 h-8 border border-border text-foreground hover:border-accent flex items-center justify-center text-sm disabled:opacity-30 transition-colors"
           >
             −
@@ -116,7 +118,7 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQua
           <button
             onClick={() => setQuantity((q) => Math.min(max, q + 1))}
             disabled={quantity >= max}
-            aria-label="Increase quantity"
+            aria-label={t('increase')}
             className="w-8 h-8 border border-border text-foreground hover:border-accent flex items-center justify-center text-sm disabled:opacity-30 transition-colors"
           >
             +
@@ -125,7 +127,7 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQua
       )}
 
       <Button fullWidth onClick={handleAdd}>
-        {added ? 'Added ✓' : 'Add to Cart'}
+        {added ? t('added') : t('addToCart')}
       </Button>
     </div>
   )

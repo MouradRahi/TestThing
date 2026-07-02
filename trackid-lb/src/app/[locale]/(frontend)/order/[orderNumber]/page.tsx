@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { notFound } from 'next/navigation'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
 import { getSiteSettings, DEFAULT_ORDER_THANKYOU_NOTE } from '@/lib/site-settings'
 import { Button } from '@/components/ui/Button'
@@ -9,17 +10,9 @@ export const metadata: Metadata = { title: 'Order Confirmed' }
 
 type Props = { params: Promise<{ orderNumber: string }> }
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending confirmation',
-  confirmed: 'Confirmed',
-  in_production: 'In production',
-  shipped: 'Shipped',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-}
-
 export default async function OrderConfirmationPage({ params }: Props) {
   const { orderNumber } = await params
+  const t = await getTranslations('order')
   const payload = await getPayload()
 
   const { docs } = await payload.find({
@@ -40,7 +33,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
   }> = Array.isArray(order.items) ? order.items : []
 
   const isBankTransfer = order.paymentMethod === 'bank_transfer'
-  const settings = await getSiteSettings()
+  const settings = await getSiteSettings(await getLocale())
   const bankInstructions = (settings.bankTransferInstructions as string) || ''
   const thankYouNote = (settings.orderThankYouNote as string) || DEFAULT_ORDER_THANKYOU_NOTE
 
@@ -51,7 +44,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
         <div className="w-12 h-12 border border-accent/50 rounded-full flex items-center justify-center mx-auto mb-8 text-accent text-xl">
           ✓
         </div>
-        <h1 className="text-2xl font-bold text-foreground mb-3">Order received</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-3">{t('received')}</h1>
         <p className="font-mono text-accent text-base tracking-wider mb-4">{order.orderNumber}</p>
         <p className="text-xs text-muted leading-relaxed max-w-xs mx-auto whitespace-pre-line">
           {thankYouNote}
@@ -60,7 +53,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
 
       {/* Items */}
       <div className="border border-border bg-surface p-6 space-y-6 mb-6">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Your Order</p>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted">{t('yourOrder')}</p>
         <div className="space-y-4">
           {items.map((item, i) => (
             <div key={i} className="flex gap-3">
@@ -84,17 +77,23 @@ export default async function OrderConfirmationPage({ params }: Props) {
 
         <div className="border-t border-border pt-4 space-y-2 text-xs">
           <div className="flex justify-between text-muted">
-            <span>Subtotal</span>
+            <span>{t('subtotal')}</span>
             <span className="tabular-nums">${Number(order.subtotal).toFixed(2)}</span>
           </div>
+          {Number(order.discountAmount) > 0 && (
+            <div className="flex justify-between text-accent">
+              <span>{t('discount')}{order.discountCode ? ` (${order.discountCode})` : ''}</span>
+              <span className="tabular-nums">−${Number(order.discountAmount).toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between text-muted">
-            <span>Delivery</span>
+            <span>{t('delivery')}</span>
             <span className="tabular-nums">
-              {Number(order.deliveryFee) > 0 ? `$${Number(order.deliveryFee).toFixed(2)}` : 'Free / confirmed by phone'}
+              {Number(order.deliveryFee) > 0 ? `$${Number(order.deliveryFee).toFixed(2)}` : t('deliveryFree')}
             </span>
           </div>
           <div className="flex justify-between text-foreground font-semibold pt-2 border-t border-border text-sm">
-            <span>Total</span>
+            <span>{t('total')}</span>
             <span className="tabular-nums">${Number(order.total).toFixed(2)}</span>
           </div>
         </div>
@@ -103,30 +102,30 @@ export default async function OrderConfirmationPage({ params }: Props) {
       {/* Delivery + payment details */}
       <div className="border border-border p-6 space-y-5 text-xs mb-6">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">Status</p>
-          <p className="text-foreground">{STATUS_LABELS[order.orderStatus as string] ?? order.orderStatus}</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('status')}</p>
+          <p className="text-foreground">{t(`statuses.${order.orderStatus as string}`)}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">Delivery</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('delivery')}</p>
           <p className="text-foreground">{order.area}</p>
           <p className="text-muted whitespace-pre-line mt-0.5">{order.deliveryAddress}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">Payment</p>
-          <p className="text-foreground">{isBankTransfer ? 'Bank Transfer' : 'Cash on Delivery'}</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('payment')}</p>
+          <p className="text-foreground">{isBankTransfer ? t('bankTransfer') : t('cod')}</p>
         </div>
       </div>
 
       {/* Bank transfer instructions */}
       {isBankTransfer && bankInstructions && (
         <div className="border border-accent/30 bg-surface p-6 mb-6">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-accent mb-3">How to pay</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-accent mb-3">{t('howToPay')}</p>
           <p className="text-xs text-muted leading-relaxed whitespace-pre-line">{bankInstructions}</p>
         </div>
       )}
 
       <div className="text-center pt-6">
-        <Button href="/shop" variant="secondary">Continue Shopping</Button>
+        <Button href="/shop" variant="secondary">{t('continueShopping')}</Button>
       </div>
     </div>
   )

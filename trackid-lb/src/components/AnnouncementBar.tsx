@@ -1,8 +1,9 @@
-import Link from 'next/link'
+import { getLocale } from 'next-intl/server'
+import { Link } from '@/i18n/navigation'
 import { getSiteSettings } from '@/lib/site-settings'
 
 export async function AnnouncementBar() {
-  const settings = await getSiteSettings()
+  const settings = await getSiteSettings(await getLocale())
 
   if (!settings.announcementEnabled || !settings.announcementText) return null
 

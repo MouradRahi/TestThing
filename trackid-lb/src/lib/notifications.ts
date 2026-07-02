@@ -16,6 +16,10 @@ export type OrderNotificationData = {
   }>
   subtotal: number
   total: number
+  /** Discount code applied, if any */
+  discountCode?: string
+  /** Amount taken off the subtotal by the discount code */
+  discountAmount?: number
   paymentMethod: 'cod' | 'bank_transfer'
   /** e.g. "Free" or "$4.00" — omitted when no delivery zones are configured */
   deliveryFeeLabel?: string
@@ -158,6 +162,14 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
                   <td style="font-size:12px;color:#555;padding-bottom:6px;">Subtotal</td>
                   <td align="right" style="font-size:12px;color:#555;padding-bottom:6px;font-variant-numeric:tabular-nums;">$${order.subtotal.toFixed(2)}</td>
                 </tr>
+                ${
+                  order.discountAmount && order.discountAmount > 0
+                    ? `<tr>
+                  <td style="font-size:12px;color:#8a7f6a;padding-bottom:6px;">Discount${order.discountCode ? ` (${escapeHtml(order.discountCode)})` : ''}</td>
+                  <td align="right" style="font-size:12px;color:#8a7f6a;padding-bottom:6px;font-variant-numeric:tabular-nums;">&minus;$${order.discountAmount.toFixed(2)}</td>
+                </tr>`
+                    : ''
+                }
                 <tr>
                   <td style="font-size:12px;color:#555;padding-bottom:6px;">Delivery</td>
                   <td align="right" style="font-size:12px;color:#555;padding-bottom:6px;">${order.deliveryFeeLabel ?? 'Confirmed on call'}</td>
@@ -323,6 +335,9 @@ export async function sendOrderWhatsAppAlert(order: OrderNotificationData): Prom
     itemsList,
     '',
     `Subtotal: $${order.subtotal.toFixed(2)}`,
+    ...(order.discountAmount && order.discountAmount > 0
+      ? [`Discount${order.discountCode ? ` (${order.discountCode})` : ''}: -$${order.discountAmount.toFixed(2)}`]
+      : []),
     ...(order.deliveryFeeLabel ? [`Delivery: ${order.deliveryFeeLabel}`] : []),
     `Total: $${order.total.toFixed(2)}`,
     `Payment: ${paymentLabel}`,

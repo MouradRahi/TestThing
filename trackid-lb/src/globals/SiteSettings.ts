@@ -69,6 +69,7 @@ export const SiteSettings: GlobalConfig = {
             {
               name: 'tagline',
               type: 'text',
+              localized: true,
               defaultValue: 'Hand-painted clothing for the artists you love.',
             },
             {
@@ -144,6 +145,7 @@ export const SiteSettings: GlobalConfig = {
             {
               name: 'announcementText',
               type: 'text',
+              localized: true,
               admin: { description: 'e.g. "Free delivery on orders over $50" or "New drop live now →"' },
             },
             {
@@ -173,11 +175,13 @@ export const SiteSettings: GlobalConfig = {
             {
               name: 'footerTagline',
               type: 'text',
+              localized: true,
               defaultValue: 'Hand-painted clothing for the artists you love. Made in Lebanon.',
             },
             {
               name: 'footerNote',
               type: 'text',
+              localized: true,
               defaultValue: 'Cash on Delivery · Lebanon only',
               admin: { description: 'Displayed in the bottom-right of the footer.' },
             },
@@ -333,6 +337,7 @@ export const SiteSettings: GlobalConfig = {
             {
               name: 'metaDescription',
               type: 'textarea',
+              localized: true,
               defaultValue:
                 'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.',
             },
@@ -368,6 +373,22 @@ export const SiteSettings: GlobalConfig = {
                   'Auto-filled from the icon above, or paste a Supabase Storage URL. Leave blank to use the Next.js default.',
               },
             },
+            {
+              name: 'gaMeasurementId',
+              type: 'text',
+              admin: {
+                description:
+                  'Google Analytics 4 Measurement ID (e.g. G-XXXXXXXXXX). Leave blank to disable — the GA script only loads when set.',
+              },
+            },
+            {
+              name: 'metaPixelId',
+              type: 'text',
+              admin: {
+                description:
+                  'Meta (Facebook) Pixel ID — numeric. Leave blank to disable — the Pixel script only loads when set.',
+              },
+            },
           ],
         },
 
@@ -381,6 +402,7 @@ export const SiteSettings: GlobalConfig = {
             {
               name: 'productBlurb',
               type: 'textarea',
+              localized: true,
               defaultValue:
                 'Hand-painted in Beirut. Each piece is unique — colours and details may vary slightly from the photo.',
               admin: { description: 'Short note shown under the details on every product page.' },
@@ -397,12 +419,14 @@ export const SiteSettings: GlobalConfig = {
             {
               name: 'emptyCartMessage',
               type: 'text',
+              localized: true,
               defaultValue: 'Find a piece that speaks to you.',
               admin: { description: 'Shown on the cart page when the cart is empty.' },
             },
             {
               name: 'orderThankYouNote',
               type: 'textarea',
+              localized: true,
               defaultValue:
                 'Our team will reach out shortly to confirm your delivery details. Keep your phone nearby.',
               admin: { description: 'Subtitle on the order-confirmation page after checkout.' },

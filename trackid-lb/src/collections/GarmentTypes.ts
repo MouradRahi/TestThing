@@ -26,6 +26,7 @@ export const GarmentTypes: CollectionConfig = {
       name: 'name',
       type: 'text',
       required: true,
+      localized: true,
       admin: { description: 'e.g. Hoodie, T-Shirt, Jacket, Tote Bag' },
     },
     {

@@ -21,14 +21,15 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ locale: string; slug: string }>
 }): Promise<Metadata> {
-  const { slug } = await params
+  const { locale, slug } = await params
   const payload = await getPayload()
   const { docs } = await payload.find({
     collection: 'pages',
     where: { slug: { equals: slug }, status: { equals: 'published' } },
     limit: 1,
+    locale: locale as 'en' | 'ar',
   })
   const page = docs[0]
   if (!page) return {}
@@ -43,9 +44,9 @@ export async function generateMetadata({
 export default async function PageRoute({
   params,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ locale: string; slug: string }>
 }) {
-  const { slug } = await params
+  const { locale, slug } = await params
   const payload = await getPayload()
 
   const { docs } = await payload.find({
@@ -53,6 +54,7 @@ export default async function PageRoute({
     where: { slug: { equals: slug }, status: { equals: 'published' } },
     limit: 1,
     depth: 2, // resolves manual product relations inside FeaturedProductsBlock
+    locale: locale as 'en' | 'ar',
   })
 
   const page = docs[0]

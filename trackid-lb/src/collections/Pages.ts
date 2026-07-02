@@ -48,6 +48,7 @@ export const Pages: CollectionConfig = {
       name: 'title',
       type: 'text',
       required: true,
+      localized: true,
     },
     {
       name: 'slug',
@@ -78,6 +79,7 @@ export const Pages: CollectionConfig = {
     {
       name: 'content',
       type: 'richText',
+      localized: true,
       admin: {
         description: 'Simple text content. Ignored when "Sections" below has visible blocks — build a full landing page there instead.',
       },

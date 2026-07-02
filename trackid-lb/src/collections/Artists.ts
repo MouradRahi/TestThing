@@ -55,10 +55,12 @@ export const Artists: CollectionConfig = {
     {
       name: 'bio',
       type: 'textarea',
+      localized: true,
     },
     {
       name: 'genre',
       type: 'text',
+      localized: true,
     },
     {
       name: 'photoMedia',

@@ -1,11 +1,17 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { Inter, Space_Grotesk, Playfair_Display, DM_Sans, Manrope } from 'next/font/google'
+import { NextIntlClientProvider, hasLocale } from 'next-intl'
+import { setRequestLocale } from 'next-intl/server'
+import { routing, isRtl } from '@/i18n/routing'
 import { CartProvider } from '@/components/cart/CartContext'
 import { CartDrawer } from '@/components/cart/CartDrawer'
 import { NavWrapper } from '@/components/nav/NavWrapper'
 import { Footer } from '@/components/nav/Footer'
 import { AnnouncementBar } from '@/components/AnnouncementBar'
 import { WhatsAppButton } from '@/components/WhatsAppButton'
+import { Analytics } from '@/components/Analytics'
+import { Analytics as VercelAnalytics } from '@vercel/analytics/next'
 import {
   getSiteSettings,
   buildThemeCssVars,
@@ -26,8 +32,19 @@ const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font
 
 const fontVariables = [inter, spaceGrotesk, playfair, dmSans, manrope].map((f) => f.variable).join(' ')
 
-export async function generateMetadata(): Promise<Metadata> {
-  const settings = await getSiteSettings()
+const OG_LOCALE: Record<string, string> = { en: 'en_US', ar: 'ar_AR' }
+
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }))
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+  const settings = await getSiteSettings(locale)
   const storeName = (settings.storeName as string) || 'trackID.lb'
   const description =
     (settings.metaDescription as string) ||
@@ -43,7 +60,7 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: {
       siteName: storeName,
       type: 'website',
-      locale: 'en_US',
+      locale: OG_LOCALE[locale] ?? 'en_US',
       title: storeName,
       description,
       ...(ogImage ? { images: [{ url: ogImage }] } : {}),
@@ -57,8 +74,19 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export default async function FrontendLayout({ children }: { children: React.ReactNode }) {
-  const settings = await getSiteSettings()
+export default async function FrontendLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  if (!hasLocale(routing.locales, locale)) notFound()
+  // Enable static rendering for this locale
+  setRequestLocale(locale)
+
+  const settings = await getSiteSettings(locale)
   const cssVars = buildThemeCssVars(settings)
   const fontVars = {
     '--font-heading': resolveFontStack(settings.headingFont),
@@ -66,30 +94,37 @@ export default async function FrontendLayout({ children }: { children: React.Rea
   } as React.CSSProperties
 
   return (
-    <html lang="en">
+    <html lang={locale} dir={isRtl(locale) ? 'rtl' : 'ltr'}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
       </head>
       <body className={fontVariables} style={fontVars}>
-        <CartProvider
-          emptyCartMessage={(settings.emptyCartMessage as string) || DEFAULT_EMPTY_CART_MESSAGE}
-        >
-          <a
-            href="#main-content"
-            className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:bg-accent focus:text-on-accent focus:px-4 focus:py-2 focus:text-xs focus:uppercase focus:tracking-widest"
+        <NextIntlClientProvider>
+          <CartProvider
+            emptyCartMessage={(settings.emptyCartMessage as string) || DEFAULT_EMPTY_CART_MESSAGE}
           >
-            Skip to content
-          </a>
-          {/* Announcement + nav stick together; nav is in normal flow so the bar is never covered */}
-          <div className="sticky top-0 z-50">
-            <AnnouncementBar />
-            <NavWrapper />
-          </div>
-          <main id="main-content" tabIndex={-1}>{children}</main>
-          <Footer />
-          <WhatsAppButton />
-          <CartDrawer />
-        </CartProvider>
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:z-[70] focus:bg-accent focus:text-on-accent focus:px-4 focus:py-2 focus:text-xs focus:uppercase focus:tracking-widest ltr:focus:left-3 rtl:focus:right-3"
+            >
+              Skip to content
+            </a>
+            {/* Announcement + nav stick together; nav is in normal flow so the bar is never covered */}
+            <div className="sticky top-0 z-50">
+              <AnnouncementBar />
+              <NavWrapper />
+            </div>
+            <main id="main-content" tabIndex={-1}>{children}</main>
+            <Footer />
+            <WhatsAppButton />
+            <CartDrawer />
+          </CartProvider>
+        </NextIntlClientProvider>
+        <Analytics
+          gaId={settings.gaMeasurementId as string | undefined}
+          pixelId={settings.metaPixelId as string | undefined}
+        />
+        <VercelAnalytics />
       </body>
     </html>
   )

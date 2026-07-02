@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import { getLocale } from 'next-intl/server'
+import { Link } from '@/i18n/navigation'
 import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
 import { totalStock } from '@/lib/stock'
@@ -35,6 +36,7 @@ export async function FeaturedSection({
       limit: Math.min(limit || 6, 12),
       sort: '-createdAt',
       depth: 1,
+      locale: (await getLocale()) as 'en' | 'ar',
     })
     products = result.docs
   }

@@ -1,7 +1,8 @@
 import { getPayload } from '@/lib/payload'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { getTranslations } from 'next-intl/server'
+import { Link } from '@/i18n/navigation'
 import { AddToCart } from '@/components/product/AddToCart'
 import { ProductCard } from '@/components/product/ProductCard'
 import { ProductGallery } from '@/components/product/ProductGallery'
@@ -30,20 +31,21 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ locale: string; slug: string }>
 }): Promise<Metadata> {
-  const { slug } = await params
+  const { locale, slug } = await params
   const payload = await getPayload()
   const { docs } = await payload.find({
     collection: 'products',
     where: { slug: { equals: slug } },
     limit: 1,
     depth: 1,
+    locale: locale as 'en' | 'ar',
   })
   const product = docs[0]
   if (!product) return {}
 
-  const settings = await getSiteSettings()
+  const settings = await getSiteSettings(locale)
   const storeName = resolveStoreName(settings)
   const metaTagline = (settings.productMetaTagline as string) || DEFAULT_PRODUCT_META_TAGLINE
 
@@ -73,9 +75,9 @@ export async function generateMetadata({
 export default async function ProductPage({
   params,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ locale: string; slug: string }>
 }) {
-  const { slug } = await params
+  const { locale, slug } = await params
   const payload = await getPayload()
 
   const [{ docs }, settings] = await Promise.all([
@@ -84,13 +86,15 @@ export default async function ProductPage({
       where: { slug: { equals: slug }, status: { equals: 'published' } },
       limit: 1,
       depth: 2,
+      locale: locale as 'en' | 'ar',
     }),
-    getSiteSettings(),
+    getSiteSettings(locale),
   ])
 
   const product = docs[0]
   if (!product) notFound()
 
+  const t = await getTranslations('product')
   const storeName = resolveStoreName(settings)
   const productBlurb = (settings.productBlurb as string) || DEFAULT_PRODUCT_BLURB
 
@@ -142,6 +146,7 @@ export default async function ProductPage({
       limit: 4,
       sort: '-createdAt',
       depth: 1,
+      locale: locale as 'en' | 'ar',
     })
     sameArtist = res.docs
   }
@@ -165,6 +170,7 @@ export default async function ProductPage({
       limit: 4,
       sort: '-createdAt',
       depth: 1,
+      locale: locale as 'en' | 'ar',
     })
     sameGarment = res.docs
   }
@@ -199,7 +205,7 @@ export default async function ProductPage({
       />
       {/* Breadcrumb */}
       <nav className="flex gap-2 text-[10px] uppercase tracking-widest text-muted mb-10">
-        <Link href="/shop" className="hover:text-foreground transition-colors">Shop</Link>
+        <Link href="/shop" className="hover:text-foreground transition-colors">{t('shop')}</Link>
         <span>/</span>
         <span className="text-foreground">{product.title}</span>
       </nav>
@@ -225,13 +231,13 @@ export default async function ProductPage({
 
           {product.isOneOfAKind && (
             <span className="inline-block text-[10px] uppercase tracking-[0.2em] text-accent border border-accent/40 px-2.5 py-1">
-              One of a kind
+              {t('oneOfAKind')}
             </span>
           )}
 
           {stock > 0 && stock <= 2 && !product.isOneOfAKind && (
             <p className="text-xs text-accent uppercase tracking-[0.2em]">
-              Only {stock} left
+              {t('onlyLeft', { count: stock })}
             </p>
           )}
 
@@ -251,7 +257,7 @@ export default async function ProductPage({
           <div className="pt-4 border-t border-border space-y-2 text-xs text-muted">
             {category && 'name' in category && 'slug' in category && (
               <p>
-                Category:{' '}
+                {t('category')}:{' '}
                 <Link
                   href={`/shop?category=${category.slug}`}
                   className="text-foreground hover:text-accent transition-colors"
@@ -283,7 +289,7 @@ export default async function ProductPage({
       {sameArtist.length > 0 && artist && 'name' in artist && (
         <section className="mt-24 pt-12 border-t border-border">
           <h2 className="text-xs uppercase tracking-[0.25em] text-muted mb-8">
-            More from {artist.name}
+            {t('moreFrom', { name: artist.name })}
           </h2>
           {renderRelatedGrid(sameArtist)}
         </section>
@@ -293,7 +299,7 @@ export default async function ProductPage({
       {sameGarment.length > 0 && (
         <section className={`${sameArtist.length > 0 ? 'mt-16' : 'mt-24'} pt-12 border-t border-border`}>
           <h2 className="text-xs uppercase tracking-[0.25em] text-muted mb-8">
-            More like this
+            {t('moreLikeThis')}
           </h2>
           {renderRelatedGrid(sameGarment)}
         </section>

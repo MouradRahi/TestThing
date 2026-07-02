@@ -1,3 +1,4 @@
+import { getLocale } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
 import { CustomRequestForm, type GarmentOption } from '@/components/custom-request/CustomRequestForm'
 
@@ -10,6 +11,7 @@ export default async function CustomRequestPage() {
     limit: 50,
     sort: '_order',
     select: { name: true },
+    locale: (await getLocale()) as 'en' | 'ar',
   })
 
   const garmentTypes: GarmentOption[] = docs.map((d) => ({ id: String(d.id), name: d.name as string }))

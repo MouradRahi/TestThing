@@ -259,12 +259,13 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 
 ## 6. P5 — Post-Launch / Growth
 
-- ☐ Analytics: Vercel Analytics + optional GA4/Meta Pixel ID fields in SiteSettings (owner pastes ID, script renders conditionally)
-- ☐ Discount codes: `Discounts` collection (code, % or fixed, expiry, usage limit) → code field at checkout, validated server-side
+- ☑ Analytics (Session 17): `@vercel/analytics/next` always-on + optional GA4 (`gaMeasurementId`) / Meta Pixel (`metaPixelId`) fields in SiteSettings → SEO. `src/components/Analytics.tsx` renders the GA/Pixel `next/script` tags only when an ID is set (no IDs = no third-party scripts shipped); mounted in the frontend layout
+- ☑ Discount codes (Session 17): `Discounts` collection (code, percentage/fixed, `enabled`, `minSubtotal`, `expiresAt`, `usageLimit`, auto `usageCount`). `src/lib/discounts.ts → resolveDiscount()` is the shared validator/calculator; `POST /api/discounts/validate` gives live checkout feedback (display-only); the **orders API recomputes from the DB** (authoritative — same trust model as prices), applies it to the total, stores `discountCode`+`discountAmount` on the order, and increments `usageCount`. Checkout has an apply/remove code UI + discount summary line; the discount also shows on the confirmation page and in the email (HTML + text). A now-invalid code blocks checkout before any stock is touched
+  - ⚠️ Schema push needed: new `discounts` table + `orders.discount_code`/`orders.discount_amount` columns push only on `npm run dev`
 - ☐ Instagram feed embed (deferred — waiting on handle)
 - ☐ WhatsApp Cloud API activation (code ready; needs Meta keys)
-- ☐ Phase 10 i18n: Payload `locales: ['en','ar']` + `localized: true` on text fields, `next-intl` for UI strings, RTL via `dir="rtl"` — the Copy tab from 3.2 makes this dramatically easier, do 3.2 first
-- ☐ Customer accounts + order history (only if repeat-purchase behavior justifies it — COD stores often never need this)
+- ☑ Phase 10 i18n (Session 18): `next-intl` v4 (`localePrefix: 'as-needed'` → English `/shop`, Arabic `/ar/shop`); all `(frontend)` routes under `app/[locale]/`; RTL via `dir` (locale-set driven); Payload `localization: ['en','ar']` with `localized: true` on content fields + SiteSettings copy + Navigation labels; `locale` threaded through every storefront query; UI chrome translated + nav locale switcher; sitemap emits `/ar` variants. Adding a 3rd locale (`ja`) = 1 line in routing + a messages file + config locale. ⚠️ needs a `npm run dev` schema push. Deferred: homepage-block/product-alt localization, a few decorative strings, localized order emails
+- ☐ **Customer accounts + order history — NEXT UP** (elevated: owner mandated no `localStorage`, so the cart must move to server-backed accounts). Replaces the localStorage cart; do it as a reviewed Payload migration. See memory `no-localstorage-use-accounts`
 - ☐ Email capture / drop-announcement newsletter block (Resend Audiences)
 - ☐ Sitemap/staticParams limits (500/200) — fine for years; revisit if catalog explodes
 
@@ -272,10 +273,11 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 
 ## 7. Documentation Cleanup
 
-- ☐ CLAUDE.md still says images go through **Cloudinary** in the Performance Architecture and Data Models sections (decision was Supabase) — fix both
-- ☐ CLAUDE.md claims the catalog is ISR — `/shop` is dynamic; correct after 5.x lands
-- ☐ Session 3 claims the hardcoded `PAYLOAD_SECRET` was fixed — the fallback string is still in `payload.config.ts` (see 1.9)
-- ☐ `.env.local.example` referenced in Session 3 doesn't exist in the repo — create it (it's listed in env section of CLAUDE.md)
+- ☑ CLAUDE.md Cloudinary → Supabase corrected in Performance Architecture + Data Models (Session 18 doc sweep)
+- ☑ CLAUDE.md ISR claim corrected — `/shop` is `force-dynamic`, noted in Performance Architecture + Phase 1
+- ☑ `PAYLOAD_SECRET` — config throws in production when unset; dev-only fallback retained (Session 9)
+- ☑ `.env.local.example` exists in the repo (referenced throughout; kept current with new vars)
+- ☑ Data models refreshed (Discount, Media, GarmentType, order discount/size fields, localized fields, SiteSettings tabs); Key Decisions + Folder Structure brought current (Session 18)
 
 ---
 
@@ -288,7 +290,11 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 | **10 — Commerce depth** ☑ DONE (Session 9; artist-filter dropdown scaling deferred) | 2.3 variants, 2.6 status updates, 2.7 search/sort, 1.3 revalidation hooks |
 | **11 — True white-label** (Session 11) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · remaining: 4.2 types (blocked on Node LTS), 3.1 leftovers (contactEmail reply-to, tagline) |
 | **12 — Admin experience** | 4.1 media uploads ☑ (S10) · 3.6 blocks-on-pages ☑ (S12) · 4.3 page drafts (status field) ☑ (S13) · 4.5 seed script ☑ (S14) · 4.6 dashboard v2 ☑ (S15) · remaining: 4.3 versions/live-preview (deferred), weekly email summary (deferred) |
-| **13 — Growth** | Section 6 as the business demands |
+| **P4 — Storefront polish** ☑ (S16) | cart drawer, gallery, a11y (icons/aria/skip-link), canonicals, reactCompiler removal, honest `/shop` rendering; deferred: wishlist + recently-viewed |
+| **P5 — Growth** ☑ (S17) | discount codes ☑ · analytics (Vercel + GA4/Pixel) ☑ · deferred: newsletter, Instagram, WhatsApp keys |
+| **Localization (Phase 10)** ☑ (S18) | next-intl en/ar + RTL · routes under `[locale]` · Payload content localization · UI catalogs · locale switcher · sitemap `/ar`. ⚠️ localization schema push blanked existing (disposable) data → recovered via `npm run seed -- --reset` |
+| **Migrations workflow** ☑ (S18) | prod `push: false` (migration-only) · `migrate:*` scripts · `MIGRATIONS.md` · Vercel build runs `migrate`; ⚠️ CLI needs Node LTS |
+| **Next — Customer accounts** | server-backed accounts + order history; **removes the localStorage cart** (owner mandate); do via a reviewed migration |
 
 ---
 

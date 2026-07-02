@@ -28,6 +28,7 @@ export const Navigation: GlobalConfig = {
           name: 'label',
           type: 'text',
           required: true,
+          localized: true,
         },
         {
           name: 'href',
@@ -53,6 +54,7 @@ export const Navigation: GlobalConfig = {
           name: 'columnTitle',
           type: 'text',
           required: true,
+          localized: true,
           admin: { description: 'e.g. "Explore" or "Info"' },
         },
         {
@@ -63,6 +65,7 @@ export const Navigation: GlobalConfig = {
               name: 'label',
               type: 'text',
               required: true,
+              localized: true,
             },
             {
               name: 'href',

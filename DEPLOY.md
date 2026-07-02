@@ -41,7 +41,7 @@ You've been developing against **one** Supabase project, and Payload's dev serve
 
 - ☐ Import the GitHub repo into Vercel
 - ☐ **Root Directory = `trackid-lb`** (the Next app is in a subfolder, not the repo root)
-- ☐ Framework preset: **Next.js** (auto). Build command `next build` and output are auto-detected — leave defaults.
+- ☐ Framework preset: **Next.js** (auto). **Override the Build Command to `npm run migrate && npm run build`** so committed migrations apply to prod before the build (prod never auto-pushes schema — see MIGRATIONS.md). Vercel runs Node LTS, so the migrate CLI works there. Leave Output Directory default.
 - ☐ Node version: leave Vercel's default (20/22). *Bonus:* unlike your local Node 25, this means the Payload CLI (`generate:types`) would work here if ever needed.
 - ☐ Add your domain (`trackid.lb`) under Project → Domains (point DNS per Vercel's instructions)
 
@@ -89,7 +89,7 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 ## 8. Known gotchas / watch-outs
 
 - **Large image uploads — handled via `clientUploads`.** `clientUploads: true` is set on the `s3Storage` plugin, so the admin uploads images **straight from the browser to Supabase** (presigned URL), bypassing Vercel's ~4.5 MB serverless request-body limit. **Requirement:** the Supabase bucket must allow cross-origin `PUT` from your site. In Supabase → Storage, ensure CORS allows your production origin (and `http://localhost:3000` for dev) with the `PUT` method. **Test it after deploy:** upload a large (>5 MB) image in Admin → Media; if it fails with a CORS error in the browser console, fix the bucket CORS. If browser uploads ever misbehave, the fallback is to remove `clientUploads: true` (server-side upload, but then keep photos under ~4 MB).
-- **Schema changes after launch** won't auto-apply to prod. Payload only pushes schema in `dev`. Any future field/collection addition needs either a dev run against the prod DB or proper Payload migrations — otherwise the prod build fails with `relation "..." does not exist`.
+- **Schema changes after launch go through migrations, not push.** Production has `push: false` (see `payload.config.ts` + MIGRATIONS.md) — it never auto-syncs schema, which protects prod data from destructive diffs. Workflow: change the code → `npm run migrate:create <name>` on **Node LTS** (the CLI fails on Node 25) → **review/edit the migration to preserve data** (auto-generated diffs can drop columns) → commit → Vercel's build command (`npm run migrate && npm run build`) applies it. ⚠️ A migration that makes an existing field `localized` must copy old values into the `en` locale before dropping the column, or data blanks (this is exactly what bit the localized fields in dev — see MIGRATIONS.md example).
 - **Notifications are fire-and-forget** via `after()` — a Resend/WhatsApp failure never blocks an order, but it also means a misconfigured `RESEND_FROM` fails silently. Verify email actually arrives in the smoke test.
 - **`PAYLOAD_SECRET`**: the config throws on boot in production if it's unset — good. Just make sure you set a strong one (not the dev value).
 - **ISR/revalidate**: product/page edits in admin propagate via revalidate hooks; allow a few seconds. Pricing/stock revalidate immediately.

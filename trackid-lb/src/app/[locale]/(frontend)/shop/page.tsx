@@ -1,5 +1,6 @@
-import Link from 'next/link'
+import { Link } from '@/i18n/navigation'
 import type { Metadata } from 'next'
+import { getLocale } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
@@ -42,6 +43,7 @@ export default async function ShopPage({
 }) {
   const { cursor, artist, category, q, sort: sortParam } = await searchParams
   const payload = await getPayload()
+  const locale = (await getLocale()) as 'en' | 'ar'
 
   const sortKey: SortKey = SORT_OPTIONS.some((o) => o.key === sortParam)
     ? (sortParam as SortKey)
@@ -64,9 +66,10 @@ export default async function ShopPage({
       limit: cursorable ? PAGE_SIZE : 60,
       sort,
       depth: 1,
+      locale,
     }),
-    payload.find({ collection: 'artists', limit: 50, sort: 'name' }),
-    payload.find({ collection: 'categories', limit: 50, sort: 'name' }),
+    payload.find({ collection: 'artists', limit: 50, sort: 'name', locale }),
+    payload.find({ collection: 'categories', limit: 50, sort: 'name', locale }),
   ])
 
   const last = products[products.length - 1] as (typeof products)[number] & { createdAt?: string }

@@ -1,3 +1,4 @@
+import { getLocale } from 'next-intl/server'
 import { Nav, type NavLink } from './Nav'
 import { getSiteSettings, getNavigation } from '@/lib/site-settings'
 
@@ -7,7 +8,8 @@ const DEFAULT_LINKS: NavLink[] = [
 ]
 
 export async function NavWrapper() {
-  const [settings, nav] = await Promise.all([getSiteSettings(), getNavigation()])
+  const locale = await getLocale()
+  const [settings, nav] = await Promise.all([getSiteSettings(locale), getNavigation(locale)])
 
   const storeName = (settings.storeName as string) || 'trackID.lb'
   const logoUrl = (settings.logoUrl as string) || undefined

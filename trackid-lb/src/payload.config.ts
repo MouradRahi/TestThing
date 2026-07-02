@@ -14,6 +14,7 @@ import { CustomRequests } from './collections/CustomRequests'
 import { Pages } from './collections/Pages'
 import { Media } from './collections/Media'
 import { GarmentTypes } from './collections/GarmentTypes'
+import { Discounts } from './collections/Discounts'
 import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
@@ -46,7 +47,18 @@ export default buildConfig({
       beforeDashboard: ['/components/admin/SalesDashboard#SalesDashboard'],
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Users],
+  // Content localization — mirrors the storefront locales (src/i18n/routing.ts).
+  // Fields marked `localized: true` store a value per locale; everything else is
+  // shared. Add a locale here + in routing.ts + a messages/<locale>.json to grow.
+  localization: {
+    locales: [
+      { label: 'English', code: 'en' },
+      { label: 'العربية', code: 'ar' },
+    ],
+    defaultLocale: 'en',
+    fallback: true,
+  },
   globals: [SiteSettings, Navigation, Homepage],
   // Seed the default garment types once, so the custom-request form works out of
   // the box. The brand can rename/add/remove them in admin afterwards.
@@ -72,6 +84,16 @@ export default buildConfig({
     pool: {
       connectionString: process.env.DATABASE_URI || '',
     },
+    // Committed migrations live here (src/migrations). See MIGRATIONS.md.
+    migrationDir: path.resolve(dirname, 'migrations'),
+    // Schema management policy:
+    //   • Production NEVER auto-pushes — it only runs committed migrations, so a
+    //     schema change can't silently drop/blank prod data.
+    //   • Local dev keeps drizzle `push` for fast iteration. Point local dev at a
+    //     DISPOSABLE dev database (separate Supabase project) so a push that blanks
+    //     data never hits anything you care about. Set PAYLOAD_MIGRATE=true to opt
+    //     a dev run into migration mode instead of push.
+    push: process.env.NODE_ENV !== 'production' && process.env.PAYLOAD_MIGRATE !== 'true',
     // Indexes defined per-collection in the collections files
   }),
   plugins: [

@@ -2,7 +2,7 @@ import { getPayload } from '@/lib/payload'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Image from 'next/image'
-import Link from 'next/link'
+import { Link } from '@/i18n/navigation'
 import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
 import { resolveAlt } from '@/lib/image'
@@ -23,19 +23,20 @@ export async function generateStaticParams() {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ locale: string; slug: string }>
 }): Promise<Metadata> {
-  const { slug } = await params
+  const { locale, slug } = await params
   const payload = await getPayload()
   const { docs } = await payload.find({
     collection: 'artists',
     where: { slug: { equals: slug } },
     limit: 1,
+    locale: locale as 'en' | 'ar',
   })
   const artist = docs[0]
   if (!artist) return {}
 
-  const storeName = resolveStoreName(await getSiteSettings())
+  const storeName = resolveStoreName(await getSiteSettings(locale))
   const description = artist.bio
     ? `${artist.bio.slice(0, 140)}...`
     : `Hand-painted pieces inspired by ${artist.name} — ${storeName}`
@@ -62,9 +63,9 @@ export async function generateMetadata({
 export default async function ArtistPage({
   params,
 }: {
-  params: Promise<{ slug: string }>
+  params: Promise<{ locale: string; slug: string }>
 }) {
-  const { slug } = await params
+  const { locale, slug } = await params
   const payload = await getPayload()
 
   const [{ docs: artistDocs }, ] = await Promise.all([
@@ -72,6 +73,7 @@ export default async function ArtistPage({
       collection: 'artists',
       where: { slug: { equals: slug } },
       limit: 1,
+      locale: locale as 'en' | 'ar',
     }),
   ])
 
@@ -87,6 +89,7 @@ export default async function ArtistPage({
     limit: 48,
     sort: '-createdAt',
     depth: 1,
+    locale: locale as 'en' | 'ar',
   })
 
   return (

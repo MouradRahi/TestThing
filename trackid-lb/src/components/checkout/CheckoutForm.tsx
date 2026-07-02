@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { useTranslations } from 'next-intl'
+import { useRouter, Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 import { Button } from '@/components/ui/Button'
@@ -28,9 +28,14 @@ type Props = {
 
 export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstructions }: Props) {
   const router = useRouter()
+  const t = useTranslations('checkout')
   const { items, total, clearCart } = useCart()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [codeInput, setCodeInput] = useState('')
+  const [discount, setDiscount] = useState<{ code: string; type: 'percentage' | 'fixed'; value: number } | null>(null)
+  const [discountMsg, setDiscountMsg] = useState('')
+  const [discountLoading, setDiscountLoading] = useState(false)
   const [form, setForm] = useState<FormState>({
     customerName: '',
     customerPhone: '',
@@ -47,7 +52,46 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
   const freeDelivery =
     freeDeliveryThreshold !== null && total >= freeDeliveryThreshold
   const deliveryFee = !hasZones ? 0 : selectedZone ? (freeDelivery ? 0 : selectedZone.fee) : null
-  const grandTotal = total + (deliveryFee ?? 0)
+
+  // Display-only — the orders API recomputes the discount from the DB and is authoritative.
+  const discountAmount = discount
+    ? discount.type === 'percentage'
+      ? Math.round(Math.min(total, (total * discount.value) / 100) * 100) / 100
+      : Math.min(discount.value, total)
+    : 0
+  const grandTotal = Math.max(0, total - discountAmount) + (deliveryFee ?? 0)
+
+  const applyCode = async () => {
+    if (!codeInput.trim() || discountLoading) return
+    setDiscountLoading(true)
+    setDiscountMsg('')
+    try {
+      const res = await fetch('/api/discounts/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: codeInput, subtotal: total }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setDiscount({ code: data.code, type: data.type, value: data.value })
+        setCodeInput(data.code)
+        setDiscountMsg('')
+      } else {
+        setDiscount(null)
+        setDiscountMsg(data.error || 'This code isn’t valid.')
+      }
+    } catch {
+      setDiscountMsg('Could not check that code. Please try again.')
+    } finally {
+      setDiscountLoading(false)
+    }
+  }
+
+  const removeCode = () => {
+    setDiscount(null)
+    setCodeInput('')
+    setDiscountMsg('')
+  }
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
@@ -59,7 +103,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
     e.preventDefault()
     if (items.length === 0) return
     if (!/^\+?[\d\s()-]{7,20}$/.test(form.customerPhone.trim())) {
-      setError('Please enter a valid phone number, e.g. +961 70 123 456')
+      setError(t('phoneError'))
       return
     }
     setLoading(true)
@@ -70,6 +114,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...form,
+          discountCode: discount?.code,
           // Prices/titles are resolved server-side from the DB — only send what the server needs
           items: items.map((i) => ({
             productId: i.id,
@@ -86,7 +131,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
       clearCart()
       router.push(`/order/${orderNumber}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      setError(err instanceof Error ? err.message : t('orderFailed'))
       setLoading(false)
     }
   }
@@ -94,9 +139,9 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-6 py-32 text-center">
-        <p className="text-muted mb-6">Your cart is empty.</p>
+        <p className="text-muted mb-6">{t('emptyCart')}</p>
         <Link href="/shop" className="text-xs uppercase tracking-widest text-accent hover:text-accent-hover transition-colors">
-          Browse Shop
+          {t('browseShop')}
         </Link>
       </div>
     )
@@ -104,7 +149,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
-      <h1 className="text-2xl font-bold text-foreground mb-12">Checkout</h1>
+      <h1 className="text-2xl font-bold text-foreground mb-12">{t('title')}</h1>
 
       <div className="grid md:grid-cols-[1fr_380px] gap-12 items-start">
         {/* Form — below summary on mobile, left on desktop */}
@@ -124,50 +169,50 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
             </label>
           </div>
 
-          <SectionLabel>Your Details</SectionLabel>
+          <SectionLabel>{t('yourDetails')}</SectionLabel>
 
-          <Field label="Full Name *" name="customerName" value={form.customerName} onChange={handleChange} required />
-          <Field label="Phone Number *" name="customerPhone" value={form.customerPhone} onChange={handleChange} required type="tel" placeholder="+961 XX XXX XXX" />
-          <Field label="Email (for confirmation)" name="customerEmail" value={form.customerEmail} onChange={handleChange} type="email" />
+          <Field label={t('fullName')} name="customerName" value={form.customerName} onChange={handleChange} required />
+          <Field label={t('phone')} name="customerPhone" value={form.customerPhone} onChange={handleChange} required type="tel" placeholder="+961 XX XXX XXX" />
+          <Field label={t('email')} name="customerEmail" value={form.customerEmail} onChange={handleChange} type="email" />
 
-          <SectionLabel className="pt-4">Delivery</SectionLabel>
+          <SectionLabel className="pt-4">{t('delivery')}</SectionLabel>
 
           {hasZones ? (
-            <SelectField label="Area / City *" name="area" value={form.area} onChange={handleChange} required>
-              <option value="">Select your area…</option>
+            <SelectField label={t('areaCity')} name="area" value={form.area} onChange={handleChange} required>
+              <option value="">{t('selectArea')}</option>
               {zones.map((zone) => (
                 <option key={zone.label} value={zone.label}>
-                  {zone.label} — {freeDelivery ? 'Free' : `$${zone.fee.toFixed(2)}`}
+                  {zone.label} — {freeDelivery ? t('free') : `$${zone.fee.toFixed(2)}`}
                 </option>
               ))}
             </SelectField>
           ) : (
             <Field
-              label="Area / City *"
+              label={t('areaCity')}
               name="area"
               value={form.area}
               onChange={handleChange}
               required
-              placeholder="e.g. Beirut, Tripoli, Saida…"
+              placeholder={t('areaPlaceholder')}
             />
           )}
 
           <TextareaField
-            label="Full Address *"
+            label={t('fullAddress')}
             name="deliveryAddress"
             value={form.deliveryAddress}
             onChange={handleChange}
             required
             rows={3}
-            placeholder="Street, building, floor, apartment…"
+            placeholder={t('addressPlaceholder')}
           />
 
-          <SectionLabel className="pt-4">Payment</SectionLabel>
+          <SectionLabel className="pt-4">{t('payment')}</SectionLabel>
 
           <div className="space-y-2">
             {[
-              { value: 'cod', label: 'Cash on Delivery' },
-              { value: 'bank_transfer', label: 'Bank Transfer' },
+              { value: 'cod', label: t('cod') },
+              { value: 'bank_transfer', label: t('bankTransfer') },
             ].map((opt) => (
               <label
                 key={opt.value}
@@ -197,12 +242,12 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           )}
 
           <TextareaField
-            label="Notes (optional)"
+            label={t('notes')}
             name="notes"
             value={form.notes}
             onChange={handleChange}
             rows={2}
-            placeholder="Any special instructions…"
+            placeholder={t('notesPlaceholder')}
           />
 
           {error && (
@@ -210,13 +255,13 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           )}
 
           <Button type="submit" fullWidth disabled={loading} className="mt-2">
-            {loading ? 'Placing order…' : 'Place Order'}
+            {loading ? t('placingOrder') : t('placeOrder')}
           </Button>
         </form>
 
         {/* Order summary — above form on mobile, right on desktop */}
         <div className="bg-surface border border-border p-6 space-y-6 order-1 md:order-2">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Order Summary</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted">{t('orderSummary')}</p>
 
           <div className="space-y-4">
             {items.map((item) => (
@@ -245,25 +290,75 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
             ))}
           </div>
 
+          {/* Discount code */}
+          <div className="border-t border-border pt-4">
+            {discount ? (
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-foreground">
+                  {t('codeApplied', { code: discount.code })}
+                </span>
+                <button
+                  type="button"
+                  onClick={removeCode}
+                  className="text-muted hover:text-foreground transition-colors uppercase tracking-widest text-[10px]"
+                >
+                  {t('removeCode')}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      applyCode()
+                    }
+                  }}
+                  placeholder={t('discountCode')}
+                  aria-label={t('discountCode')}
+                  className="flex-1 min-w-0 bg-bg border border-border px-3 py-2 text-xs text-foreground uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal focus:border-accent outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={applyCode}
+                  disabled={discountLoading || !codeInput.trim()}
+                  className="shrink-0 border border-border px-3 text-[10px] uppercase tracking-widest text-muted hover:text-foreground hover:border-foreground/40 disabled:opacity-40 transition-colors"
+                >
+                  {discountLoading ? '…' : t('apply')}
+                </button>
+              </div>
+            )}
+            {discountMsg && <p className="text-[11px] text-red-400 mt-2">{discountMsg}</p>}
+          </div>
+
           <div className="border-t border-border pt-4 space-y-2 text-xs">
             <div className="flex justify-between text-muted">
-              <span>Subtotal</span>
+              <span>{t('subtotal')}</span>
               <span className="tabular-nums">${total.toFixed(2)}</span>
             </div>
+            {discountAmount > 0 && (
+              <div className="flex justify-between text-accent">
+                <span>{t('discount')}{discount ? ` (${discount.code})` : ''}</span>
+                <span className="tabular-nums">−${discountAmount.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-muted">
-              <span>Delivery</span>
+              <span>{t('deliveryLabel')}</span>
               <span className="tabular-nums">
                 {!hasZones
-                  ? 'Confirmed by phone'
+                  ? t('deliveryByPhone')
                   : deliveryFee === null
-                    ? 'Select your area'
+                    ? t('selectYourArea')
                     : deliveryFee === 0
-                      ? 'Free'
+                      ? t('free')
                       : `$${deliveryFee.toFixed(2)}`}
               </span>
             </div>
             <div className="flex justify-between text-foreground font-semibold pt-2 border-t border-border text-sm">
-              <span>Total</span>
+              <span>{t('total')}</span>
               <span className="tabular-nums">${grandTotal.toFixed(2)}</span>
             </div>
           </div>
