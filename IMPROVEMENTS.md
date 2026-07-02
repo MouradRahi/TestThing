@@ -182,8 +182,12 @@ The custom-request `garmentType` was a hardcoded `select` (hoodie/tee/jacket/oth
 - ⚠️ Schema push needed (new `garment_types` table + `garment_type_id` column; old enum dropped — loses any existing `garmentType` values, fine pre-launch)
 - Pattern to reuse for any other hardcoded option list (e.g. order/status labels) if full white-label is pursued
 
-### 3.6 Phase 9 (already planned) — blocks on Pages
-- ☐ Reuse the homepage `sections` blocks field in the Pages collection so any CMS page can be a full landing page, not just rich text — this completes "build any page from admin"
+### 3.6 Phase 9 (already planned) — blocks on Pages — ☑ DONE (Session 12)
+- ☑ Reuse the homepage `sections` blocks field in the Pages collection so any CMS page can be a full landing page, not just rich text — completes "build any page from admin"
+- ☑ Shared block-media `beforeValidate` logic extracted to `media-fill.ts → fillBlocksMedia()` (Homepage + Pages use it identically)
+- ☑ Renderers (`/[slug]` + `/p/[slug]`) render full-width `BlockRenderer` when a page has visible sections; fall back to classic title + rich text otherwise (backward compatible)
+- ☑ Fixed latent revalidation bug: Pages afterChange/afterDelete now revalidate **both** `/p/<slug>` and the clean `/<slug>` (previously only `/p/<slug>`)
+- ⚠️ Schema push needed: new `pages_blocks_*` tables push only on `npm run dev` — done Session 12
 
 ---
 
@@ -202,11 +206,13 @@ Every image today is "upload to Supabase dashboard by hand, copy the public URL,
 - ☐ Add `"generate:types": "payload generate:types"` script, run it, commit the file
 - ☐ Replace `AnyRecord` casts in `site-settings.ts`, page components, and BlockRenderer with generated types
 
-### 4.3 Drafts, versions & preview
+### 4.3 Drafts, versions & preview — ☑ status field DONE (Session 13); versions + live preview deferred
 Pages and Homepage edits go live instantly (within cache TTL) with no undo.
-- ☐ `versions: { drafts: true }` on Pages + Products (and Homepage global) — gives draft/publish workflow and version history for free
-- ☐ Payload Live Preview for Homepage/Pages so the owner sees blocks while editing
-- ☐ Pages need a `status` field regardless — today every page is public the moment it's created (and enters the sitemap)
+- ☑ **Pages `status` field (draft/published)** — the real gap: every page used to be public the moment it was created and entered the sitemap. Now a `draft`/`published` select (sidebar, defaults to **published** so existing pages stay live — no migration footgun). Storefront renderers (`/[slug]` + `/p/[slug]`: main find, `generateMetadata`, `generateStaticParams`) and `sitemap.ts` all filter `status: published`; draft pages 404 on the storefront and are excluded from the sitemap. Mirrors the existing Products `status` pattern for consistency.
+- **Decision (Session 13)**: chose a plain `status` field over Payload `versions.drafts`. Rationale: Payload versions add a separate `_status` that would default existing live pages to `draft` (making them vanish until re-published) and duplicate Products' existing manual `status`; the simple field fixes the actual bug with zero migration risk. Trade-off accepted: no version history/rollback, no live-preview iframe.
+- ☐ Deferred: `versions: { drafts: true }` on Pages/Homepage for version history + rollback (revisit if the owner wants undo/history — would need a one-time migration to force-publish existing pages)
+- ☐ Deferred: Payload Live Preview (draft-mode iframe) for Homepage/Pages
+- ⚠️ Schema push needed: new `pages.status` column (additive, default `published` → existing pages auto-published) pushes only on `npm run dev`
 
 ### 4.4 Instant cache invalidation (same hooks as 1.3)
 - ☐ `afterChange`/`afterDelete` hooks on all collections + globals → `revalidatePath`/`revalidateTag`; drop the "wait up to 5 minutes" caveat entirely
@@ -214,17 +220,24 @@ Pages and Homepage edits go live instantly (within cache TTL) with no undo.
 ### 4.5 Admin ergonomics
 - ☐ Order admin: virtual title like `TRK-xxxx — Name — $total`, filter presets by status, items table readable at a glance
 - ☐ New-order admin notification badge is covered by WhatsApp alert (Phase 3) — activate keys at launch
-- ☐ Seed script (`npm run seed`) creating demo artist/category/products/settings — makes fresh white-label installs demo-able in minutes
+- ☑ Seed script (`npm run seed`) creating demo artist/category/products/settings — makes fresh white-label installs demo-able in minutes (Session 14)
+  - Implemented as a **seed API route** (`src/app/api/seed/route.ts`) triggered by `scripts/seed.mjs` (POSTs to it), **not** a standalone CLI script — the Payload CLI can't resolve the config's extensionless imports under the dev's Node 25, but the Next runtime resolves them fine
+  - Seeds 3 categories, 3 artists, 6 products (mix of sized + one-of-a-kind, published, with `placehold.co` demo imagery — added to `next.config` remotePatterns)
+  - **Idempotent**: catalog rows created by slug only when missing (safe to re-run, never duplicates); Homepage sections seeded only when empty; SiteSettings delivery zones/bank/announcement seeded only when commerce is unconfigured — never clobbers a real store
+  - **Prod-guarded**: runs freely in dev; in production refuses unless a matching `SEED_SECRET` is supplied (documented in `.env.local.example`)
 
-### 4.6 Admin sales & analytics dashboard 📊 (requested Session 10) — ☑ v1 DONE (Session 10)
+### 4.6 Admin sales & analytics dashboard 📊 (requested Session 10) — ☑ v2 DONE (Session 15)
 A stats view inside the Payload admin so the owner sees business health at a glance instead of scrolling the Orders list. All data already exists on the `Orders` collection — pure aggregation, no new data capture / no schema change.
 - ☑ Rendered via `admin.components.beforeDashboard` (`src/components/admin/SalesDashboard.tsx`, server component, JS aggregation over orders — fine for launch volumes); registered in importMap
-- ☑ **Headline KPIs**: revenue (30d + all-time), order counts, average order value, awaiting-fulfilment count
-- ☑ **Revenue by period** table (Today / 7d / 30d / All time) — *static ranges, not an interactive selector or chart yet*
-- ☑ **Breakdowns**: top products (by qty), orders by status, COD vs bank transfer split
+- ☑ **Headline KPIs**: revenue, order count, average order value, awaiting-fulfilment, new custom-requests
+- ☑ **Interactive range selector** (`?range=` → Today / 7d / 30d / 90d / All time) — all KPIs + breakdowns scope to it
+- ☑ **Period-over-period comparison** (Session 15): Revenue / Orders / AOV KPIs show a colored ▲/▼ % delta vs the prior equal-length period (`rangeMsFor` + `pctDelta`); "new" when no prior data, hidden for All-time
+- ☑ **Revenue-over-time chart**: dependency-free daily bar chart (last 30 days) — chose native bars over adding recharts (zero deps, theme-colored)
+- ☑ **Breakdowns** (range-scoped): top products (revenue · qty), top **artists** (qty), sales by **area/zone** (revenue · orders), orders by status, COD vs bank-transfer split
 - ☑ **Operational widgets**: low-stock list (≤3, per-size aware via `totalStock`), new custom-requests count, orders awaiting fulfilment
 - ☑ Revenue rule: excludes `cancelled` orders
-- ☐ Remaining for v2: interactive range selector (`?range=`), revenue-over-time **chart** (recharts), top **artists** + sales by **area/zone**, revenue/qty for top products, switch JS aggregation → `payload.db.pool` SQL at scale, **admin-only gate** (`isAdmin` — currently any panel user sees it), optional weekly email summary
+- ☑ **Admin-only gate**: `isAdmin(props.user)` — non-admin panel users don't see revenue
+- ☐ Deferred (scale/infra, not launch-critical): switch JS aggregation → `payload.db.pool` SQL if order count grows very large; optional weekly email summary (needs a Vercel Cron → API route, best wired at/after deploy)
 - Note: this is **first-party** order analytics (revenue, fulfilment) — distinct from 6.x web analytics (GA4/Pixel page-traffic). Both can coexist.
 
 ---
@@ -232,15 +245,15 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 ## 5. P4 — Storefront QoL & Polish
 
 - ☑ **Mobile nav** — hamburger menu added (Session 9); cart link + badge stay visible, CMS links collapse into a panel below the header
-- ☐ `loading.tsx` for shop/product/artist routes (skeleton grids), `error.tsx` boundary, branded `not-found.tsx`
-- ☐ Product gallery: thumbnails are static `<div>`s — make them switch the main image (small client component); shows max 5 images with no indicator
-- ☐ Cart drawer (slide-over mini-cart) instead of full-page navigation on add
+- ☑ `loading.tsx` for shop/product/artist routes + `error.tsx` boundary + branded `not-found.tsx` (Session 10)
+- ☑ **Product gallery** — `ProductGallery.tsx` is an interactive client component: click a thumbnail to swap the main image, active-state ring, `aria-label`/`aria-current` (shows up to 8 thumbnails)
+- ☑ **Cart drawer** (Session 16) — `CartDrawer.tsx` slide-over opens on add-to-cart (and from the nav cart button); `isOpen`/`openCart`/`closeCart` on CartContext; per-line qty steppers + remove, subtotal, Checkout + View-full-cart links; Esc to close, overlay click, body-scroll lock, focus moves into panel and returns on close; `role="dialog"` + `aria-modal`. Nav cart is now a button that opens the drawer (the /cart + /checkout pages remain the source of truth)
 - ☐ Wishlist / save-for-later (localStorage, same pattern as cart) — one-of-a-kind pieces create "thinking about it" behavior
 - ☐ Recently-viewed strip (localStorage) on product pages
-- ☐ Accessibility pass: real social icons with `aria-label` (currently the text "IG"/"TK"), contrast check on announcement-bar custom colors, `aria-live` on cart badge, skip-to-content link
-- ☐ Canonical URLs in metadata
-- ☐ Remove `experimental.reactCompiler: false` from next.config (emits a build warning, does nothing)
-- ☐ Honest rendering strategy for `/shop`: it's dynamic (searchParams), not ISR — either accept that (it's fine) and remove the misleading `revalidate = 30`, or split the no-filter view into a cached segment. Update CLAUDE.md's ISR claim either way
+- ☑ **Accessibility pass** (Session 16): real SVG social icons with `aria-label`/`title` (replaced the "IG"/"TK" text), `aria-live` sr-only cart-count announcement (visual badge `aria-hidden`), skip-to-content link (`sr-only` → visible on focus, targets `#main-content`). ☐ still open: automated contrast check on announcement-bar custom colors (admin-set; left to the owner)
+- ☑ **Canonical URLs** in metadata (Session 16): product → `/product/<slug>`, artist → `/artist/<slug>`, CMS pages → clean `/<slug>` (dedupes the `/p/<slug>` alias), `/shop` → base (dedupes filter/search/sort variants)
+- ☑ Removed dead `experimental.reactCompiler: false` from next.config (Session 16)
+- ☑ **Honest `/shop` rendering** (Session 16): replaced the misleading `revalidate = 30` with `export const dynamic = 'force-dynamic'` (it reads searchParams — always dynamic; stock/price freshness comes from the product revalidate hooks). CLAUDE.md ISR claim corrected in the doc-cleanup pass
 
 ---
 
@@ -274,7 +287,7 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 | **9b — Launch UX** ☑ DONE (Session 9; 2.5 partial — cart revalidation + per-field errors remain) | Customer-facing launch blockers | 1.7, 1.8, 1.10, 2.1, 2.2, 2.4, 2.5, mobile nav |
 | **10 — Commerce depth** ☑ DONE (Session 9; artist-filter dropdown scaling deferred) | 2.3 variants, 2.6 status updates, 2.7 search/sort, 1.3 revalidation hooks |
 | **11 — True white-label** (Session 11) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · remaining: 4.2 types (blocked on Node LTS), 3.1 leftovers (contactEmail reply-to, tagline) |
-| **12 — Admin experience** | 4.1 media uploads ☑ (Session 10) · remaining: 4.6 sales/analytics dashboard, 4.3 drafts/preview, 4.5 seed script, Phase 9 blocks-on-pages (3.6) |
+| **12 — Admin experience** | 4.1 media uploads ☑ (S10) · 3.6 blocks-on-pages ☑ (S12) · 4.3 page drafts (status field) ☑ (S13) · 4.5 seed script ☑ (S14) · 4.6 dashboard v2 ☑ (S15) · remaining: 4.3 versions/live-preview (deferred), weekly email summary (deferred) |
 | **13 — Growth** | Section 6 as the business demands |
 
 ---

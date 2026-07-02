@@ -14,6 +14,10 @@ type CartContextValue = {
   total: number
   /** CMS-driven copy shown on the empty cart page (SiteSettings → Copy). */
   emptyCartMessage: string
+  /** Slide-over mini-cart open state. */
+  isOpen: boolean
+  openCart: () => void
+  closeCart: () => void
 }
 
 const CartContext = createContext<CartContextValue | null>(null)
@@ -26,6 +30,10 @@ export function CartProvider({
   emptyCartMessage?: string
 }) {
   const [items, setItems] = useState<CartItem[]>([])
+  const [isOpen, setIsOpen] = useState(false)
+
+  const openCart = useCallback(() => setIsOpen(true), [])
+  const closeCart = useCallback(() => setIsOpen(false), [])
 
   // Hydrate from localStorage after mount to avoid SSR mismatch
   useEffect(() => {
@@ -74,7 +82,7 @@ export function CartProvider({
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, itemCount, total, emptyCartMessage }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clearCart, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}>
       {children}
     </CartContext.Provider>
   )

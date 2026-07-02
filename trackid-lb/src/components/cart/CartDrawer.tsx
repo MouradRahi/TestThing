@@ -1,0 +1,169 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { useCart } from '@/components/cart/CartContext'
+
+// Slide-over mini-cart. Opens on add-to-cart (and from the nav cart button) so
+// customers get immediate confirmation without a full-page navigation. The
+// full /cart and /checkout pages remain the source of truth.
+export function CartDrawer() {
+  const { items, isOpen, closeCart, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+
+  // Esc to close; lock body scroll and move focus into the panel while open
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeCart()
+    }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const focusReturn = document.activeElement as HTMLElement | null
+    closeRef.current?.focus()
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+      focusReturn?.focus?.()
+    }
+  }, [isOpen, closeCart])
+
+  return (
+    <div
+      aria-hidden={!isOpen}
+      className={`fixed inset-0 z-[60] ${isOpen ? '' : 'pointer-events-none'}`}
+    >
+      {/* Overlay */}
+      <div
+        onClick={closeCart}
+        className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${
+          isOpen ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+
+      {/* Panel */}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Shopping cart"
+        className={`absolute top-0 right-0 h-full w-full max-w-md bg-bg border-l border-border flex flex-col shadow-2xl transition-transform duration-300 ease-out ${
+          isOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between px-5 h-14 border-b border-border shrink-0">
+          <h2 className="text-xs uppercase tracking-[0.2em] text-foreground">
+            Cart{itemCount > 0 ? ` · ${itemCount}` : ''}
+          </h2>
+          <button
+            ref={closeRef}
+            onClick={closeCart}
+            aria-label="Close cart"
+            className="text-muted hover:text-foreground transition-colors p-1 -mr-1"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <path d="M3 3l12 12M15 3L3 15" />
+            </svg>
+          </button>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center px-8 gap-5">
+            <p className="text-muted text-sm">{emptyCartMessage}</p>
+            <Link
+              href="/shop"
+              onClick={closeCart}
+              className="text-xs uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
+            >
+              Browse the shop →
+            </Link>
+          </div>
+        ) : (
+          <>
+            <ul className="flex-1 overflow-y-auto divide-y divide-border">
+              {items.map((item) => (
+                <li key={item.key} className="flex gap-3 p-4">
+                  <div className="relative w-16 h-20 bg-surface border border-border shrink-0 overflow-hidden">
+                    {item.imageUrl && (
+                      <Image src={item.imageUrl} alt={item.title} fill className="object-cover" sizes="64px" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between gap-2">
+                      <Link
+                        href={`/product/${item.slug}`}
+                        onClick={closeCart}
+                        className="text-sm text-foreground hover:text-accent transition-colors leading-snug line-clamp-2"
+                      >
+                        {item.title}
+                      </Link>
+                      <button
+                        onClick={() => removeItem(item.key)}
+                        aria-label={`Remove ${item.title} from cart`}
+                        className="text-muted hover:text-foreground transition-colors shrink-0 -mt-0.5 p-0.5"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                          <path d="M2.5 2.5l9 9M11.5 2.5l-9 9" />
+                        </svg>
+                      </button>
+                    </div>
+                    {item.size && (
+                      <p className="text-[10px] uppercase tracking-wider text-muted mt-1">Size: {item.size}</p>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateQuantity(item.key, item.quantity - 1)}
+                          disabled={item.quantity <= 1}
+                          aria-label="Decrease quantity"
+                          className="w-6 h-6 border border-border text-foreground hover:border-accent flex items-center justify-center text-xs disabled:opacity-30 transition-colors"
+                        >
+                          −
+                        </button>
+                        <span className="text-xs text-foreground w-5 text-center tabular-nums">{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(item.key, item.quantity + 1)}
+                          disabled={item.maxQuantity != null && item.quantity >= item.maxQuantity}
+                          aria-label="Increase quantity"
+                          className="w-6 h-6 border border-border text-foreground hover:border-accent flex items-center justify-center text-xs disabled:opacity-30 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="text-sm text-foreground tabular-nums">${(item.price * item.quantity).toFixed(0)}</span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="border-t border-border p-5 space-y-4 shrink-0">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted uppercase tracking-widest text-xs">Subtotal</span>
+                <span className="text-foreground tabular-nums">${total.toFixed(0)}</span>
+              </div>
+              <p className="text-[10px] text-muted/70">Delivery calculated at checkout.</p>
+              <Link
+                href="/checkout"
+                onClick={closeCart}
+                className="block w-full text-center bg-accent text-on-accent text-xs uppercase tracking-widest font-medium py-3.5 hover:bg-accent-hover transition-colors"
+              >
+                Checkout
+              </Link>
+              <Link
+                href="/cart"
+                onClick={closeCart}
+                className="block text-center text-xs uppercase tracking-widest text-muted hover:text-foreground transition-colors"
+              >
+                View full cart
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}

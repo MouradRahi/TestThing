@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
@@ -6,7 +7,15 @@ import { totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
 import type { Where } from 'payload'
 
-export const revalidate = 30
+// Filter/search/sort variants all point back to the base shop URL for SEO.
+export const metadata: Metadata = {
+  alternates: { canonical: '/shop' },
+}
+
+// /shop reads searchParams (filters, search, sort, cursor) so it renders
+// dynamically per request — there's no static page to revalidate. Stock/price
+// freshness is handled by the product revalidation hooks, not an ISR window here.
+export const dynamic = 'force-dynamic'
 
 const PAGE_SIZE = 24
 

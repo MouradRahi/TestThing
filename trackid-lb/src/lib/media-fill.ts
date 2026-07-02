@@ -26,3 +26,42 @@ export async function mediaUrl(payload: BasePayload, value: unknown): Promise<st
     return null // media missing/unreadable — keep whatever URL is already set
   }
 }
+
+/**
+ * Walk a page/homepage `sections` blocks array and, for any block that carries a
+ * picked Media relation (`*Media` field), copy the media's public URL into the
+ * plain text field the storefront section reads. Mutates the blocks in place.
+ * Shared by the Homepage global and the Pages collection so both block builders
+ * behave identically.
+ */
+export async function fillBlocksMedia(payload: BasePayload, blocks: unknown): Promise<void> {
+  if (!Array.isArray(blocks)) return
+  for (const block of blocks) {
+    if (!block) continue
+    switch (block.blockType) {
+      case 'hero':
+      case 'cta-banner':
+        if (block.bgImageMedia) {
+          const url = await mediaUrl(payload, block.bgImageMedia)
+          if (url) block.bgImage = url
+        }
+        break
+      case 'image-text':
+        if (block.imageMedia) {
+          const url = await mediaUrl(payload, block.imageMedia)
+          if (url) block.image = url
+        }
+        break
+      case 'slideshow':
+        if (Array.isArray(block.slides)) {
+          for (const slide of block.slides) {
+            if (slide?.bgImageMedia) {
+              const url = await mediaUrl(payload, slide.bgImageMedia)
+              if (url) slide.bgImage = url
+            }
+          }
+        }
+        break
+    }
+  }
+}

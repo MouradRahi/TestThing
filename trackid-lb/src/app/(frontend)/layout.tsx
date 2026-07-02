@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter, Space_Grotesk, Playfair_Display, DM_Sans, Manrope } from 'next/font/google'
 import { CartProvider } from '@/components/cart/CartContext'
+import { CartDrawer } from '@/components/cart/CartDrawer'
 import { NavWrapper } from '@/components/nav/NavWrapper'
 import { Footer } from '@/components/nav/Footer'
 import { AnnouncementBar } from '@/components/AnnouncementBar'
@@ -73,14 +74,21 @@ export default async function FrontendLayout({ children }: { children: React.Rea
         <CartProvider
           emptyCartMessage={(settings.emptyCartMessage as string) || DEFAULT_EMPTY_CART_MESSAGE}
         >
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:bg-accent focus:text-on-accent focus:px-4 focus:py-2 focus:text-xs focus:uppercase focus:tracking-widest"
+          >
+            Skip to content
+          </a>
           {/* Announcement + nav stick together; nav is in normal flow so the bar is never covered */}
           <div className="sticky top-0 z-50">
             <AnnouncementBar />
             <NavWrapper />
           </div>
-          <main>{children}</main>
+          <main id="main-content" tabIndex={-1}>{children}</main>
           <Footer />
           <WhatsAppButton />
+          <CartDrawer />
         </CartProvider>
       </body>
     </html>

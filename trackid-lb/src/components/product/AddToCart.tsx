@@ -18,7 +18,7 @@ type Props = {
 }
 
 export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQuantity, sizes = [] }: Props) {
-  const { addItem } = useCart()
+  const { addItem, openCart } = useCart()
   const [selectedSize, setSelectedSize] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
@@ -63,6 +63,7 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQua
       },
       quantity,
     )
+    openCart()
     setAdded(true)
     if (addedTimer.current) clearTimeout(addedTimer.current)
     addedTimer.current = setTimeout(() => setAdded(false), 1600)

@@ -1,26 +1,46 @@
 import type { CollectionConfig } from 'payload'
 import { formatSlug } from '../lib/slug'
 import { safeRevalidatePath } from '../lib/revalidate'
+import { fillBlocksMedia } from '../lib/media-fill'
+import { HeroBlock } from '../globals/blocks/hero'
+import { SlideshowBlock } from '../globals/blocks/slideshow'
+import { FeaturedProductsBlock } from '../globals/blocks/featured-products'
+import { ImageTextBlock } from '../globals/blocks/image-text'
+import { StatementBlock } from '../globals/blocks/statement'
+import { RichTextBlock } from '../globals/blocks/rich-text-block'
+import { CTABannerBlock } from '../globals/blocks/cta-banner'
+
+// A page serves at both /p/<slug> and the clean /<slug> — revalidate both.
+function revalidatePage(slug?: string) {
+  if (!slug) return
+  safeRevalidatePath(`/p/${slug}`)
+  safeRevalidatePath(`/${slug}`)
+}
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
   admin: {
     useAsTitle: 'title',
-    defaultColumns: ['title', 'slug', 'updatedAt'],
+    defaultColumns: ['title', 'slug', 'status', 'updatedAt'],
   },
   hooks: {
+    // Picked Media on any section block → copy its public URL into the text field the section reads
+    beforeValidate: [
+      async ({ data, req }) => {
+        if (data) await fillBlocksMedia(req.payload, data.sections)
+        return data
+      },
+    ],
     afterChange: [
       ({ doc, previousDoc }) => {
-        if (doc?.slug) safeRevalidatePath(`/p/${doc.slug}`)
+        revalidatePage(doc?.slug)
         if (previousDoc?.slug && previousDoc.slug !== doc?.slug) {
-          safeRevalidatePath(`/p/${previousDoc.slug}`)
+          revalidatePage(previousDoc.slug)
         }
       },
     ],
     afterDelete: [
-      ({ doc }) => {
-        if (doc?.slug) safeRevalidatePath(`/p/${doc.slug}`)
-      },
+      ({ doc }) => revalidatePage(doc?.slug),
     ],
   },
   fields: [
@@ -41,8 +61,43 @@ export const Pages: CollectionConfig = {
       },
     },
     {
+      name: 'status',
+      type: 'select',
+      options: [
+        { label: 'Draft', value: 'draft' },
+        { label: 'Published', value: 'published' },
+      ],
+      defaultValue: 'published',
+      required: true,
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description: 'Draft pages are hidden from the storefront and the sitemap. Set to Published to make the page live.',
+      },
+    },
+    {
       name: 'content',
       type: 'richText',
+      admin: {
+        description: 'Simple text content. Ignored when "Sections" below has visible blocks — build a full landing page there instead.',
+      },
+    },
+    {
+      name: 'sections',
+      type: 'blocks',
+      blocks: [
+        HeroBlock,
+        SlideshowBlock,
+        FeaturedProductsBlock,
+        ImageTextBlock,
+        StatementBlock,
+        RichTextBlock,
+        CTABannerBlock,
+      ],
+      admin: {
+        initCollapsed: true,
+        description: 'Build this page from full-width sections (same blocks as the homepage). When any section is visible here, it replaces the simple text content above.',
+      },
     },
     {
       name: 'seo',

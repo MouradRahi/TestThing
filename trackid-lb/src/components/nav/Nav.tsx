@@ -17,18 +17,32 @@ type Props = {
 }
 
 export function Nav({ storeName, links, logoUrl }: Props) {
-  const { itemCount } = useCart()
+  const { itemCount, openCart } = useCart()
   const [menuOpen, setMenuOpen] = useState(false)
 
   const cartLink = (
-    <Link href="/cart" onClick={() => setMenuOpen(false)} className="hover:text-foreground transition-colors relative">
+    <button
+      type="button"
+      onClick={() => {
+        setMenuOpen(false)
+        openCart()
+      }}
+      aria-label={`Open cart, ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`}
+      className="hover:text-foreground transition-colors relative uppercase tracking-widest"
+    >
       Cart
       {itemCount > 0 && (
-        <span className="absolute -top-2 -right-4 bg-accent text-on-accent text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none tabular-nums">
+        <span
+          aria-hidden="true"
+          className="absolute -top-2 -right-4 bg-accent text-on-accent text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center leading-none tabular-nums"
+        >
           {itemCount > 9 ? '9+' : itemCount}
         </span>
       )}
-    </Link>
+      <span className="sr-only" aria-live="polite">
+        {itemCount} {itemCount === 1 ? 'item' : 'items'} in cart
+      </span>
+    </button>
   )
 
   return (

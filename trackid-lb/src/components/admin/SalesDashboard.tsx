@@ -45,6 +45,30 @@ function sinceFor(key: RangeKey): number {
   }
 }
 
+// Length of the selected window, used to define the equal-length prior period for
+// comparison. `all` has no prior period.
+function rangeMsFor(key: RangeKey): number | null {
+  switch (key) {
+    case 'today': return DAY
+    case '7d': return 7 * DAY
+    case '30d': return 30 * DAY
+    case '90d': return 90 * DAY
+    case 'all': return null
+  }
+}
+
+// Percentage change vs the prior period, as a small colored badge.
+function pctDelta(cur: number, prev: number): { text: string; color: string } | null {
+  if (prev <= 0) return cur > 0 ? { text: 'new', color: 'var(--theme-success-600, #16a34a)' } : null
+  const pct = ((cur - prev) / prev) * 100
+  if (Math.abs(pct) < 0.5) return { text: '±0%', color: 'var(--theme-elevation-500)' }
+  const up = pct > 0
+  return {
+    text: `${up ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%`,
+    color: up ? 'var(--theme-success-600, #16a34a)' : 'var(--theme-error-600, #dc2626)',
+  }
+}
+
 type OrderLite = {
   total?: number | null
   orderStatus?: string
@@ -68,11 +92,24 @@ const labelStyle: React.CSSProperties = {
   marginBottom: '0.35rem',
 }
 
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Kpi({
+  label,
+  value,
+  sub,
+  delta,
+}: {
+  label: string
+  value: string
+  sub?: string
+  delta?: { text: string; color: string } | null
+}) {
   return (
     <div style={cardStyle}>
       <div style={labelStyle}>{label}</div>
-      <div style={{ fontSize: '1.6rem', fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '1.6rem', fontWeight: 700, lineHeight: 1.1 }}>{value}</div>
+        {delta && <span style={{ fontSize: '0.8rem', fontWeight: 600, color: delta.color }}>{delta.text}</span>}
+      </div>
       {sub && <div style={{ fontSize: '0.75rem', color: 'var(--theme-elevation-500)', marginTop: '0.25rem' }}>{sub}</div>}
     </div>
   )
@@ -184,6 +221,21 @@ export async function SalesDashboard(props: {
   const aov = orderCount > 0 ? revenue / orderCount : 0
   const awaiting = all.filter((o) => PENDING_FULFILMENT.includes(o.orderStatus ?? '')).length
 
+  // ── Prior equal-length period (for comparison deltas) ─────────────────────
+  const rangeMs = rangeMsFor(selected.key)
+  const prevSince = rangeMs == null ? null : since - rangeMs
+  const prevLive =
+    prevSince == null
+      ? []
+      : live.filter((o) => {
+          if (!o.createdAt) return false
+          const t = new Date(o.createdAt).getTime()
+          return t >= prevSince && t < since
+        })
+  const prevRevenue = prevLive.reduce((s, o) => s + (o.total ?? 0), 0)
+  const prevOrders = prevLive.length
+  const prevAov = prevOrders > 0 ? prevRevenue / prevOrders : 0
+
   // ── Breakdowns (scoped) ───────────────────────────────────────────────────
   const statusCounts = rangeAll.reduce<Record<string, number>>((acc, o) => {
     const s = o.orderStatus ?? 'pending'
@@ -251,13 +303,19 @@ export async function SalesDashboard(props: {
         </div>
       </div>
 
-      {/* KPI cards (scoped to selected range) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
-        <Kpi label={`Revenue · ${selected.label}`} value={money(revenue)} sub={`${orderCount} orders`} />
-        <Kpi label="Avg order value" value={money(aov)} sub={`${selected.label}, excl. cancelled`} />
-        <Kpi label="Awaiting fulfilment" value={String(awaiting)} sub="pending / confirmed / in production" />
-        <Kpi label="New custom requests" value={String(newRequests.totalDocs)} sub="status: new" />
-      </div>
+      {/* KPI cards (scoped to selected range; deltas vs the prior equal-length period) */}
+      {(() => {
+        const vsPrev = prevSince != null ? `vs prev ${selected.label.toLowerCase()}` : 'excl. cancelled'
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <Kpi label={`Revenue · ${selected.label}`} value={money(revenue)} sub={`${orderCount} orders · ${vsPrev}`} delta={prevSince != null ? pctDelta(revenue, prevRevenue) : null} />
+            <Kpi label="Orders" value={String(orderCount)} sub={vsPrev} delta={prevSince != null ? pctDelta(orderCount, prevOrders) : null} />
+            <Kpi label="Avg order value" value={money(aov)} sub={vsPrev} delta={prevSince != null ? pctDelta(aov, prevAov) : null} />
+            <Kpi label="Awaiting fulfilment" value={String(awaiting)} sub="pending / confirmed / in production" />
+            <Kpi label="New custom requests" value={String(newRequests.totalDocs)} sub="status: new" />
+          </div>
+        )
+      })()}
 
       {/* Revenue chart (fixed 30-day window) */}
       <div style={{ marginBottom: '1.5rem' }}>
