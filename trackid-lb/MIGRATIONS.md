@@ -14,11 +14,11 @@ Config lives in `src/payload.config.ts` (`db.postgresAdapter`): `push` is on in 
 
 ---
 
-## ⚠️ Node version
+## Node version — no longer a constraint (Session 20)
 
-The standalone Payload CLI (what the `migrate:*` scripts call) **fails on this machine's Node 25** with `ERR_MODULE_NOT_FOUND` on the config's extensionless imports. Migration commands must run under **Node LTS (20 or 22)** — which is also what Vercel uses, so production migrations work there automatically.
+The `migrate:*` scripts no longer call the standalone Payload CLI (which failed on this machine's Node with `ERR_MODULE_NOT_FOUND` on the config's extensionless imports, and still fails on its `?namespace=` cache-busting even with Node 24 LTS + newer tsx). They now run **`scripts/migrate.mjs`**, which bundles `src/payload.config.ts` with esbuild (`scripts/bundle-config.mjs` — resolves extensionless imports + tsconfig paths, stubs `next/*` runtime modules) and drives the same adapter methods (`payload.db.migrate()` etc.) natively. Works on any modern Node, locally and on Vercel.
 
-Run migration commands under Node LTS locally (via `nvm-windows` / `fnm`: `fnm use 22`), or let Vercel apply them on deploy.
+`npm run generate:types` uses the same mechanism (`scripts/generate-types.mjs`) — `src/payload-types.ts` is generated and committed.
 
 ---
 
@@ -37,8 +37,6 @@ Point local `.env.local` `DATABASE_URI` at the dev DB. This is the single most e
 
 ## Commands
 
-All require Node LTS (see above).
-
 ```bash
 npm run migrate:status     # list applied / pending migrations
 npm run migrate:create <name>   # generate a migration from the schema diff
@@ -47,14 +45,14 @@ npm run migrate:down       # roll back the last batch
 npm run migrate:fresh      # drop everything + re-run all (DEV ONLY — destroys data)
 ```
 
-`PAYLOAD_MIGRATE=true` is set by these scripts so the config runs in migration mode even in dev.
+`PAYLOAD_MIGRATE=true` is set inside `scripts/migrate.mjs` so the config runs in migration mode even in dev.
 
 ---
 
 ## Standard workflow for a schema change
 
 1. Make the code change (add a field, mark one `localized`, add a collection, …).
-2. **On Node LTS:** `npm run migrate:create describe_the_change`
+2. `npm run migrate:create describe_the_change`
 3. **Open the generated file in `src/migrations/` and review it.** Auto-generated diffs are often destructive — a "make field localized" diff will `DROP` the old column and `CREATE` the `_locales` table with **no data copy**. Edit the `up()` to preserve data first (see example below).
 4. Apply locally against the dev DB: `npm run migrate`
 5. Commit the migration file.
@@ -97,6 +95,6 @@ Same pattern for every field that became localized (description, name, bio, genr
 
 The prod/dev DBs already have the full schema (built up via pushes). Before switching them to migration mode:
 
-1. On Node LTS, `npm run migrate:create baseline` — generates a snapshot of the current schema.
+1. `npm run migrate:create baseline` — generates a snapshot of the current schema.
 2. If the DB already matches the code, mark the baseline as already-applied so `migrate` doesn't try to recreate existing tables. Payload tracks applied migrations in the `payload_migrations` table; use `npm run migrate:status` to confirm state, and `payload migrate:refresh`/manual insertion as needed per the Payload docs.
 3. From then on, every schema change gets its own migration.

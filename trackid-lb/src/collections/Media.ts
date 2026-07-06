@@ -13,6 +13,8 @@ export const Media: CollectionConfig = {
     description:
       'Upload images here, then choose them on products, artists, and page sections. Files are stored in Supabase Storage.',
     useAsTitle: 'alt',
+    // Grid-view search box matches either the alt text or the filename
+    listSearchableFields: ['alt', 'filename'],
     components: {
       views: {
         list: {

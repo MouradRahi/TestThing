@@ -1,5 +1,6 @@
 import { getPayload } from '@/lib/payload'
 import { notFound } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { Link } from '@/i18n/navigation'
@@ -79,6 +80,7 @@ export default async function ArtistPage({
 
   const artist = artistDocs[0]
   if (!artist) notFound()
+  const t = await getTranslations('artist')
 
   const { docs: products } = await payload.find({
     collection: 'products',
@@ -97,7 +99,7 @@ export default async function ArtistPage({
       {/* Artist hero */}
       <div className="max-w-6xl mx-auto px-6 py-16">
         <nav className="flex gap-2 text-[10px] uppercase tracking-widest text-muted mb-10">
-          <Link href="/shop" className="hover:text-foreground transition-colors">Shop</Link>
+          <Link href="/shop" className="hover:text-foreground transition-colors">{t('shop')}</Link>
           <span>/</span>
           <span className="text-foreground">{artist.name}</span>
         </nav>
@@ -117,7 +119,7 @@ export default async function ArtistPage({
             </div>
           ) : (
             <div className="aspect-[3/4] bg-surface border border-border flex items-center justify-center">
-              <span className="text-muted text-xs uppercase tracking-widest">No photo</span>
+              <span className="text-muted text-xs uppercase tracking-widest">{t('noPhoto')}</span>
             </div>
           )}
 
@@ -138,7 +140,7 @@ export default async function ArtistPage({
             )}
             <div className="mt-10">
               <Button href={`/shop?artist=${artist.slug}`} variant="secondary" size="md">
-                Browse all {artist.name} pieces
+                {t('browseAll', { name: artist.name })}
               </Button>
             </div>
           </div>
@@ -150,7 +152,7 @@ export default async function ArtistPage({
         <div className="border-t border-border">
           <div className="max-w-7xl mx-auto px-6 py-16">
             <h2 className="text-xs uppercase tracking-[0.25em] text-muted mb-10">
-              Pieces — {artist.name}
+              {t('pieces', { name: artist.name })}
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {products.map((product) => {
@@ -161,7 +163,7 @@ export default async function ArtistPage({
                     slug={product.slug}
                     title={product.title}
                     price={product.price}
-                    imageUrl={images[0]?.url}
+                    imageUrl={images[0]?.url ?? undefined}
                     imageAlt={resolveAlt(images[0]) || undefined}
                     artistName={artist.name}
                   />

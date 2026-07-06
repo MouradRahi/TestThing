@@ -111,7 +111,7 @@ The button is a full navigation to `?cursor=…` — the next page **replaces** 
 - ☑ Phone validation on checkout — generic international format (7–15 digits, optional +), client + server; kept brand-agnostic for white-label
 - ☑ Quantity selector on product page (− n +, clamped to stock; hidden for single-stock pieces)
 - ☑ Add-to-cart feedback: button shows "Added ✓" for ~1.6s
-- ☐ Cart re-validates prices/stock against the server when rendered (prices in localStorage go stale)
+- ☑ Cart re-validates prices/stock against the server when rendered — server-backed cart re-resolves every read (Session 19); catalog changes surface as dismissible notices (Session 20)
 - ☐ Per-field server-side validation errors surfaced on the form (currently one generic message)
 - ☐ Mini-cart drawer (see P4)
 
@@ -137,8 +137,8 @@ The stated goal: a business owner expresses their **entire** brand from the admi
 ### 3.1 Dead SiteSettings fields (defined, never rendered) 🐛
 - ☑ `logoUrl` — rendered in Nav + Footer (text logo when blank); fixed-height `<img>` keeps the true aspect ratio. Email header still text-only (revisit with 3.2)
 - ☑ `ogImage` (SEO tab) — wired into layout `generateMetadata` as the default OG/Twitter image
-- ☐ `contactEmail` — described as "reply-to for order emails", never used. Set `replyTo` in Resend call; show in footer
-- ☐ `tagline` (Brand tab) — unused anywhere (only `footerTagline` is). Use on homepage empty state / metadata, or remove the field
+- ☑ `contactEmail` — `replyTo` on both order emails (confirmation + status, threaded via `BrandCopy`); shown as a mailto link in the footer brand column (Session 20)
+- ☑ `tagline` (Brand tab) — appended to the homepage default/OG/Twitter title (`Store — tagline`) and shown as the homepage empty-state headline (Session 20)
 - ☑ `whatsappNumber` — floating WhatsApp chat button (`src/components/WhatsAppButton.tsx`, rendered in frontend layout); `getWhatsAppLink` helper sanitizes to a `wa.me` link. Renders only when a number is set
 
 ### 3.2 Hardcoded brand strings that must move to CMS — ☑ DONE (Session 11)
@@ -199,12 +199,14 @@ Every image today is "upload to Supabase dashboard by hand, copy the public URL,
 - ☑ Sharp generates thumbnail/card/feature sizes on upload; `alt` text lives with the file
 - ☑ **Picker (not migration)**: added an `upload`-relation field next to every existing URL field — `products.images[].image`, `artists.photoMedia`, SiteSettings `logo`/`ogImageMedia`/`faviconMedia`, hero/cta-banner `bgImageMedia`, slideshow `slides[].bgImageMedia`, image-text `imageMedia`. A `beforeValidate` hook (`src/lib/media-fill.ts → mediaUrl`) copies the picked media's public URL into the text field the storefront already reads — **zero component changes, existing URLs and manual entry still work**. Required URL fields relaxed to optional so the admin's client-side validation doesn't block picking media
 - ⚠️ Schema push needed: new `media` table + upload-relation columns only push on `npm run dev` (Payload dev-only schema sync) — run dev once before any prod build or it fails with `relation "media" does not exist`
+- ☑ Media grid search + bulk delete (Session 20): `MediaGridClient.tsx` — search box drives Payload's `?search=` list param (`listSearchableFields: ['alt','filename']`), Select mode overlays checkboxes on tiles, Delete Selected hits the REST API (`DELETE /api/media?where[id][in]=…`) with confirm + toast; selection UI hidden inside pick-an-image drawers
 - ☐ Later: drop the now-redundant URL text fields once all content is migrated to uploads (keep during transition)
 
-### 4.2 Generate Payload types (config exists, file doesn't)
+### 4.2 Generate Payload types — ☑ DONE (Session 20)
 `payload-types.ts` was never generated — every global/product is typed `Record<string, any>`, which is how dead fields (3.1) went unnoticed.
-- ☐ Add `"generate:types": "payload generate:types"` script, run it, commit the file
-- ☐ Replace `AnyRecord` casts in `site-settings.ts`, page components, and BlockRenderer with generated types
+- ☑ `npm run generate:types` → `scripts/generate-types.mjs` — bypasses the Payload CLI (its tsx loader fails on this machine's Node even at 24 LTS) by bundling the config with esbuild (`scripts/bundle-config.mjs`) and calling `generateTypes()` from `payload/node`. `src/payload-types.ts` generated + committed; the same mechanism now powers the `migrate:*` scripts (`scripts/migrate.mjs`) — **the "Node LTS only" migration constraint is gone**
+- ☑ The generated module augmentation makes the Local API strictly typed — surfaced 16 latent type errors (null vs undefined image URLs, wrong `customer` id type in the orders route, unormalized cart items in `mergeGuestCart`, missing `slug` in the garment-type seeding, `SiteSetting` casts), all fixed
+- ☐ Replace remaining explicit `AnyRecord` casts in `site-settings.ts`, page components, and BlockRenderer with generated types (cosmetic now — the API itself is typed)
 
 ### 4.3 Drafts, versions & preview — ☑ status field DONE (Session 13); versions + live preview deferred
 Pages and Homepage edits go live instantly (within cache TTL) with no undo.
@@ -264,8 +266,8 @@ A stats view inside the Payload admin so the owner sees business health at a gla
   - ⚠️ Schema push needed: new `discounts` table + `orders.discount_code`/`orders.discount_amount` columns push only on `npm run dev`
 - ☐ Instagram feed embed (deferred — waiting on handle)
 - ☐ WhatsApp Cloud API activation (code ready; needs Meta keys)
-- ☑ Phase 10 i18n (Session 18): `next-intl` v4 (`localePrefix: 'as-needed'` → English `/shop`, Arabic `/ar/shop`); all `(frontend)` routes under `app/[locale]/`; RTL via `dir` (locale-set driven); Payload `localization: ['en','ar']` with `localized: true` on content fields + SiteSettings copy + Navigation labels; `locale` threaded through every storefront query; UI chrome translated + nav locale switcher; sitemap emits `/ar` variants. Adding a 3rd locale (`ja`) = 1 line in routing + a messages file + config locale. ⚠️ needs a `npm run dev` schema push. Deferred: homepage-block/product-alt localization, a few decorative strings, localized order emails
-- ☑ **Customer accounts** (Session 19) — **Phase A**: `Customers` auth collection, login/register/logout, `/account` dashboard (order history + saved addresses + wishlist + profile), orders linked to accounts, checkout prefill, product-page wishlist. **Phase B**: server-backed `Carts` collection (keyed by httpOnly `cart-session` cookie or customer) + `/api/cart` + rewritten `CartContext` (optimistic) + guest→account merge on login. **localStorage fully removed** — the no-localStorage mandate is satisfied. Bonus: the cart now re-resolves prices/stock server-side on every read (fixes stale prices). ⚠️ additive schema push (`carts` table). Deferred: an explicit "a cart line changed/sold out" UI notice
+- ☑ Phase 10 i18n (Session 18): `next-intl` v4 (`localePrefix: 'as-needed'` → English `/shop`, Arabic `/ar/shop`); all `(frontend)` routes under `app/[locale]/`; RTL via `dir` (locale-set driven); Payload `localization: ['en','ar']` with `localized: true` on content fields + SiteSettings copy + Navigation labels; `locale` threaded through every storefront query; UI chrome translated + nav locale switcher; sitemap emits `/ar` variants. Adding a 3rd locale (`ja`) = 1 line in routing + a messages file + config locale. ⚠️ needs a `npm run dev` schema push. ☑ Decorative strings localized (Session 20): shop page (heading, piece count, search, sort, filters, empty states, pagination), track page + form, artist page (breadcrumb, no-photo, browse-all, pieces heading), 404 + error boundary, skip-link. Still deferred: homepage-block/product-alt localization, localized order emails
+- ☑ **Customer accounts** (Session 19) — **Phase A**: `Customers` auth collection, login/register/logout, `/account` dashboard (order history + saved addresses + wishlist + profile), orders linked to accounts, checkout prefill, product-page wishlist. **Phase B**: server-backed `Carts` collection (keyed by httpOnly `cart-session` cookie or customer) + `/api/cart` + rewritten `CartContext` (optimistic) + guest→account merge on login. **localStorage fully removed** — the no-localStorage mandate is satisfied. Bonus: the cart now re-resolves prices/stock server-side on every read (fixes stale prices). ⚠️ additive schema push (`carts` table). ☑ Cart-change notices (Session 20): `serializeCart` returns structured notices (line `removed` / `sold_out` / `reduced`), dead lines pruned from the stored cart, `CartNotices` banner (dismissible, translated en/ar) in the drawer + cart page
 - ☐ Email capture / drop-announcement newsletter block (Resend Audiences)
 - ☐ Sitemap/staticParams limits (500/200) — fine for years; revisit if catalog explodes
 
@@ -288,7 +290,7 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 | **9a — Trust the server** ☑ DONE (Session 9) | Order integrity & security | 1.1, 1.2, 1.4, 1.5, 1.6, 1.9, 1.11 |
 | **9b — Launch UX** ☑ DONE (Session 9; 2.5 partial — cart revalidation + per-field errors remain) | Customer-facing launch blockers | 1.7, 1.8, 1.10, 2.1, 2.2, 2.4, 2.5, mobile nav |
 | **10 — Commerce depth** ☑ DONE (Session 9; artist-filter dropdown scaling deferred) | 2.3 variants, 2.6 status updates, 2.7 search/sort, 1.3 revalidation hooks |
-| **11 — True white-label** (Session 11) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · remaining: 4.2 types (blocked on Node LTS), 3.1 leftovers (contactEmail reply-to, tagline) |
+| **11 — True white-label** ☑ (S11 + S20) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · 4.2 types ☑ (S20, CLI blocker solved) · 3.1 leftovers (contactEmail reply-to ☑, tagline ☑ — S20) |
 | **12 — Admin experience** | 4.1 media uploads ☑ (S10) · 3.6 blocks-on-pages ☑ (S12) · 4.3 page drafts (status field) ☑ (S13) · 4.5 seed script ☑ (S14) · 4.6 dashboard v2 ☑ (S15) · remaining: 4.3 versions/live-preview (deferred), weekly email summary (deferred) |
 | **P4 — Storefront polish** ☑ (S16) | cart drawer, gallery, a11y (icons/aria/skip-link), canonicals, reactCompiler removal, honest `/shop` rendering; deferred: wishlist + recently-viewed |
 | **P5 — Growth** ☑ (S17) | discount codes ☑ · analytics (Vercel + GA4/Pixel) ☑ · deferred: newsletter, Instagram, WhatsApp keys |

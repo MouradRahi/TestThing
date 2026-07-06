@@ -25,7 +25,29 @@
     "deliveryNote": "تُحتسب رسوم التوصيل عند الدفع.",
     "checkout": "إتمام الشراء",
     "continueShopping": "متابعة التسوّق",
-    "viewFullCart": "عرض السلة كاملة"
+    "viewFullCart": "عرض السلة كاملة",
+    "noticeRemoved": "«{title}» لم يعد متوفراً وتمت إزالته من سلتك.",
+    "noticeRemovedGeneric": "أحد المنتجات لم يعد متوفراً وتمت إزالته من سلتك.",
+    "noticeSoldOut": "«{title}» نفد للتو — أزله أو عاود التحقق لاحقاً.",
+    "noticeReduced": "تبقّى {available} فقط من «{title}» — الرجاء تعديل الكمية.",
+    "noticeDismiss": "إخفاء تنبيهات السلة"
+  },
+  "shop": {
+    "title": "المتجر",
+    "noPieces": "لا قطع",
+    "pieceCount": "{count}{more} {count, plural, one {قطعة} other {قطع}}",
+    "searchPlaceholder": "ابحث عن قطعة…",
+    "search": "بحث",
+    "sort": "ترتيب",
+    "sortNewest": "الأحدث",
+    "sortPriceAsc": "السعر ↑",
+    "sortPriceDesc": "السعر ↓",
+    "all": "الكل",
+    "nothingFound": "لا نتائج لـ «{query}».",
+    "nothingYet": "لا شيء هنا بعد.",
+    "clearFilters": "مسح الفلاتر",
+    "firstPage": "→ الصفحة الأولى",
+    "nextPage": "الصفحة التالية ←"
   },
   "product": {
     "shop": "المتجر",
@@ -152,6 +174,33 @@
     "wishlistSave": "حفظ لوقت لاحق",
     "wishlistSaved": "محفوظ",
     "total": "الإجمالي"
+  },
+  "artist": {
+    "shop": "المتجر",
+    "noPhoto": "لا توجد صورة",
+    "browseAll": "تصفّح كل قطع {name}",
+    "pieces": "قطع — {name}"
+  },
+  "track": {
+    "metaTitle": "تتبّع الطلب",
+    "metaDescription": "تحقق من حالة طلبك باستخدام رقم الطلب.",
+    "title": "تتبّع طلبك",
+    "intro": "أدخل رقم الطلب من رسالة التأكيد — وسنعرض لك أين وصلت قطعتك.",
+    "orderNumber": "رقم الطلب",
+    "placeholder": "مثال: TRK-123456-AB12",
+    "lookingUp": "جارٍ البحث…",
+    "cta": "تتبّع الطلب"
+  },
+  "errors": {
+    "notFoundEyebrow": "خطأ 404",
+    "notFoundTitle": "الصفحة غير موجودة",
+    "notFoundBody": "الصفحة التي تبحث عنها غير موجودة أو ربما انتقلت.",
+    "backHome": "العودة إلى الرئيسية",
+    "errorEyebrow": "حدث خطأ ما",
+    "errorTitle": "واجهت هذه الصفحة خطأ",
+    "errorBody": "حاول مجدداً، أو عد إلى المتجر.",
+    "tryAgain": "حاول مجدداً",
+    "backToShop": "العودة إلى المتجر"
   },
   "locale": {
     "label": "اللغة",

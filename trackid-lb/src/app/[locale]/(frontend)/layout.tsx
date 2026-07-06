@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Inter, Space_Grotesk, Playfair_Display, DM_Sans, Manrope } from 'next/font/google'
 import { NextIntlClientProvider, hasLocale } from 'next-intl'
-import { setRequestLocale } from 'next-intl/server'
+import { setRequestLocale, getTranslations } from 'next-intl/server'
 import { routing, isRtl } from '@/i18n/routing'
 import { CartProvider } from '@/components/cart/CartContext'
 import { CartDrawer } from '@/components/cart/CartDrawer'
@@ -46,6 +46,9 @@ export async function generateMetadata({
   const { locale } = await params
   const settings = await getSiteSettings(locale)
   const storeName = (settings.storeName as string) || 'trackID.lb'
+  const tagline = (settings.tagline as string) || ''
+  // The tagline rides along on the default (homepage) title; inner pages use the template
+  const defaultTitle = tagline ? `${storeName} — ${tagline}` : storeName
   const description =
     (settings.metaDescription as string) ||
     'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.'
@@ -53,7 +56,7 @@ export async function generateMetadata({
   const faviconUrl = (settings.faviconUrl as string) || ''
 
   return {
-    title: { default: storeName, template: `%s | ${storeName}` },
+    title: { default: defaultTitle, template: `%s | ${storeName}` },
     description,
     metadataBase: new URL(siteUrl),
     ...(faviconUrl ? { icons: { icon: faviconUrl } } : {}),
@@ -61,13 +64,13 @@ export async function generateMetadata({
       siteName: storeName,
       type: 'website',
       locale: OG_LOCALE[locale] ?? 'en_US',
-      title: storeName,
+      title: defaultTitle,
       description,
       ...(ogImage ? { images: [{ url: ogImage }] } : {}),
     },
     twitter: {
       card: 'summary_large_image',
-      title: storeName,
+      title: defaultTitle,
       description,
       ...(ogImage ? { images: [ogImage] } : {}),
     },
@@ -86,7 +89,7 @@ export default async function FrontendLayout({
   // Enable static rendering for this locale
   setRequestLocale(locale)
 
-  const settings = await getSiteSettings(locale)
+  const [settings, tCommon] = await Promise.all([getSiteSettings(locale), getTranslations('common')])
   const cssVars = buildThemeCssVars(settings)
   const fontVars = {
     '--font-heading': resolveFontStack(settings.headingFont),
@@ -107,7 +110,7 @@ export default async function FrontendLayout({
               href="#main-content"
               className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:z-[70] focus:bg-accent focus:text-on-accent focus:px-4 focus:py-2 focus:text-xs focus:uppercase focus:tracking-widest ltr:focus:left-3 rtl:focus:right-3"
             >
-              Skip to content
+              {tCommon('skipToContent')}
             </a>
             {/* Announcement + nav stick together; nav is in normal flow so the bar is never covered */}
             <div className="sticky top-0 z-50">

@@ -71,11 +71,17 @@ export const SiteSettings: GlobalConfig = {
               type: 'text',
               localized: true,
               defaultValue: 'Hand-painted clothing for the artists you love.',
+              admin: {
+                description:
+                  'Appended to the homepage browser-tab / social-share title ("Store — tagline") and shown on the homepage when no sections are configured.',
+              },
             },
             {
               name: 'contactEmail',
               type: 'email',
-              admin: { description: 'Shown in order confirmation emails as reply-to.' },
+              admin: {
+                description: 'Reply-to address on all order emails; also shown in the footer.',
+              },
             },
             {
               name: 'whatsappNumber',

@@ -1,6 +1,6 @@
 import { Link } from '@/i18n/navigation'
 import type { Metadata } from 'next'
-import { getLocale } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
@@ -22,10 +22,11 @@ const PAGE_SIZE = 24
 
 type SortKey = 'newest' | 'price-asc' | 'price-desc'
 
-const SORT_OPTIONS: Array<{ key: SortKey; label: string; sort: string }> = [
-  { key: 'newest', label: 'Newest', sort: '-createdAt' },
-  { key: 'price-asc', label: 'Price ↑', sort: 'price' },
-  { key: 'price-desc', label: 'Price ↓', sort: '-price' },
+// Labels come from the `shop.sort*` message keys so they localize
+const SORT_OPTIONS: Array<{ key: SortKey; labelKey: 'sortNewest' | 'sortPriceAsc' | 'sortPriceDesc'; sort: string }> = [
+  { key: 'newest', labelKey: 'sortNewest', sort: '-createdAt' },
+  { key: 'price-asc', labelKey: 'sortPriceAsc', sort: 'price' },
+  { key: 'price-desc', labelKey: 'sortPriceDesc', sort: '-price' },
 ]
 
 type SearchParams = {
@@ -44,6 +45,7 @@ export default async function ShopPage({
   const { cursor, artist, category, q, sort: sortParam } = await searchParams
   const payload = await getPayload()
   const locale = (await getLocale()) as 'en' | 'ar'
+  const t = await getTranslations('shop')
 
   const sortKey: SortKey = SORT_OPTIONS.some((o) => o.key === sortParam)
     ? (sortParam as SortKey)
@@ -91,9 +93,11 @@ export default async function ShopPage({
     <div className="max-w-7xl mx-auto px-6 py-12">
       {/* Header */}
       <div className="flex items-baseline justify-between mb-8">
-        <h1 className="text-2xl font-bold text-foreground">Shop</h1>
+        <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
         <span className="text-xs text-muted uppercase tracking-widest">
-          {products.length === 0 ? 'No pieces' : `${products.length}${nextCursor ? '+' : ''} pieces`}
+          {products.length === 0
+            ? t('noPieces')
+            : t('pieceCount', { count: products.length, more: nextCursor ? '+' : '' })}
         </span>
       </div>
 
@@ -107,19 +111,19 @@ export default async function ShopPage({
             type="search"
             name="q"
             defaultValue={q ?? ''}
-            placeholder="Search pieces…"
+            placeholder={t('searchPlaceholder')}
             className="flex-1 max-w-sm bg-surface border border-border text-foreground px-3 py-2 text-sm placeholder:text-muted/40 focus:border-accent/70 outline-none transition-colors"
           />
           <button
             type="submit"
             className="px-4 py-2 border border-border text-[10px] uppercase tracking-[0.2em] text-muted hover:border-foreground hover:text-foreground transition-colors"
           >
-            Search
+            {t('search')}
           </button>
         </form>
 
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-[0.2em] text-muted mr-1">Sort</span>
+          <span className="text-[10px] uppercase tracking-[0.2em] text-muted me-1">{t('sort')}</span>
           {SORT_OPTIONS.map((opt) => (
             <Link
               key={opt.key}
@@ -130,7 +134,7 @@ export default async function ShopPage({
                   : 'border-border text-muted hover:border-foreground hover:text-foreground'
               }`}
             >
-              {opt.label}
+              {t(opt.labelKey)}
             </Link>
           ))}
         </div>
@@ -146,7 +150,7 @@ export default async function ShopPage({
               : 'border-border text-muted hover:border-foreground hover:text-foreground'
           }`}
         >
-          All
+          {t('all')}
         </Link>
 
         {categories.map((cat) => (
@@ -185,10 +189,10 @@ export default async function ShopPage({
       {/* Grid */}
       {products.length === 0 ? (
         <div className="text-center py-32 text-muted">
-          <p className="mb-4">{q ? `Nothing found for “${q}”.` : 'Nothing here yet.'}</p>
+          <p className="mb-4">{q ? t('nothingFound', { query: q }) : t('nothingYet')}</p>
           {(artist || category || q) && (
             <Link href="/shop" className="text-xs uppercase tracking-widest text-accent hover:text-accent-hover">
-              Clear filters
+              {t('clearFilters')}
             </Link>
           )}
         </div>
@@ -206,7 +210,7 @@ export default async function ShopPage({
                 slug={product.slug}
                 title={product.title}
                 price={product.price}
-                imageUrl={images[0]?.url}
+                imageUrl={images[0]?.url ?? undefined}
                 imageAlt={resolveAlt(images[0]) || undefined}
                 artistName={artistObj?.name}
                 soldOut={totalStock(product) === 0}
@@ -221,12 +225,12 @@ export default async function ShopPage({
         <div className="flex items-center justify-center gap-4 mt-16">
           {cursor && (
             <Button href={shopUrl({ cursor: undefined })} variant="secondary">
-              ← First Page
+              {t('firstPage')}
             </Button>
           )}
           {nextCursor && (
             <Button href={shopUrl({ cursor: nextCursor })} variant="secondary">
-              Next Page →
+              {t('nextPage')}
             </Button>
           )}
         </div>

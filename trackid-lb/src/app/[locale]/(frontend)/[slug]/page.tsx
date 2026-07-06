@@ -70,7 +70,7 @@ export default async function PageRoute({
     <div className="max-w-2xl mx-auto px-6 py-16">
       <h1 className="text-3xl font-bold text-foreground mb-10 leading-tight">{page.title}</h1>
       {page.content && (
-        <RichTextRenderer content={page.content as Parameters<typeof RichTextRenderer>[0]['content']} />
+        <RichTextRenderer content={page.content as unknown as Parameters<typeof RichTextRenderer>[0]['content']} />
       )}
     </div>
   )

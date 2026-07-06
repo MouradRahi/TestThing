@@ -23,8 +23,25 @@ export async function GET(req: NextRequest) {
   const { customerId, sessionId } = await currentOwner(payload, req)
   const locale = new URL(req.url).searchParams.get('locale') ?? undefined
   const cart = await findCart(payload, { customerId, sessionId })
-  const items = await serializeCart(payload, cart, locale)
-  return NextResponse.json({ items })
+  const { items, notices, kept } = await serializeCart(payload, cart, locale)
+  await pruneDeadLines(payload, cart, kept)
+  return NextResponse.json({ items, notices })
+}
+
+// Lines whose product was deleted/unpublished are dropped from serialization;
+// prune them from the stored cart too so their `removed` notice shows once,
+// not on every future read. Best-effort — a failed prune just repeats the notice.
+async function pruneDeadLines(
+  payload: Payload,
+  cart: { id: string | number; items?: unknown[] } | null,
+  kept: { product: number; size?: string; quantity: number }[],
+) {
+  if (!cart || (cart.items?.length ?? 0) === kept.length) return
+  try {
+    await payload.update({ collection: 'carts', id: cart.id, data: { items: kept } })
+  } catch {
+    // non-fatal
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -44,7 +61,7 @@ export async function POST(req: NextRequest) {
 
   // Only 'add' creates a cart; other actions on a missing cart are no-ops
   if (!cart) {
-    if (action !== 'add') return NextResponse.json({ items: [] })
+    if (action !== 'add') return NextResponse.json({ items: [], notices: [] })
     if (customerId != null) {
       cart = (await payload.create({ collection: 'carts', data: { customer: customerId, items: [] } })) as {
         id: string | number
@@ -135,8 +152,9 @@ async function finalize(
   sessionId: string | undefined,
 ) {
   const fresh = await findCartById(payload, cartId)
-  const items = await serializeCart(payload, fresh, locale)
-  const res = NextResponse.json({ items })
+  const { items, notices, kept } = await serializeCart(payload, fresh, locale)
+  await pruneDeadLines(payload, fresh, kept)
+  const res = NextResponse.json({ items, notices })
   if (setCookie && sessionId) {
     res.cookies.set(CART_COOKIE, sessionId, {
       httpOnly: true,
