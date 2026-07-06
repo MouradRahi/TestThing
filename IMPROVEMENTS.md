@@ -283,6 +283,31 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 
 ---
 
+## 8. AI Assistant (Claude-powered) — planned Session 21
+
+> Owner request (2026-07-06): an AI assistant on the site with two faces — **a business/KPI copilot for the admin** and **a customer-support chat for shoppers**. Build on the Claude API (`@anthropic-ai/sdk`, model `claude-opus-4-8`, streaming + tool use); we host the loop in Next.js API routes, tools execute against Payload's Local API. Requires `ANTHROPIC_API_KEY` (server-only env, Vercel + local); everything degrades gracefully when unset (widget hidden, admin panel shows a setup note) — same pattern as Resend/WhatsApp.
+
+### 8.1 Shared foundation
+- ☐ `src/lib/assistant/` — Anthropic client singleton, streaming helper (SSE from a route handler), shared tool-execution loop (manual loop: check `stop_reason === "tool_use"`, run tools server-side, feed `tool_result` back)
+- ☐ Prompt caching: stable system prompt + tool definitions first with `cache_control`, per-request content after (keeps per-turn cost low)
+- ☐ Conversation state: client holds the message history (stateless API, same as the cart pre-accounts); cap history length server-side
+
+### 8.2 Admin KPI copilot
+- ☐ `POST /api/admin/assistant` — auth via Payload cookie (`payload.auth`) + `isAdmin` gate (mirrors the SalesDashboard gate); streams responses
+- ☐ Tools over the Orders/Products/CustomRequests data (reuse/extract the SalesDashboard aggregation logic): `get_sales_summary({range})` (revenue/orders/AOV + prior-period delta), `get_top_products`, `get_top_artists`, `get_sales_by_area`, `get_orders({status, range})`, `get_low_stock`, `get_custom_requests`, `get_discount_performance`
+- ☐ Chat UI in the Payload admin — panel alongside the SalesDashboard (`beforeDashboard` component or a dedicated admin view), client component
+- ☐ System prompt: store context (Lebanon, COD + bank transfer, USD, hand-painted one-of-a-kind pieces), instruction to answer with concrete numbers + one actionable insight
+
+### 8.3 Customer support chat
+- ☐ `POST /api/support/assistant` — public, rate-limited via `api-guards` (~20 msgs/10min/IP), honeypot-free (no form), history length caps
+- ☐ Tools (read-only, public-safe): `track_order({orderNumber})` (order number acts as the access token — same trust model as `/track`), `search_products({query})` (published only), `get_delivery_info()` (zones/fees/threshold from SiteSettings), `get_store_info()` (payment methods, WhatsApp contact), `get_page_content({slug})` (published CMS pages — FAQ/About as the policy source)
+- ☐ Guardrails in the system prompt: order lookups only with an order number; never reveal other customers' data; don't invent prices/policies — always use tools; escalate to the WhatsApp human channel when stuck; reply in the user's language (en/ar — locale passed with the request)
+- ☐ Chat widget on the storefront — floating button coexisting with (or wrapping) the WhatsApp button: assistant first, "talk to a human" opens wa.me; translated en/ar; RTL-aware
+- ☐ SiteSettings → new **Assistant** tab: `assistantEnabled` toggle, `assistantName`, `assistantExtraInstructions` (brand-voice addendum, localized) — keeps the white-label promise
+- ☐ Cost guard: per-IP rate limit + capped `max_tokens`; consider `claude-haiku-4-5` for the support side later if volume makes Opus pricing matter (owner decision)
+
+---
+
 ## Suggested Execution Order
 
 | Phase | Scope | Items |
@@ -295,8 +320,10 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 | **P4 — Storefront polish** ☑ (S16) | cart drawer, gallery, a11y (icons/aria/skip-link), canonicals, reactCompiler removal, honest `/shop` rendering; deferred: wishlist + recently-viewed |
 | **P5 — Growth** ☑ (S17) | discount codes ☑ · analytics (Vercel + GA4/Pixel) ☑ · deferred: newsletter, Instagram, WhatsApp keys |
 | **Localization (Phase 10)** ☑ (S18) | next-intl en/ar + RTL · routes under `[locale]` · Payload content localization · UI catalogs · locale switcher · sitemap `/ar`. ⚠️ localization schema push blanked existing (disposable) data → recovered via `npm run seed -- --reset` |
-| **Migrations workflow** ☑ (S18) | prod `push: false` (migration-only) · `migrate:*` scripts · `MIGRATIONS.md` · Vercel build runs `migrate`; ⚠️ CLI needs Node LTS |
-| **Next — Customer accounts** | server-backed accounts + order history; **removes the localStorage cart** (owner mandate); do via a reviewed migration |
+| **Migrations workflow** ☑ (S18, CLI unblocked S20) | prod `push: false` (migration-only) · `migrate:*` scripts · `MIGRATIONS.md` · Vercel build runs `migrate` |
+| **Customer accounts** ☑ (S19) | server-backed accounts + order history + server cart (localStorage removed) |
+| **Next — AI Assistant (§8)** | admin KPI copilot + customer support chat on the Claude API; then remaining deferred polish |
+| **Last — Online payments** | owner decision (2026-07-06): deferred to the end; Lebanon-viable gateways (Whish/Areeba), additive to the orders API |
 
 ---
 
