@@ -33,7 +33,7 @@ You've been developing against **one** Supabase project, and Payload's dev serve
 
 - ☐ Add and **verify your sending domain** in Resend (DNS records)
 - ☐ Set `RESEND_FROM` to an address on that domain, e.g. `orders@trackid.lb`
-- ☐ (Optional) set SiteSettings → `contactEmail` for a reply-to once 3.1's reply-to wiring lands
+- ☐ Set SiteSettings → `contactEmail` — it's now the reply-to on all order emails and shows in the footer (wired Session 20)
 
 ---
 
@@ -41,8 +41,8 @@ You've been developing against **one** Supabase project, and Payload's dev serve
 
 - ☐ Import the GitHub repo into Vercel
 - ☐ **Root Directory = `trackid-lb`** (the Next app is in a subfolder, not the repo root)
-- ☐ Framework preset: **Next.js** (auto). **Override the Build Command to `npm run migrate && npm run build`** so committed migrations apply to prod before the build (prod never auto-pushes schema — see MIGRATIONS.md). Vercel runs Node LTS, so the migrate CLI works there. Leave Output Directory default.
-- ☐ Node version: leave Vercel's default (20/22). *Bonus:* unlike your local Node 25, this means the Payload CLI (`generate:types`) would work here if ever needed.
+- ☐ Framework preset: **Next.js** (auto). **Override the Build Command to `npm run migrate && npm run build`** so committed migrations apply to prod before the build (prod never auto-pushes schema — see MIGRATIONS.md). `migrate` runs `scripts/migrate.mjs` (esbuild-bundled config — works on any Node, Session 20). Leave Output Directory default.
+- ☐ Node version: leave Vercel's default.
 - ☐ Add your domain (`trackid.lb`) under Project → Domains (point DNS per Vercel's instructions)
 
 ## 5. Vercel — environment variables
@@ -89,7 +89,7 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 ## 8. Known gotchas / watch-outs
 
 - **Large image uploads — handled via `clientUploads`.** `clientUploads: true` is set on the `s3Storage` plugin, so the admin uploads images **straight from the browser to Supabase** (presigned URL), bypassing Vercel's ~4.5 MB serverless request-body limit. **Requirement:** the Supabase bucket must allow cross-origin `PUT` from your site. In Supabase → Storage, ensure CORS allows your production origin (and `http://localhost:3000` for dev) with the `PUT` method. **Test it after deploy:** upload a large (>5 MB) image in Admin → Media; if it fails with a CORS error in the browser console, fix the bucket CORS. If browser uploads ever misbehave, the fallback is to remove `clientUploads: true` (server-side upload, but then keep photos under ~4 MB).
-- **Schema changes after launch go through migrations, not push.** Production has `push: false` (see `payload.config.ts` + MIGRATIONS.md) — it never auto-syncs schema, which protects prod data from destructive diffs. Workflow: change the code → `npm run migrate:create <name>` on **Node LTS** (the CLI fails on Node 25) → **review/edit the migration to preserve data** (auto-generated diffs can drop columns) → commit → Vercel's build command (`npm run migrate && npm run build`) applies it. ⚠️ A migration that makes an existing field `localized` must copy old values into the `en` locale before dropping the column, or data blanks (this is exactly what bit the localized fields in dev — see MIGRATIONS.md example).
+- **Schema changes after launch go through migrations, not push.** Production has `push: false` (see `payload.config.ts` + MIGRATIONS.md) — it never auto-syncs schema, which protects prod data from destructive diffs. Workflow: change the code → `npm run migrate:create <name>` (script-based since Session 20 — works on any Node) → **review/edit the migration to preserve data** (auto-generated diffs can drop columns) → commit → Vercel's build command (`npm run migrate && npm run build`) applies it. ⚠️ A migration that makes an existing field `localized` must copy old values into the `en` locale before dropping the column, or data blanks (this is exactly what bit the localized fields in dev — see MIGRATIONS.md example).
 - **Notifications are fire-and-forget** via `after()` — a Resend/WhatsApp failure never blocks an order, but it also means a misconfigured `RESEND_FROM` fails silently. Verify email actually arrives in the smoke test.
 - **`PAYLOAD_SECRET`**: the config throws on boot in production if it's unset — good. Just make sure you set a strong one (not the dev value).
 - **ISR/revalidate**: product/page edits in admin propagate via revalidate hooks; allow a few seconds. Pricing/stock revalidate immediately.
@@ -99,5 +99,5 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 ## 9. After a clean launch
 
 - Activate WhatsApp Cloud API (keys → the three `WHATSAPP_*` vars) to get team alerts on new orders
-- Generate `payload-types.ts` under Node LTS and commit it (drops the `Record<string, any>` casts)
-- Continue the roadmap: IMPROVEMENTS.md (Phase 11 finish → Phase 12, incl. the 4.6 sales dashboard)
+- ~~Generate `payload-types.ts`~~ done (Session 20) — `npm run generate:types`, file committed
+- Continue the roadmap: IMPROVEMENTS.md deferred items (homepage-block localization, localized order emails, newsletter)

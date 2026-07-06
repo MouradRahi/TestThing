@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useLocale } from 'next-intl'
-import type { CartItem } from '@/lib/cart'
+import type { CartItem, CartNotice } from '@/lib/cart'
 import { cartLineKey } from '@/lib/cart'
 
 type CartContextValue = {
@@ -13,6 +13,9 @@ type CartContextValue = {
   clearCart: () => void
   /** Re-fetch the server cart (e.g. after login merges the guest cart). */
   refreshCart: () => void
+  /** Catalog changes the server detected (line removed / sold out / stock reduced). */
+  notices: CartNotice[]
+  dismissNotices: () => void
   itemCount: number
   total: number
   /** CMS-driven copy shown on the empty cart page (SiteSettings → Copy). */
@@ -42,16 +45,19 @@ export function CartProvider({
 }) {
   const locale = useLocale()
   const [items, setItems] = useState<CartItem[]>([])
+  const [notices, setNotices] = useState<CartNotice[]>([])
   const [isOpen, setIsOpen] = useState(false)
 
   const openCart = useCallback(() => setIsOpen(true), [])
   const closeCart = useCallback(() => setIsOpen(false), [])
+  const dismissNotices = useCallback(() => setNotices([]), [])
 
   const refreshCart = useCallback(() => {
     fetch(`/api/cart?locale=${locale}`)
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d?.items)) setItems(d.items)
+        if (Array.isArray(d?.notices)) setNotices(d.notices)
       })
       .catch(() => {})
   }, [locale])
@@ -73,6 +79,7 @@ export function CartProvider({
         })
         const d = await res.json().catch(() => null)
         if (res.ok && Array.isArray(d?.items)) setItems(d.items)
+        if (res.ok && Array.isArray(d?.notices)) setNotices(d.notices)
       } catch {
         // network error — leave the optimistic state; next refresh reconciles
       }
@@ -128,7 +135,7 @@ export function CartProvider({
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQuantity, clearCart, refreshCart, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}
+      value={{ items, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}
     >
       {children}
     </CartContext.Provider>

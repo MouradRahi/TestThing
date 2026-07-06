@@ -188,7 +188,7 @@ export default async function ProductPage({
             slug={rel.slug}
             title={rel.title}
             price={rel.price}
-            imageUrl={relImages[0]?.url}
+            imageUrl={relImages[0]?.url ?? undefined}
             imageAlt={resolveAlt(relImages[0]) || undefined}
             artistName={relArtist?.name}
             soldOut={totalStock(rel) === 0}
@@ -272,7 +272,7 @@ export default async function ProductPage({
             )}
             {product.tags && product.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
-                {product.tags.map((t: { tag?: string }, i: number) => (
+                {product.tags.map((t: { tag?: string | null }, i: number) => (
                   <span
                     key={i}
                     className="text-[10px] text-muted border border-border px-2 py-0.5 uppercase tracking-wider"

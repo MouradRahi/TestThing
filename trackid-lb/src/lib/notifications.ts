@@ -35,6 +35,8 @@ export type BrandCopy = {
   storeName: string
   emailGreeting: string
   emailFooterNote: string
+  /** Reply-to for transactional emails (SiteSettings → Brand → contactEmail) */
+  contactEmail?: string
 }
 
 const DEFAULT_BRAND: BrandCopy = {
@@ -68,11 +70,13 @@ export async function sendOrderConfirmationEmail(order: OrderNotificationData): 
 
   const resend = new Resend(apiKey)
   const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const replyTo = order.brand?.contactEmail
 
   try {
     const { error } = await resend.emails.send({
       from,
       to: order.customerEmail,
+      ...(replyTo ? { replyTo } : {}),
       subject: `Order confirmed — ${order.orderNumber}`,
       html: buildOrderEmailHtml(order),
     })
@@ -261,6 +265,7 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
   const resend = new Resend(apiKey)
   const from = process.env.RESEND_FROM || 'orders@trackid.lb'
   const brand = data.brand ?? DEFAULT_BRAND
+  const replyTo = brand.contactEmail
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -294,6 +299,7 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
     const { error } = await resend.emails.send({
       from,
       to: data.customerEmail,
+      ...(replyTo ? { replyTo } : {}),
       subject: `${copy.subject} — ${data.orderNumber}`,
       html,
     })

@@ -218,13 +218,20 @@ export type BrandCopy = {
   storeName: string
   emailGreeting: string
   emailFooterNote: string
+  /** Reply-to for transactional emails (SiteSettings → Brand → contactEmail) */
+  contactEmail?: string
 }
 
 export function resolveBrandCopy(settings: AnyRecord): BrandCopy {
+  const contactEmail =
+    typeof settings.contactEmail === 'string' && settings.contactEmail.includes('@')
+      ? settings.contactEmail.trim()
+      : undefined
   return {
     storeName: (settings.storeName as string) || DEFAULT_STORE_NAME,
     emailGreeting: (settings.emailGreeting as string) || DEFAULT_EMAIL_GREETING,
     emailFooterNote: (settings.emailFooterNote as string) || DEFAULT_EMAIL_FOOTER_NOTE,
+    contactEmail,
   }
 }
 

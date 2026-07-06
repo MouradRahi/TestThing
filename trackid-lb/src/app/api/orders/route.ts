@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
     // Validate before touching stock so invalid submissions fail cleanly.
     let settings: Record<string, unknown> = {}
     try {
-      settings = (await payload.findGlobal({ slug: 'site-settings' })) as Record<string, unknown>
+      settings = (await payload.findGlobal({ slug: 'site-settings' })) as unknown as Record<string, unknown>
     } catch {
       // fresh install without the global — free-text area mode, fee 0
     }
@@ -266,11 +266,11 @@ export async function POST(req: NextRequest) {
     const total = Math.max(0, subtotal - discountAmount) + deliveryFee
 
     // Link the order to the logged-in customer account, if any (guest orders have none)
-    let customerId: string | number | undefined
+    let customerId: number | undefined
     try {
       const { user } = await payload.auth({ headers: req.headers })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (user && (user as any).collection === 'customers') customerId = user.id
+      if (user && (user as any).collection === 'customers') customerId = Number(user.id)
     } catch {
       // not signed in — guest order
     }

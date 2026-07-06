@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
+import { CartNotices } from '@/components/cart/CartNotices'
 
 // Slide-over mini-cart. Opens on add-to-cart (and from the nav cart button) so
 // customers get immediate confirmation without a full-page navigation. The
@@ -72,6 +73,8 @@ export function CartDrawer() {
             </svg>
           </button>
         </div>
+
+        <CartNotices className="mx-4 mt-4" />
 
         {items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-8 gap-5">

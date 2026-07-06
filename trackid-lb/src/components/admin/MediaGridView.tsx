@@ -2,11 +2,11 @@ import React from 'react'
 import Link from 'next/link'
 import type { ListViewServerProps } from 'payload'
 import { MediaBulkUploadButton } from './MediaBulkUploadButton'
-import { MediaGridTile } from './MediaGridTile'
+import { MediaGridClient, type MediaGridDoc } from './MediaGridClient'
 
 // Custom admin List view for the Media collection: a thumbnail gallery instead
 // of the default text table. Payload still fetches/searches/paginates from the
-// URL and hands us `data.docs` — we only change how rows are rendered.
+// URL and hands us `data.docs` — MediaGridClient adds search + bulk delete on top.
 type MediaDoc = {
   id: number | string
   url?: string
@@ -23,6 +23,7 @@ export function MediaGridView(props: ListViewServerProps) {
   const basePath = newDocumentURL.replace(/\/create$/, '')
   const page = Number(data?.page ?? 1)
   const totalPages = Number(data?.totalPages ?? 1)
+  const currentSearch = typeof searchParams?.search === 'string' ? searchParams.search : ''
 
   const pageUrl = (p: number): string => {
     const sp = new URLSearchParams()
@@ -32,6 +33,15 @@ export function MediaGridView(props: ListViewServerProps) {
     sp.set('page', String(p))
     return `${basePath}?${sp.toString()}`
   }
+
+  const gridDocs: MediaGridDoc[] = docs.map((doc) => ({
+    id: doc.id,
+    alt: doc.alt,
+    filename: doc.filename,
+    thumb: doc.sizes?.thumbnail?.url || doc.url,
+    label: doc.alt || doc.filename || `#${doc.id}`,
+    editHref: `${basePath}/${doc.id}`,
+  }))
 
   return (
     <div style={{ padding: 'var(--gutter-h, 2rem)' }}>
@@ -62,34 +72,12 @@ export function MediaGridView(props: ListViewServerProps) {
         )}
       </div>
 
-      {docs.length === 0 ? (
-        <p style={{ color: 'var(--theme-elevation-500)' }}>
-          No media yet. Click “Upload new” to add your first image.
-        </p>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-            gap: '1rem',
-          }}
-        >
-          {docs.map((doc) => {
-            const thumb = doc.sizes?.thumbnail?.url || doc.url
-            const label = doc.alt || doc.filename || `#${doc.id}`
-            return (
-              <MediaGridTile
-                key={doc.id}
-                doc={doc}
-                editHref={`${basePath}/${doc.id}`}
-                thumb={thumb}
-                label={label}
-                collectionSlug={collectionSlug}
-              />
-            )
-          })}
-        </div>
-      )}
+      <MediaGridClient
+        docs={gridDocs}
+        collectionSlug={collectionSlug}
+        basePath={basePath}
+        initialSearch={currentSearch}
+      />
 
       {totalPages > 1 && (
         <div
