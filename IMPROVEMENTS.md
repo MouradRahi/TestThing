@@ -4,6 +4,8 @@
 > Goal: a complete, launch-ready e-commerce platform that is **fully white-label** — any brand identity should be expressible from the admin panel alone, with zero code changes.
 >
 > Status legend: ☐ todo · ☑ done
+>
+> **2026-07-11 (Session 22)**: active work now tracks in **`BUGS.md`** (defects) and **`ENHANCEMENTS.md`** (UI/UX + features, with the current execution order). This file remains the historical record of §1–§8. ⚠️ §8 (AI Assistant) and online payments are **on hold by owner directive** — don't pick them up.
 
 ---
 

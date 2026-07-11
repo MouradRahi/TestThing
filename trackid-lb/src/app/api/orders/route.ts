@@ -1,6 +1,6 @@
 import { getPayload } from '@/lib/payload'
 import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
-import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
+import { rateLimit, clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
 import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy } from '@/lib/site-settings'
 import { resolveDiscount } from '@/lib/discounts'
 import { getSizes } from '@/lib/stock'
@@ -153,9 +153,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
     }
 
-    const phoneDigits = customerPhone.replace(/[\s()-]/g, '')
-    if (!/^\+?\d{7,15}$/.test(phoneDigits)) {
+    if (!isValidPhone(customerPhone)) {
       return NextResponse.json({ error: 'Please enter a valid phone number.' }, { status: 400 })
+    }
+
+    // Optional, but when present it must be deliverable — a typo'd email means
+    // the confirmation silently never arrives.
+    if (customerEmail && !EMAIL_RE.test(customerEmail)) {
+      return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 })
     }
 
     const rawItems = Array.isArray(body.items) ? body.items : []

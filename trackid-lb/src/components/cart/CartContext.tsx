@@ -7,6 +7,8 @@ import { cartLineKey } from '@/lib/cart'
 
 type CartContextValue = {
   items: CartItem[]
+  /** False until the first server-cart fetch resolves — render skeletons, not "empty". */
+  isLoading: boolean
   addItem: (item: Omit<CartItem, 'quantity' | 'key'>, quantity?: number) => void
   removeItem: (key: string) => void
   updateQuantity: (key: string, qty: number) => void
@@ -45,6 +47,7 @@ export function CartProvider({
 }) {
   const locale = useLocale()
   const [items, setItems] = useState<CartItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [notices, setNotices] = useState<CartNotice[]>([])
   const [isOpen, setIsOpen] = useState(false)
 
@@ -60,6 +63,7 @@ export function CartProvider({
         if (Array.isArray(d?.notices)) setNotices(d.notices)
       })
       .catch(() => {})
+      .finally(() => setIsLoading(false))
   }, [locale])
 
   // Load the server cart after mount (and when locale changes → re-localized titles)
@@ -78,13 +82,22 @@ export function CartProvider({
           body: JSON.stringify({ ...body, locale }),
         })
         const d = await res.json().catch(() => null)
-        if (res.ok && Array.isArray(d?.items)) setItems(d.items)
-        if (res.ok && Array.isArray(d?.notices)) setNotices(d.notices)
+        if (res.ok) {
+          if (Array.isArray(d?.items)) setItems(d.items)
+          if (Array.isArray(d?.notices)) setNotices(d.notices)
+        } else {
+          // Rejected (sold out, invalid size, …) — undo the optimistic update by
+          // re-fetching the authoritative cart, and tell the customer why.
+          if (typeof d?.error === 'string' && d.error) {
+            setNotices((prev) => [...prev, { type: 'error', message: d.error }])
+          }
+          refreshCart()
+        }
       } catch {
         // network error — leave the optimistic state; next refresh reconciles
       }
     },
-    [locale],
+    [locale, refreshCart],
   )
 
   const addItem = useCallback(
@@ -135,7 +148,7 @@ export function CartProvider({
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}
+      value={{ items, isLoading, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}
     >
       {children}
     </CartContext.Provider>

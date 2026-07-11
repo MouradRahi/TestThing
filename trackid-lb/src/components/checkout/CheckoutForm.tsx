@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 import { Button } from '@/components/ui/Button'
 import { Field, TextareaField, SelectField, SectionLabel } from '@/components/ui/FormField'
+import { formatPrice } from '@/lib/format'
 import type { DeliveryZone } from '@/lib/site-settings'
 
 type FormState = {
@@ -32,7 +33,7 @@ type Props = {
 export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstructions, prefill }: Props) {
   const router = useRouter()
   const t = useTranslations('checkout')
-  const { items, total, clearCart } = useCart()
+  const { items, isLoading: cartLoading, total, clearCart } = useCart()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [codeInput, setCodeInput] = useState('')
@@ -146,6 +147,16 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
     }
   }
 
+  // Server cart still loading — never flash "your cart is empty" at checkout
+  if (cartLoading && items.length === 0) {
+    return (
+      <div className="max-w-lg mx-auto px-6 py-32" aria-busy="true">
+        <div className="h-6 w-40 bg-surface animate-pulse mx-auto mb-6" />
+        <div className="h-4 w-64 bg-surface animate-pulse mx-auto" />
+      </div>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-6 py-32 text-center">
@@ -211,7 +222,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
               <option value="">{t('selectArea')}</option>
               {zones.map((zone) => (
                 <option key={zone.label} value={zone.label}>
-                  {zone.label} — {freeDelivery ? t('free') : `$${zone.fee.toFixed(2)}`}
+                  {zone.label} — {freeDelivery ? t('free') : formatPrice(zone.fee)}
                 </option>
               ))}
             </SelectField>
@@ -313,7 +324,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
                   </p>
                 </div>
                 <p className="text-xs text-foreground tabular-nums whitespace-nowrap">
-                  ${(item.price * item.quantity).toFixed(2)}
+                  {formatPrice(item.price * item.quantity)}
                 </p>
               </div>
             ))}
@@ -366,12 +377,12 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           <div className="border-t border-border pt-4 space-y-2 text-xs">
             <div className="flex justify-between text-muted">
               <span>{t('subtotal')}</span>
-              <span className="tabular-nums">${total.toFixed(2)}</span>
+              <span className="tabular-nums">{formatPrice(total)}</span>
             </div>
             {discountAmount > 0 && (
               <div className="flex justify-between text-accent">
                 <span>{t('discount')}{discount ? ` (${discount.code})` : ''}</span>
-                <span className="tabular-nums">−${discountAmount.toFixed(2)}</span>
+                <span className="tabular-nums">−{formatPrice(discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between text-muted">
@@ -383,12 +394,12 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
                     ? t('selectYourArea')
                     : deliveryFee === 0
                       ? t('free')
-                      : `$${deliveryFee.toFixed(2)}`}
+                      : formatPrice(deliveryFee)}
               </span>
             </div>
             <div className="flex justify-between text-foreground font-semibold pt-2 border-t border-border text-sm">
               <span>{t('total')}</span>
-              <span className="tabular-nums">${grandTotal.toFixed(2)}</span>
+              <span className="tabular-nums">{formatPrice(grandTotal)}</span>
             </div>
           </div>
         </div>

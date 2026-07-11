@@ -6,6 +6,7 @@ import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
 import { totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
+import { routing } from '@/i18n/routing'
 import type { Where } from 'payload'
 
 // Filter/search/sort variants all point back to the base shop URL for SEO.
@@ -61,7 +62,7 @@ export default async function ShopPage({
   if (q) where.or = [{ title: { like: q } }, { 'tags.tag': { like: q } }]
   if (cursorable && cursor) where['createdAt'] = { less_than: cursor }
 
-  const [{ docs: products }, { docs: artists }, { docs: categories }] = await Promise.all([
+  const [{ docs: products, totalDocs }, { docs: artists }, { docs: categories }] = await Promise.all([
     payload.find({
       collection: 'products',
       where,
@@ -77,6 +78,10 @@ export default async function ShopPage({
   const last = products[products.length - 1] as (typeof products)[number] & { createdAt?: string }
   const nextCursor =
     cursorable && products.length === PAGE_SIZE && last?.createdAt ? last.createdAt : null
+
+  // A plain GET form submits to its literal action — it must carry the locale
+  // prefix itself (i18n Links handle this automatically, raw actions don't).
+  const searchAction = locale === routing.defaultLocale ? '/shop' : `/${locale}/shop`
 
   // Build a /shop URL preserving the other active params
   const shopUrl = (overrides: Record<string, string | undefined>) => {
@@ -95,15 +100,13 @@ export default async function ShopPage({
       <div className="flex items-baseline justify-between mb-8">
         <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
         <span className="text-xs text-muted uppercase tracking-widest">
-          {products.length === 0
-            ? t('noPieces')
-            : t('pieceCount', { count: products.length, more: nextCursor ? '+' : '' })}
+          {totalDocs === 0 ? t('noPieces') : t('pieceCount', { count: totalDocs })}
         </span>
       </div>
 
       {/* Search + sort */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
-        <form action="/shop" className="flex-1 flex gap-2">
+        <form action={searchAction} className="flex-1 flex gap-2">
           {artist && <input type="hidden" name="artist" value={artist} />}
           {category && <input type="hidden" name="category" value={category} />}
           {sortKey !== 'newest' && <input type="hidden" name="sort" value={sortKey} />}

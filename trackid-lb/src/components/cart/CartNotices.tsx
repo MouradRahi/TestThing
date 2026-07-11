@@ -5,14 +5,17 @@ import { useCart } from '@/components/cart/CartContext'
 import type { CartNotice } from '@/lib/cart'
 
 function noticeText(t: ReturnType<typeof useTranslations<'cart'>>, n: CartNotice): string {
-  const withSize = (title: string) => (n.size ? `${title} (${n.size})` : title)
+  const withSize = (title: string, size?: string) => (size ? `${title} (${size})` : title)
   switch (n.type) {
     case 'removed':
-      return n.title ? t('noticeRemoved', { title: withSize(n.title) }) : t('noticeRemovedGeneric')
+      return n.title ? t('noticeRemoved', { title: withSize(n.title, n.size) }) : t('noticeRemovedGeneric')
     case 'sold_out':
-      return t('noticeSoldOut', { title: withSize(n.title) })
+      return t('noticeSoldOut', { title: withSize(n.title, n.size) })
     case 'reduced':
-      return t('noticeReduced', { title: withSize(n.title), available: n.available })
+      return t('noticeReduced', { title: withSize(n.title, n.size), available: n.available })
+    case 'error':
+      // Server-provided rejection message (e.g. "just sold out") — shown as-is
+      return n.message
   }
 }
 

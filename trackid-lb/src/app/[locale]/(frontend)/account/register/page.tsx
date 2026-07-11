@@ -1,10 +1,18 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { getLocale } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { getCustomer } from '@/lib/auth'
 import { AuthForm } from '@/components/account/AuthForm'
 
-export const metadata: Metadata = { title: 'Create account' }
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'account' })
+  return { title: t('registerTitle') }
+}
 
 export default async function RegisterPage() {
   const [customer, locale] = await Promise.all([getCustomer(), getLocale()])

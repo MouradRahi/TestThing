@@ -6,11 +6,21 @@ import { Link } from '@/i18n/navigation'
 import { getPayload } from '@/lib/payload'
 import { getCustomer } from '@/lib/auth'
 import { resolveAlt } from '@/lib/image'
+import { formatPrice } from '@/lib/format'
 import { LogoutButton } from '@/components/account/LogoutButton'
 import { ProfileForm } from '@/components/account/ProfileForm'
 import { WishlistButton } from '@/components/account/WishlistButton'
 
-export const metadata: Metadata = { title: 'My account' }
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'account' })
+  return { title: t('myAccount') }
+}
+
 export const dynamic = 'force-dynamic'
 
 export default async function AccountPage() {
@@ -68,7 +78,7 @@ export default async function AccountPage() {
                   </p>
                 </div>
                 <div className="text-end shrink-0">
-                  <p className="text-sm text-foreground tabular-nums">${Number(o.total).toFixed(2)}</p>
+                  <p className="text-sm text-foreground tabular-nums">{formatPrice(Number(o.total))}</p>
                   <Link
                     href={`/order/${o.orderNumber}`}
                     className="text-[10px] uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
