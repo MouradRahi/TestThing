@@ -85,8 +85,8 @@ in-memory queue, is real money lost.
 - ☐ Role review: granular gates on Products/Pages/Settings (the 1.11 leftover)
 
 ### 1.7 Automated test safety-net
-- ☐ Playwright smoke suite: browse → add to cart → checkout (COD) → order appears in admin. Runs in CI before deploy.
-- ☐ Unit tests for money math: discounts, delivery fees, totals, stock decrement/restock
+- ☐ Playwright smoke suite: browse → add to cart → checkout (COD) → order appears in admin. Runs in CI before deploy. *(No CI pipeline exists yet either — this needs a GitHub Actions workflow as part of the same lift.)*
+- ☑ **Unit tests for money math (Session 22, part 8)** — Vitest (`npm test` / `npm run test:watch`), 25 tests across 4 files: `computeDiscountAmount` (percentage/fixed, subtotal clamping, rounding, negative/zero-subtotal edge cases), `resolveDeliveryFee`/`getDeliveryZones` (no-zones free mode, zone match, no-match rejection, free-delivery threshold, malformed-data filtering), `getSizes`/`totalStock` (sized vs. flat stock, malformed rows), `cartLineKey` (line uniqueness per product+size). Deliberately scoped to functions that were **already pure** — stock decrement/restock and discount redemption stay DB-coupled (atomic SQL, verified manually per-change so far, see B4/B14 session notes) and are Playwright/integration-test territory, not unit-test territory; forcing them into unit tests would mean mocking away the exact atomicity behavior that matters.
 - Why: a sellable product cannot regress checkout with every feature added; payments make this mandatory
 
 ---

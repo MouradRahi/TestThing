@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "seed": "node scripts/seed.mjs",
     "generate:types": "node scripts/generate-types.mjs",
     "payload": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts payload",
@@ -42,7 +44,8 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.0.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "tsx": "4.23.0"
