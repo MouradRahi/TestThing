@@ -118,15 +118,9 @@ The button is a full navigation to `?cursor=…` — the next page **replaces** 
 - ☑ Phone validation on checkout — generic international format (7–15 digits, optional +), client + server; kept brand-agnostic for white-label
 - ☑ Quantity selector on product page (− n +, clamped to stock; hidden for single-stock pieces)
 - ☑ Add-to-cart feedback: button shows "Added ✓" for ~1.6s
-<<<<<<< HEAD
-- ☑ Cart re-validates prices/stock against the server when rendered — server-backed cart re-resolves every line from the DB on read (Session 19); explicit sold-out / "only X left" notices in cart page + drawer + checkout (Session 20, checkout submit disabled on conflict)
-- ☑ Per-field server-side validation errors surfaced on the form (Session 20): orders API returns a `fields` map (`required`/`invalid` codes), FormField components render red border + message, localized client-side (en/ar), cleared on edit
-- ☑ Mini-cart drawer (see P4)
-=======
 - ☑ Cart re-validates prices/stock against the server when rendered — server-backed cart re-resolves every read (Session 19); catalog changes surface as dismissible notices (Session 20)
-- ☐ Per-field server-side validation errors surfaced on the form (currently one generic message)
-- ☐ Mini-cart drawer (see P4)
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
+- ☐ Per-field server-side validation errors surfaced on the form (currently one generic message) — a parallel-line implementation was superseded in the 07-20 merge; re-do as ENHANCEMENTS.md E3
+- ☑ Mini-cart drawer (see P4)
 
 ### 2.6 Customer-notified status updates — ☑ FIXED (Session 9)
 Status changes (confirmed → shipped) happen in admin but the customer never hears about them.
@@ -150,13 +144,8 @@ The stated goal: a business owner expresses their **entire** brand from the admi
 ### 3.1 Dead SiteSettings fields (defined, never rendered) 🐛
 - ☑ `logoUrl` — rendered in Nav + Footer (text logo when blank); fixed-height `<img>` keeps the true aspect ratio. Email header still text-only (revisit with 3.2)
 - ☑ `ogImage` (SEO tab) — wired into layout `generateMetadata` as the default OG/Twitter image
-<<<<<<< HEAD
-- ☑ `contactEmail` — wired (Session 20): `resolveBrandCopy` carries it as `replyTo`, both Resend sends (confirmation + status) set it when present; shown as a mailto link in the footer brand column
-- ☑ `tagline` (Brand tab) — wired (Session 20): homepage `<title>` becomes `storeName — tagline` (inner pages keep `%s | storeName`); also used for OG/Twitter titles
-=======
 - ☑ `contactEmail` — `replyTo` on both order emails (confirmation + status, threaded via `BrandCopy`); shown as a mailto link in the footer brand column (Session 20)
 - ☑ `tagline` (Brand tab) — appended to the homepage default/OG/Twitter title (`Store — tagline`) and shown as the homepage empty-state headline (Session 20)
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 - ☑ `whatsappNumber` — floating WhatsApp chat button (`src/components/WhatsAppButton.tsx`, rendered in frontend layout); `getWhatsAppLink` helper sanitizes to a `wa.me` link. Renders only when a number is set
 
 ### 3.2 Hardcoded brand strings that must move to CMS — ☑ DONE (Session 11)
@@ -284,13 +273,8 @@ A stats view inside the Payload admin so the owner sees business health at a gla
   - ⚠️ Schema push needed: new `discounts` table + `orders.discount_code`/`orders.discount_amount` columns push only on `npm run dev`
 - ☐ Instagram feed embed (deferred — waiting on handle)
 - ☐ WhatsApp Cloud API activation (code ready; needs Meta keys)
-<<<<<<< HEAD
-- ☑ Phase 10 i18n (Session 18): `next-intl` v4 (`localePrefix: 'as-needed'` → English `/shop`, Arabic `/ar/shop`); all `(frontend)` routes under `app/[locale]/`; RTL via `dir` (locale-set driven); Payload `localization: ['en','ar']` with `localized: true` on content fields + SiteSettings copy + Navigation labels; `locale` threaded through every storefront query; UI chrome translated + nav locale switcher; sitemap emits `/ar` variants. Adding a 3rd locale (`ja`) = 1 line in routing + a messages file + config locale. ⚠️ needs a `npm run dev` schema push. Deferred: homepage-block/product-alt localization, a few decorative strings, localized order emails
-- ☑ **Customer accounts** (Session 19) — **Phase A**: `Customers` auth collection, login/register/logout, `/account` dashboard (order history + saved addresses + wishlist + profile), orders linked to accounts, checkout prefill, product-page wishlist. **Phase B**: server-backed `Carts` collection (keyed by httpOnly `cart-session` cookie or customer) + `/api/cart` + rewritten `CartContext` (optimistic) + guest→account merge on login. **localStorage fully removed** — the no-localStorage mandate is satisfied. Bonus: the cart now re-resolves prices/stock server-side on every read (fixes stale prices). ⚠️ additive schema push (`carts` table). The "cart line changed/sold out" UI notice landed in Session 20 (cart page + drawer banners, checkout blocked on conflict)
-=======
 - ☑ Phase 10 i18n (Session 18): `next-intl` v4 (`localePrefix: 'as-needed'` → English `/shop`, Arabic `/ar/shop`); all `(frontend)` routes under `app/[locale]/`; RTL via `dir` (locale-set driven); Payload `localization: ['en','ar']` with `localized: true` on content fields + SiteSettings copy + Navigation labels; `locale` threaded through every storefront query; UI chrome translated + nav locale switcher; sitemap emits `/ar` variants. Adding a 3rd locale (`ja`) = 1 line in routing + a messages file + config locale. ⚠️ needs a `npm run dev` schema push. ☑ Decorative strings localized (Session 20): shop page (heading, piece count, search, sort, filters, empty states, pagination), track page + form, artist page (breadcrumb, no-photo, browse-all, pieces heading), 404 + error boundary, skip-link. Still deferred: homepage-block/product-alt localization, localized order emails
 - ☑ **Customer accounts** (Session 19) — **Phase A**: `Customers` auth collection, login/register/logout, `/account` dashboard (order history + saved addresses + wishlist + profile), orders linked to accounts, checkout prefill, product-page wishlist. **Phase B**: server-backed `Carts` collection (keyed by httpOnly `cart-session` cookie or customer) + `/api/cart` + rewritten `CartContext` (optimistic) + guest→account merge on login. **localStorage fully removed** — the no-localStorage mandate is satisfied. Bonus: the cart now re-resolves prices/stock server-side on every read (fixes stale prices). ⚠️ additive schema push (`carts` table). ☑ Cart-change notices (Session 20): `serializeCart` returns structured notices (line `removed` / `sold_out` / `reduced`), dead lines pruned from the stored cart, `CartNotices` banner (dismissible, translated en/ar) in the drawer + cart page
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 - ☐ Email capture / drop-announcement newsletter block (Resend Audiences)
 - ☐ Sitemap/staticParams limits (500/200) — fine for years; revisit if catalog explodes
 
@@ -338,11 +322,7 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 | **9a — Trust the server** ☑ DONE (Session 9) | Order integrity & security | 1.1, 1.2, 1.4, 1.5, 1.6, 1.9, 1.11 |
 | **9b — Launch UX** ☑ DONE (Session 9; 2.5 partial — cart revalidation + per-field errors remain) | Customer-facing launch blockers | 1.7, 1.8, 1.10, 2.1, 2.2, 2.4, 2.5, mobile nav |
 | **10 — Commerce depth** ☑ DONE (Session 9; artist-filter dropdown scaling deferred) | 2.3 variants, 2.6 status updates, 2.7 search/sort, 1.3 revalidation hooks |
-<<<<<<< HEAD
-| **11 — True white-label** ☑ (S11+S20) | 3.1 dead fields ☑ (contactEmail + tagline closed S20) · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · remaining: 4.2 types (blocked on Node LTS) |
-=======
 | **11 — True white-label** ☑ (S11 + S20) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · 4.2 types ☑ (S20, CLI blocker solved) · 3.1 leftovers (contactEmail reply-to ☑, tagline ☑ — S20) |
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 | **12 — Admin experience** | 4.1 media uploads ☑ (S10) · 3.6 blocks-on-pages ☑ (S12) · 4.3 page drafts (status field) ☑ (S13) · 4.5 seed script ☑ (S14) · 4.6 dashboard v2 ☑ (S15) · remaining: 4.3 versions/live-preview (deferred), weekly email summary (deferred) |
 | **P4 — Storefront polish** ☑ (S16) | cart drawer, gallery, a11y (icons/aria/skip-link), canonicals, reactCompiler removal, honest `/shop` rendering; deferred: wishlist + recently-viewed |
 | **P5 — Growth** ☑ (S17) | discount codes ☑ · analytics (Vercel + GA4/Pixel) ☑ · deferred: newsletter, Instagram, WhatsApp keys |

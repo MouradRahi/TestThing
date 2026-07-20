@@ -16,32 +16,11 @@ Config lives in `src/payload.config.ts` (`db.postgresAdapter`): `push` requires 
 
 ---
 
-<<<<<<< HEAD
-## ⚠️ Node version & the local runner scripts
+## Node version — no longer a constraint
 
-The standalone Payload CLI (what the `migrate:*` scripts call) **fails on this Windows machine on every Node version tried (22/24/25)** — its scoped tsx loader can't resolve the config's extensionless TS imports, and the `--disable-transpile` escape hatch crashes on a `@next/env` CJS-interop bug.
-
-**Use the programmatic runners locally instead** (added Session 22):
-
-```bash
-nvm use 22                                  # Node ≤22 required — the scripts guard and exit on newer
-npm run migrate:local -- status
-npm run migrate:local -- create <name>
-npm run migrate:local -- up
-npm run migrate:local -- down
-npm run generate:types                      # payload-types.ts (was "4.2", blocked since Session 10)
-```
-
-They live in `scripts/migrate.mts` / `scripts/generate-types.mts`: same adapter methods the CLI would call, plus a `@next/env` default-export shim and their own `.env.local` loader. Node 23+ silently no-ops `generateTypes` (exits without writing) — hence the hard guard.
-
-Vercel (Linux) is expected to keep working with the standard `npm run migrate` CLI on deploy (the failure looks Windows-specific). If a deploy ever fails the same way, switch the build command to the `migrate:local` runner.
-=======
-## Node version — no longer a constraint (Session 20)
-
-The `migrate:*` scripts no longer call the standalone Payload CLI (which failed on this machine's Node with `ERR_MODULE_NOT_FOUND` on the config's extensionless imports, and still fails on its `?namespace=` cache-busting even with Node 24 LTS + newer tsx). They now run **`scripts/migrate.mjs`**, which bundles `src/payload.config.ts` with esbuild (`scripts/bundle-config.mjs` — resolves extensionless imports + tsconfig paths, stubs `next/*` runtime modules) and drives the same adapter methods (`payload.db.migrate()` etc.) natively. Works on any modern Node, locally and on Vercel.
+The `migrate:*` scripts no longer call the standalone Payload CLI (which failed on this machine's Node with `ERR_MODULE_NOT_FOUND` on the config's extensionless imports, and still fails on its `?namespace=` cache-busting even with Node 24 LTS + newer tsx; a tsx-based runner also hit a `@next/env` CJS-interop crash and Node 23+ silently no-oping `generateTypes`). They now run **`scripts/migrate.mjs`**, which bundles `src/payload.config.ts` with esbuild (`scripts/bundle-config.mjs` — resolves extensionless imports + tsconfig paths, stubs `next/*` runtime modules) and drives the same adapter methods (`payload.db.migrate()` etc.) natively. Works on any modern Node, locally and on Vercel.
 
 `npm run generate:types` uses the same mechanism (`scripts/generate-types.mjs`) — `src/payload-types.ts` is generated and committed.
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 
 ---
 
@@ -81,10 +60,11 @@ npm run migrate:fresh      # drop everything + re-run all (DEV ONLY — destroys
 
 1. Make the code change (add a field, mark one `localized`, add a collection, …).
 2. `npm run migrate:create describe_the_change`
-3. **Open the generated file in `src/migrations/` and review it.** Auto-generated diffs are often destructive — a "make field localized" diff will `DROP` the old column and `CREATE` the `_locales` table with **no data copy**. Edit the `up()` to preserve data first (see example below).
-4. Apply locally against the dev DB: `npm run migrate`
-5. Commit the migration file.
-6. Deploy — Vercel runs `npm run migrate` before the build (see DEPLOY.md), applying it to prod safely.
+3. **Split the generated import** — migrations load via Node's native type stripping, which chokes on the template's combined import. Change `import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'` into a value import for `sql` plus `import type { MigrateUpArgs, MigrateDownArgs }`.
+4. **Open the generated file in `src/migrations/` and review it.** Auto-generated diffs are often destructive — a "make field localized" diff will `DROP` the old column and `CREATE` the `_locales` table with **no data copy**. Edit the `up()` to preserve data first (see example below).
+5. Apply locally against the dev DB: `npm run migrate`
+6. Commit the migration file.
+7. Deploy — Vercel runs `npm run migrate` before the build (see DEPLOY.md), applying it to prod safely.
 
 ---
 
@@ -123,13 +103,8 @@ Same pattern for every field that became localized (description, name, bio, genr
 
 The prod/dev DBs already have the full schema (built up via pushes). Before switching them to migration mode:
 
-<<<<<<< HEAD
-1. `npm run migrate:local -- create baseline` — generates a snapshot of the current schema.
-2. If the DB already matches the code, mark the baseline as already-applied so `migrate` doesn't try to recreate existing tables: `npm run migrate:local -- mark <migration_name>` (records it in the `payload_migrations` table without running it).
-=======
 1. `npm run migrate:create baseline` — generates a snapshot of the current schema.
-2. If the DB already matches the code, mark the baseline as already-applied so `migrate` doesn't try to recreate existing tables. Payload tracks applied migrations in the `payload_migrations` table; use `npm run migrate:status` to confirm state, and `payload migrate:refresh`/manual insertion as needed per the Payload docs.
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
+2. If the DB already matches the code, mark the baseline as already-applied so `migrate` doesn't try to recreate existing tables: `npm run migrate:mark <migration_name>` (records it in the `payload_migrations` table without running it).
 3. From then on, every schema change gets its own migration.
 
 > ✅ **Baseline done (2026-07-20, Session 22)**: `src/migrations/20260720_055440_baseline.ts`

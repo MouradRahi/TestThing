@@ -257,6 +257,7 @@ export interface Media {
    * Describe the image for accessibility and SEO (e.g. "Hand-painted hoodie, front view").
    */
   alt?: string | null;
+  prefix?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1161,6 +1162,7 @@ export interface PagesSelect<T extends boolean = true> {
  */
 export interface MediaSelect<T extends boolean = true> {
   alt?: T;
+  prefix?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;

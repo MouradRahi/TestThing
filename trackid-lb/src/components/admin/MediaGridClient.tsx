@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { CollectionSlug } from 'payload'
 import { useListDrawerContext, toast } from '@payloadcms/ui'
 import { MediaGridTile } from './MediaGridTile'
 
@@ -24,7 +25,7 @@ export function MediaGridClient({
   initialSearch,
 }: {
   docs: MediaGridDoc[]
-  collectionSlug: string
+  collectionSlug: CollectionSlug
   basePath: string
   initialSearch: string
 }) {
