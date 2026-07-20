@@ -145,7 +145,7 @@ Upstash Redis / Vercel KV behind the existing `rateLimit()` signature (in-memory
 |---|---|---|---|
 | 1 | **Correctness sweep** ☑ DONE (Session 22) | BUGS B2, B3, B5, B6, B7, B8, B11, B13, B15, B16 (◐), B23 | All small, all user-visible wrongness on the live site; zero schema changes |
 | 2 | **Account rescue** ◐ (B1 done, Session 22 part 4) | ☑ B1 forgot/reset/change password · remaining: B22, `?next=` redirect (E10 phase 2) | P0 — real customers are creating accounts on the live site *now*; every day without reset = support debt |
-| 3 | **Cart/checkout conversion** | E1, E2, E4, E3; F3 hardening (B4, B12, B14) | The money path; toast (E4) unblocks proper B6 fix |
+| 3 | **Cart/checkout conversion** | E1, E2, E4, E3; F3 hardening (☑ B4 done Session 22 part 5, B12, ☑ B14 done Session 22 part 6) | The money path; toast (E4) unblocks proper B6 fix |
 | 4 | **Discovery** | E5 (description first), E6, E7, E8 | Catalog is growing; product storytelling is the brand |
 | 5 | **Order experience** | E11, B3 verify, E12 (adds `locale` field — migration) | Post-purchase trust; groundwork for repeat customers |
 | 6 | **SEO/i18n batch** | E13 (B9, B10, B20), sitemap sanity pass | Arabic side is currently invisible to Google — fix before content marketing starts |

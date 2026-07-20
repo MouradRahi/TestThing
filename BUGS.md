@@ -30,10 +30,10 @@ The page exports no `dynamic`/`revalidate`, has no `generateStaticParams`, and r
 - **Fix**: `export const dynamic = 'force-dynamic'` on the page (it's per-customer, low-traffic, and must always be fresh — same call as `/account`). Alternatively revalidate the path in the Orders `afterChange` hook, but force-dynamic is simpler and safer here.
 - Files: `src/app/[locale]/(frontend)/order/[orderNumber]/page.tsx`, optionally `src/collections/Orders.ts`.
 
-### B4 ☐ `/api/cart` has no rate limit and abandoned guest carts are never deleted
+### B4 ☑ FIXED (Session 22, part 5) — `/api/cart` has no rate limit and abandoned guest carts are never deleted
 Every other public POST route uses `rateLimit()`; the cart route uses none. A cookie-less client (curl/bot) that POSTs `action:add` gets a **new `carts` row per request** — unbounded DB growth on the free-tier Postgres, no cleanup job anywhere (`CART_COOKIE_MAX_AGE` is 60 days but the rows outlive the cookie forever).
-- **Fix**: (a) add `rateLimit('cart:'+ip, ~60/10min)` to `POST /api/cart`; (b) add a cleanup: delete guest carts (`sessionId` set, `customer` null) with `updatedAt` older than ~90 days — either a Vercel Cron hitting a guarded route, or an opportunistic sweep (e.g. 1-in-N chance on cart writes); (c) cap items per cart is already `MAX_LINES = 30` ✓.
-- Files: `src/app/api/cart/route.ts`, new `src/app/api/cron/cleanup/route.ts` (guarded by `CRON_SECRET`), `vercel.json`.
+- **Fixed**: (a) `rateLimit('cart:'+ip, 60, 10min)` added to `POST /api/cart`. (b) New `GET /api/cron/cleanup-carts` deletes guest carts (`sessionId` set, `customer` null, `updatedAt` < 90 days ago) via one bulk `payload.delete({ where: { and: [...] } })` — verified against the real dev schema. Guarded by `CRON_SECRET` in production (mirrors the seed route's dev-open/prod-guarded pattern); Vercel signs its own Cron Job requests with that secret automatically once it's set, so no header wiring needed on the Vercel side. Scheduled daily (3am) via new `vercel.json` (`crons[]`) — this is the first cron job in the project, so it also stands up the pattern for the Part 4 scheduled reports and Part 6 abandoned-cart-recovery work already on ROADMAP.md. (c) Cap items per cart was already `MAX_LINES = 30` ✓.
+- Files: `src/app/api/cart/route.ts`, `src/app/api/cron/cleanup-carts/route.ts` (new), `vercel.json` (new), `.env.local.example`, `DEPLOY.md`.
 
 ---
 
@@ -84,10 +84,10 @@ Each +/− click fires `mutate()`; responses `setItems` unconditionally. Two in-
 - **Fix**: reuse the same `EMAIL_RE`; reject with a clear 400 (client already has per-field HTML5 `type="email"` but server must enforce). While there: validate profile-route `phone` with the same phone regex the checkout uses (junk saved phones currently prefill checkout and then fail its validation — dead-end UX).
 - Files: `src/app/api/orders/route.ts:143`, `src/app/api/account/profile/route.ts:28`, move `EMAIL_RE`/`PHONE_RE` into `src/lib/api-guards.ts`.
 
-### B14 ☐ Discount `usageLimit` check-then-increment race
-`resolveDiscount` reads `usageCount < usageLimit`, and the increment happens after order creation — two concurrent checkouts can both redeem the final use. Money impact is bounded (one extra discount), but it's the same class of race the stock system was hardened against.
-- **Fix**: atomic conditional bump before order creation: `UPDATE discounts SET usage_count = usage_count + 1 WHERE id = $1 AND (usage_limit IS NULL OR usage_count < usage_limit)` → rowCount 0 = reject; decrement on order failure (mirror the stock rollback pattern).
-- Files: `src/app/api/orders/route.ts:321-338`, `src/lib/discounts.ts`.
+### B14 ☑ FIXED (Session 22, part 6) — Discount `usageLimit` check-then-increment race
+`resolveDiscount` reads `usageCount < usageLimit`, and the increment happened after order creation — two concurrent checkouts could both redeem the final use. Money impact was bounded (one extra discount), but it was the same class of race the stock system was already hardened against.
+- **Fixed**: `redeemDiscount()` (new, `src/lib/discounts.ts`) atomically claims the redemption via `UPDATE discounts SET usage_count = usage_count + 1 WHERE id = $1 AND (usage_limit IS NULL OR usage_count < usage_limit)` — rowCount 0 means the limit was hit and the order is rejected with a clear message. Moved to run **before stock is touched** (not after order creation as before) so a rejection never needs a stock rollback; a matching `releaseDiscount()` rolls the claim back if a *later* step fails (out-of-stock during the decrement loop, or order-creation error) — same rollback shape as `restoreStock`. Both queries verified against the real dev schema before committing (dry-run against a nonexistent id, rowCount 0, no mutation). The old post-order-creation "record the redemption" block is gone — redemption now happens exactly once, atomically, earlier in the request.
+- Files: `src/lib/discounts.ts`, `src/app/api/orders/route.ts`.
 
 ---
 

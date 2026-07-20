@@ -63,8 +63,12 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 | `RESEND_API_KEY` | from Resend |
 | `RESEND_FROM` | your verified-domain sender (see §3) |
 | `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_RECIPIENT_NUMBER` | leave blank for now (notifications skip gracefully) |
+| `CRON_SECRET` | any long random string — protects `/api/cron/*` (Vercel signs its own Cron Job requests with it automatically once set; without it, cron routes 401 in production) |
+| `NEXT_PUBLIC_SENTRY_DSN` | optional — error monitoring is off entirely without it. Sentry → Project Settings → Client Keys |
+| `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` | optional, only for source-map upload (readable stack traces) — omit and error tracking still works, just with minified traces |
 
 - ☐ Double-check no secret accidentally has a `NEXT_PUBLIC_` prefix (those ship to the browser)
+- ☐ `vercel.json` (repo root of the `trackid-lb` project) schedules the daily abandoned-guest-cart cleanup — no action needed, Vercel picks it up automatically on deploy once `CRON_SECRET` is set
 
 ---
 

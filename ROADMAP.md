@@ -74,8 +74,8 @@ in-memory queue, is real money lost.
 - ☐ Idempotency-key support on `POST /api/orders` and all payment endpoints (client sends a UUID; duplicate submissions return the original result instead of double-charging/double-decrementing)
 
 ### 1.4 Observability
-- ☐ Sentry (or equivalent) for server + client error tracking — payment failures must be *seen*, not just logged to a dead console
-- ☐ Structured logging on all payment/webhook paths (who, what, provider ref, amount)
+- ◐ **Sentry wired (Session 22, part 7)** — client + RSC/route-handler error boundaries report to Sentry (`error.tsx`, `global-error.tsx`, `reportServerError()` helper); fully optional, zero build/bundle cost with no `NEXT_PUBLIC_SENTRY_DSN` set (verified: bundle sizes identical with/without the code present). ⚠️ **`onRequestError` (the Next.js hook that catches errors bypassing app-level try/catch) is deliberately NOT wired** — even behind a runtime guard, exporting it forces Next.js to inline the full SDK into the edge/middleware bundle unconditionally (~80KB verified), which this project's minimal-middleware philosophy doesn't justify for a locale-routing middleware. Coverage instead relies on explicit `reportServerError()` calls in route catch blocks — **only wired into `orders/route.ts` so far**; adopt it in other routes' catch blocks as they're touched (cart, discounts/validate, custom-requests), and revisit `onRequestError` if edge/middleware errors turn out to be a real blind spot in practice. Needs a `NEXT_PUBLIC_SENTRY_DSN` (+ optionally `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` for source maps) from a Sentry account — not yet set.
+- ☐ Structured logging on all payment/webhook paths (who, what, provider ref, amount) — natural extension of `reportServerError()`'s `context` param once F1 payments land
 
 ### 1.5 Audit log
 - ☐ `AuditLog` collection: admin actions on Orders (status changes, refunds), Discounts, SiteSettings — who changed what, when, from/to. Payload `afterChange` hooks. Required for dispute resolution and multi-staff stores.

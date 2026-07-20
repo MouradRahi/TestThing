@@ -2,7 +2,8 @@ import { getPayload } from '@/lib/payload'
 import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
 import { rateLimit, clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
 import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy } from '@/lib/site-settings'
-import { resolveDiscount } from '@/lib/discounts'
+import { resolveDiscount, redeemDiscount, releaseDiscount } from '@/lib/discounts'
+import { reportServerError } from '@/lib/error-reporting'
 import { getSizes } from '@/lib/stock'
 import { safeRevalidatePath } from '@/lib/revalidate'
 import { NextRequest, NextResponse, after } from 'next/server'
@@ -255,9 +256,15 @@ export async function POST(req: NextRequest) {
 
     // Discount is recomputed here from the DB — the client code is only a request.
     // A now-invalid code blocks checkout (before any stock is touched) with a clear message.
+    // The redemption itself is claimed atomically right here (before stock, so a
+    // usage-limit rejection never needs a stock rollback) — resolveDiscount's check
+    // above is a read, not a guarantee; two concurrent checkouts for a code's last
+    // use could otherwise both pass it and both place an order (rolled back below
+    // via releaseDiscount if a later step in this request fails).
     let discountCode: string | undefined
     let discountAmount = 0
     let discountId: string | number | undefined
+    let discountRedeemed = false
     if (discountCodeInput) {
       const result = await resolveDiscount(payload, discountCodeInput, subtotal)
       if (!result.ok) {
@@ -266,6 +273,10 @@ export async function POST(req: NextRequest) {
       discountCode = result.code
       discountAmount = result.amount
       discountId = result.id
+      if (!(await redeemDiscount(payload, discountId))) {
+        return NextResponse.json({ error: 'This code has reached its usage limit.' }, { status: 400 })
+      }
+      discountRedeemed = true
     }
 
     const total = Math.max(0, subtotal - discountAmount) + deliveryFee
@@ -285,6 +296,7 @@ export async function POST(req: NextRequest) {
       const product = productById.get(line.productId)!
       if (!(await decrementStock(payload, line))) {
         await restoreStock(payload, decremented)
+        if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
         const label = line.size ? `"${product.title}" in size ${line.size}` : `"${product.title}"`
         return NextResponse.json(
           { error: `${label} is no longer available in the requested quantity. Please update your cart.` },
@@ -320,26 +332,8 @@ export async function POST(req: NextRequest) {
       })
     } catch (err) {
       await restoreStock(payload, decremented)
+      if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
       throw err
-    }
-
-    // Record the redemption (non-fatal — never fail a placed order over this)
-    if (discountId != null) {
-      try {
-        const pool = getPool(payload)
-        if (pool) {
-          await pool.query('UPDATE discounts SET usage_count = usage_count + 1 WHERE id = $1', [discountId])
-        } else {
-          const current = await payload.findByID({ collection: 'discounts', id: discountId, depth: 0 })
-          await payload.update({
-            collection: 'discounts',
-            id: discountId,
-            data: { usageCount: (Number(current.usageCount) || 0) + 1 },
-          })
-        }
-      } catch (err) {
-        console.error('[orders] Failed to increment discount usage:', err)
-      }
     }
 
     // Stock changed via raw SQL (bypasses Payload hooks) — refresh the cached pages
@@ -388,6 +382,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ orderId: order.id, orderNumber: order.orderNumber }, { status: 201 })
   } catch (err) {
     console.error('Order creation failed:', err)
+    reportServerError(err, { route: 'orders' })
     return NextResponse.json({ error: 'Order creation failed' }, { status: 500 })
   }
 }
