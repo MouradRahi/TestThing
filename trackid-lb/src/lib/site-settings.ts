@@ -218,6 +218,8 @@ export type BrandCopy = {
   storeName: string
   emailGreeting: string
   emailFooterNote: string
+  /** SiteSettings contactEmail — used as the Resend reply-to when set */
+  replyTo?: string
 }
 
 export function resolveBrandCopy(settings: AnyRecord): BrandCopy {
@@ -225,6 +227,7 @@ export function resolveBrandCopy(settings: AnyRecord): BrandCopy {
     storeName: (settings.storeName as string) || DEFAULT_STORE_NAME,
     emailGreeting: (settings.emailGreeting as string) || DEFAULT_EMAIL_GREETING,
     emailFooterNote: (settings.emailFooterNote as string) || DEFAULT_EMAIL_FOOTER_NOTE,
+    replyTo: (settings.contactEmail as string) || undefined,
   }
 }
 

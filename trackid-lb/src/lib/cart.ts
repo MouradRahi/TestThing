@@ -16,3 +16,16 @@ export type CartItem = {
 export function cartLineKey(id: string, size?: string): string {
   return `${id}|${size ?? ''}`
 }
+
+/**
+ * The server re-resolves stock on every cart read, so a line whose quantity
+ * exceeds current availability means the piece sold (or partially sold) since
+ * it was added. Checkout would 409 — surface it before the customer gets there.
+ */
+export function hasStockConflict(item: CartItem): boolean {
+  return item.maxQuantity != null && item.quantity > item.maxQuantity
+}
+
+export function cartHasStockConflicts(items: CartItem[]): boolean {
+  return items.some(hasStockConflict)
+}

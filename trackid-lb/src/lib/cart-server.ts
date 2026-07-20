@@ -94,9 +94,12 @@ export async function serializeCart(
   return lines
 }
 
+// Normalized write shape: product always a bare id (all cart reads/writes are depth 0).
+type WriteItem = { product: number; size?: string | null; quantity: number }
+
 // Combine two stored-item lists, summing quantities per product+size.
-export function mergeItems(a: StoredItem[] = [], b: StoredItem[] = []): StoredItem[] {
-  const map = new Map<string, StoredItem>()
+export function mergeItems(a: StoredItem[] = [], b: StoredItem[] = []): WriteItem[] {
+  const map = new Map<string, WriteItem>()
   for (const list of [a, b]) {
     for (const it of list) {
       const pid = pidOf(it.product)
@@ -129,18 +132,18 @@ export async function mergeGuestCart(
       // Claim the guest cart for the account
       await payload.update({
         collection: 'carts',
-        id: guest.id,
-        data: { customer: customerId, sessionId: null, items: guest.items ?? [] },
+        id: Number(guest.id),
+        data: { customer: Number(customerId), sessionId: null, items: mergeItems(guest.items) },
       })
       return
     }
 
     await payload.update({
       collection: 'carts',
-      id: customerCart.id,
+      id: Number(customerCart.id),
       data: { items: mergeItems(customerCart.items, guest.items) },
     })
-    await payload.delete({ collection: 'carts', id: guest.id })
+    await payload.delete({ collection: 'carts', id: Number(guest.id) })
   } catch {
     // Merge is best-effort — never block login on it
   }

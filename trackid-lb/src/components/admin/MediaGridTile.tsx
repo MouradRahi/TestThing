@@ -2,6 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
+import type { CollectionSlug } from 'payload'
 import { useListDrawerContext } from '@payloadcms/ui'
 
 // A single media tile. On the normal list page it links to the doc's edit page.
@@ -19,7 +20,7 @@ type Props = {
   editHref: string
   thumb?: string
   label: string
-  collectionSlug: string
+  collectionSlug: CollectionSlug
 }
 
 const cardStyle: React.CSSProperties = {

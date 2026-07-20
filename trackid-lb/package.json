@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "node scripts/seed.mjs",
+    "migrate:local": "node --import tsx scripts/migrate.mts",
+    "generate:types": "node --import tsx scripts/generate-types.mts",
     "payload": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts payload",
     "migrate:create": "cross-env PAYLOAD_MIGRATE=true PAYLOAD_CONFIG_PATH=src/payload.config.ts payload migrate:create",
     "migrate": "cross-env PAYLOAD_MIGRATE=true PAYLOAD_CONFIG_PATH=src/payload.config.ts payload migrate",

@@ -8,17 +8,32 @@ Payload's dev **push** (drizzle auto-sync) applies schema changes destructively 
 
 **Policy:**
 - **Production** (`NODE_ENV=production`) **never pushes.** It only runs committed migration files. A prod schema change is impossible without a reviewed migration.
-- **Local dev** keeps `push` for speed — but point it at a **disposable dev database** (see below), so a blanking push never touches data you care about.
+- **Local dev never pushes by default either.** ⚠️ The deployed app currently runs on the **same** database as local dev, so a casual `npm run dev` with schema-changing code checked out must not be able to rewrite the live schema. Push is **opt-in**: set `PAYLOAD_PUSH=true` for that one run, only after reviewing what will change (or once dev points at a disposable database — see below).
 
-Config lives in `src/payload.config.ts` (`db.postgresAdapter`): `push` is on in dev, off in prod; `migrationDir` is `src/migrations`.
+Config lives in `src/payload.config.ts` (`db.postgresAdapter`): `push` requires `PAYLOAD_PUSH=true` and is always off in prod; `migrationDir` is `src/migrations`.
+
+**Symptom of a pending, un-pushed schema change:** dev throws `relation "..." does not exist` / `column "..." does not exist`. That's the guard working — decide deliberately: `PAYLOAD_PUSH=true npm run dev` (dev-only, reviewed) or write a migration.
 
 ---
 
-## ⚠️ Node version
+## ⚠️ Node version & the local runner scripts
 
-The standalone Payload CLI (what the `migrate:*` scripts call) **fails on this machine's Node 25** with `ERR_MODULE_NOT_FOUND` on the config's extensionless imports. Migration commands must run under **Node LTS (20 or 22)** — which is also what Vercel uses, so production migrations work there automatically.
+The standalone Payload CLI (what the `migrate:*` scripts call) **fails on this Windows machine on every Node version tried (22/24/25)** — its scoped tsx loader can't resolve the config's extensionless TS imports, and the `--disable-transpile` escape hatch crashes on a `@next/env` CJS-interop bug.
 
-Run migration commands under Node LTS locally (via `nvm-windows` / `fnm`: `fnm use 22`), or let Vercel apply them on deploy.
+**Use the programmatic runners locally instead** (added Session 22):
+
+```bash
+nvm use 22                                  # Node ≤22 required — the scripts guard and exit on newer
+npm run migrate:local -- status
+npm run migrate:local -- create <name>
+npm run migrate:local -- up
+npm run migrate:local -- down
+npm run generate:types                      # payload-types.ts (was "4.2", blocked since Session 10)
+```
+
+They live in `scripts/migrate.mts` / `scripts/generate-types.mts`: same adapter methods the CLI would call, plus a `@next/env` default-export shim and their own `.env.local` loader. Node 23+ silently no-ops `generateTypes` (exits without writing) — hence the hard guard.
+
+Vercel (Linux) is expected to keep working with the standard `npm run migrate` CLI on deploy (the failure looks Windows-specific). If a deploy ever fails the same way, switch the build command to the `migrate:local` runner.
 
 ---
 
@@ -28,10 +43,15 @@ Use **two** Supabase projects:
 
 | Env | DB | Schema strategy |
 |---|---|---|
-| Local dev | a throwaway **dev** project | `push` (fast). Blank it and `npm run seed -- --reset` anytime. |
+| Local dev | a throwaway **dev** project | `push` (fast, opt-in via `PAYLOAD_PUSH=true`). Blank it and `npm run seed -- --reset` anytime. |
 | Production | the **real** project | migrations only (never pushed). |
 
 Point local `.env.local` `DATABASE_URI` at the dev DB. This is the single most effective protection: push can only ever hurt disposable data.
+
+> ✅ **The two-DB setup is live (2026-07-03).** Local dev points at a disposable project
+> (`lsrmtpazcdksdllfrsqw`, ap-southeast-2); production stays on the original project
+> (`bdbhygelwizizepxewxv`) and is only ever touched by migrations applied on deploy.
+> `PAYLOAD_PUSH=true` and `npm run seed -- --reset` are safe locally.
 
 ---
 
@@ -97,6 +117,18 @@ Same pattern for every field that became localized (description, name, bio, genr
 
 The prod/dev DBs already have the full schema (built up via pushes). Before switching them to migration mode:
 
-1. On Node LTS, `npm run migrate:create baseline` — generates a snapshot of the current schema.
-2. If the DB already matches the code, mark the baseline as already-applied so `migrate` doesn't try to recreate existing tables. Payload tracks applied migrations in the `payload_migrations` table; use `npm run migrate:status` to confirm state, and `payload migrate:refresh`/manual insertion as needed per the Payload docs.
+1. `npm run migrate:local -- create baseline` — generates a snapshot of the current schema.
+2. If the DB already matches the code, mark the baseline as already-applied so `migrate` doesn't try to recreate existing tables: `npm run migrate:local -- mark <migration_name>` (records it in the `payload_migrations` table without running it).
 3. From then on, every schema change gets its own migration.
+
+> ✅ **Baseline done (2026-07-20, Session 22)**: `src/migrations/20260720_055440_baseline.ts`
+> (62 tables) created and marked applied on the **dev** DB.
+>
+> ⚠️ **Prod still needs the marker before the next deploy** (the Vercel build runs
+> `npm run migrate`, which would otherwise try to re-create every table). Run this once
+> in the **prod** project's Supabase SQL editor:
+>
+> ```sql
+> INSERT INTO payload_migrations (name, batch, created_at, updated_at)
+> VALUES ('20260720_055440_baseline', 1, now(), now());
+> ```

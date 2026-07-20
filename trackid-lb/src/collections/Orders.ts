@@ -28,7 +28,7 @@ export const Orders: CollectionConfig = {
           let brand
           try {
             const settings = await req.payload.findGlobal({ slug: 'site-settings' })
-            brand = resolveBrandCopy(settings as Record<string, unknown>)
+            brand = resolveBrandCopy(settings as unknown as Record<string, unknown>)
           } catch {
             // fresh install without the global — notifications.ts applies defaults
           }

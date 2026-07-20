@@ -1,6 +1,11 @@
 import { withPayload } from '@payloadcms/next/withPayload'
 import createNextIntlPlugin from 'next-intl/plugin'
 import type { NextConfig } from 'next'
+import dns from 'node:dns'
+
+// Windows dev machines intermittently fail to resolve the Supabase pooler
+// hostname (getaddrinfo EAI_AGAIN) when IPv6 lookups stall — prefer IPv4.
+dns.setDefaultResultOrder('ipv4first')
 
 const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
 

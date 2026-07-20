@@ -146,16 +146,32 @@ export async function POST(req: NextRequest) {
     const paymentMethod: 'cod' | 'bank_transfer' =
       body.paymentMethod === 'bank_transfer' ? 'bank_transfer' : 'cod'
 
-    if (
-      !customerName || !customerPhone || !deliveryAddress || !area ||
-      customerEmail === null || notes === null || discountCodeInput === null
-    ) {
-      return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+    // Per-field validation — `fields` maps field name → 'required' | 'invalid'
+    // so the checkout form can highlight exactly what to fix (localized client-side).
+    const fieldErrors: Record<string, 'required' | 'invalid'> = {}
+    if (!customerName) fieldErrors.customerName = 'required'
+    if (!customerPhone) fieldErrors.customerPhone = 'required'
+    if (!deliveryAddress) fieldErrors.deliveryAddress = 'required'
+    if (!area) fieldErrors.area = 'required'
+    if (customerEmail === null) fieldErrors.customerEmail = 'invalid'
+    if (notes === null) fieldErrors.notes = 'invalid'
+    if (discountCodeInput === null) fieldErrors.discountCode = 'invalid'
+
+    if (customerPhone && !fieldErrors.customerPhone) {
+      const phoneDigits = customerPhone.replace(/[\s()-]/g, '')
+      if (!/^\+?\d{7,15}$/.test(phoneDigits)) fieldErrors.customerPhone = 'invalid'
     }
 
-    const phoneDigits = customerPhone.replace(/[\s()-]/g, '')
-    if (!/^\+?\d{7,15}$/.test(phoneDigits)) {
-      return NextResponse.json({ error: 'Please enter a valid phone number.' }, { status: 400 })
+    // Compound condition doubles as the TS narrowing guard (string | null → string)
+    if (
+      !customerName || !customerPhone || !deliveryAddress || !area ||
+      customerEmail === null || notes === null || discountCodeInput === null ||
+      Object.keys(fieldErrors).length > 0
+    ) {
+      return NextResponse.json(
+        { error: 'Missing or invalid fields', fields: fieldErrors },
+        { status: 400 },
+      )
     }
 
     const rawItems = Array.isArray(body.items) ? body.items : []
@@ -239,13 +255,16 @@ export async function POST(req: NextRequest) {
     // Validate before touching stock so invalid submissions fail cleanly.
     let settings: Record<string, unknown> = {}
     try {
-      settings = (await payload.findGlobal({ slug: 'site-settings' })) as Record<string, unknown>
+      settings = (await payload.findGlobal({ slug: 'site-settings' })) as unknown as Record<string, unknown>
     } catch {
       // fresh install without the global — free-text area mode, fee 0
     }
     const deliveryFee = resolveDeliveryFee(settings, area, subtotal)
     if (deliveryFee === null) {
-      return NextResponse.json({ error: 'Please select a valid delivery area.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Please select a valid delivery area.', fields: { area: 'invalid' } },
+        { status: 400 },
+      )
     }
 
     // Discount is recomputed here from the DB — the client code is only a request.
@@ -298,7 +317,7 @@ export async function POST(req: NextRequest) {
           customerName,
           customerPhone,
           customerEmail,
-          ...(customerId ? { customer: customerId } : {}),
+          ...(customerId ? { customer: Number(customerId) } : {}),
           deliveryAddress,
           area,
           items,

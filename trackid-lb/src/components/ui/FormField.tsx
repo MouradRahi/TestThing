@@ -2,8 +2,15 @@ import type { InputHTMLAttributes, TextareaHTMLAttributes, SelectHTMLAttributes,
 
 const labelCls = 'block text-[10px] uppercase tracking-[0.2em] text-muted mb-2'
 const inputCls =
-  'w-full bg-surface border border-border text-foreground px-3 py-2.5 text-sm ' +
+  'w-full bg-surface border text-foreground px-3 py-2.5 text-sm ' +
   'placeholder:text-muted/40 focus:border-accent/70 outline-none transition-colors'
+
+const borderCls = (error?: string) => (error ? 'border-red-400/70' : 'border-border')
+
+function FieldError({ error }: { error?: string }) {
+  if (!error) return null
+  return <p className="text-[11px] text-red-400 mt-1.5">{error}</p>
+}
 
 export function SectionLabel({
   children,
@@ -21,39 +28,53 @@ export function SectionLabel({
 
 export function Field({
   label,
+  error,
   ...props
-}: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
+}: { label: string; error?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div>
       <label className={labelCls}>{label}</label>
-      <input className={inputCls} {...props} />
+      <input className={`${inputCls} ${borderCls(error)}`} aria-invalid={error ? true : undefined} {...props} />
+      <FieldError error={error} />
     </div>
   )
 }
 
 export function TextareaField({
   label,
+  error,
   ...props
-}: { label: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+}: { label: string; error?: string } & TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <div>
       <label className={labelCls}>{label}</label>
-      <textarea className={`${inputCls} resize-none`} {...props} />
+      <textarea
+        className={`${inputCls} ${borderCls(error)} resize-none`}
+        aria-invalid={error ? true : undefined}
+        {...props}
+      />
+      <FieldError error={error} />
     </div>
   )
 }
 
 export function SelectField({
   label,
+  error,
   children,
   ...props
-}: { label: string; children: ReactNode } & SelectHTMLAttributes<HTMLSelectElement>) {
+}: { label: string; error?: string; children: ReactNode } & SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <div>
       <label className={labelCls}>{label}</label>
-      <select className={`${inputCls} appearance-none`} {...props}>
+      <select
+        className={`${inputCls} ${borderCls(error)} appearance-none`}
+        aria-invalid={error ? true : undefined}
+        {...props}
+      >
         {children}
       </select>
+      <FieldError error={error} />
     </div>
   )
 }

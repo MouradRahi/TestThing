@@ -25,7 +25,10 @@
     "deliveryNote": "Delivery calculated at checkout.",
     "checkout": "Checkout",
     "continueShopping": "Continue Shopping",
-    "viewFullCart": "View full cart"
+    "viewFullCart": "View full cart",
+    "stockNotice": "Availability changed for some items in your cart — adjust the quantities below before checking out.",
+    "lineSoldOut": "This piece just sold out.",
+    "lineOnlyLeft": "Only {count} left — reduce the quantity."
   },
   "product": {
     "shop": "Shop",
@@ -80,7 +83,12 @@
     "emptyCart": "Your cart is empty.",
     "browseShop": "Browse Shop",
     "phoneError": "Please enter a valid phone number, e.g. +961 70 123 456",
-    "orderFailed": "Something went wrong. Please try again."
+    "orderFailed": "Something went wrong. Please try again.",
+    "fieldRequired": "This field is required.",
+    "fieldInvalid": "Please check this field.",
+    "fixHighlighted": "Please fix the highlighted fields.",
+    "stockConflict": "Availability changed for some items in your cart.",
+    "reviewCart": "Review your cart"
   },
   "order": {
     "received": "Order received",

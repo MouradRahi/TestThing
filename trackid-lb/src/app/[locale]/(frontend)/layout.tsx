@@ -46,6 +46,9 @@ export async function generateMetadata({
   const { locale } = await params
   const settings = await getSiteSettings(locale)
   const storeName = (settings.storeName as string) || 'trackID.lb'
+  const tagline = (settings.tagline as string) || ''
+  // Homepage title carries the brand tagline when set; inner pages keep "%s | store"
+  const defaultTitle = tagline ? `${storeName} — ${tagline}` : storeName
   const description =
     (settings.metaDescription as string) ||
     'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.'
@@ -53,7 +56,7 @@ export async function generateMetadata({
   const faviconUrl = (settings.faviconUrl as string) || ''
 
   return {
-    title: { default: storeName, template: `%s | ${storeName}` },
+    title: { default: defaultTitle, template: `%s | ${storeName}` },
     description,
     metadataBase: new URL(siteUrl),
     ...(faviconUrl ? { icons: { icon: faviconUrl } } : {}),
@@ -61,13 +64,13 @@ export async function generateMetadata({
       siteName: storeName,
       type: 'website',
       locale: OG_LOCALE[locale] ?? 'en_US',
-      title: storeName,
+      title: defaultTitle,
       description,
       ...(ogImage ? { images: [{ url: ogImage }] } : {}),
     },
     twitter: {
       card: 'summary_large_image',
-      title: storeName,
+      title: defaultTitle,
       description,
       ...(ogImage ? { images: [ogImage] } : {}),
     },

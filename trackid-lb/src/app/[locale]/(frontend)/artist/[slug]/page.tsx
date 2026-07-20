@@ -161,7 +161,7 @@ export default async function ArtistPage({
                     slug={product.slug}
                     title={product.title}
                     price={product.price}
-                    imageUrl={images[0]?.url}
+                    imageUrl={images[0]?.url ?? undefined}
                     imageAlt={resolveAlt(images[0]) || undefined}
                     artistName={artist.name}
                   />

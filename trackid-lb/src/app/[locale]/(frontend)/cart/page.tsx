@@ -5,11 +5,13 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useCart } from '@/components/cart/CartContext'
 import { Button } from '@/components/ui/Button'
+import { hasStockConflict, cartHasStockConflicts } from '@/lib/cart'
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
   const t = useTranslations('cart')
   const tp = useTranslations('product')
+  const stockConflicts = cartHasStockConflicts(items)
 
   if (items.length === 0) {
     return (
@@ -29,6 +31,12 @@ export default function CartPage() {
           {t('count', { count: itemCount })}
         </span>
       </div>
+
+      {stockConflicts && (
+        <p className="text-xs text-red-400 border border-red-400/30 px-3 py-2.5 mb-6 leading-relaxed">
+          {t('stockNotice')}
+        </p>
+      )}
 
       <div className="space-y-0">
         {items.map((item) => (
@@ -50,6 +58,13 @@ export default function CartPage() {
                 {item.size && <span className="me-2 uppercase">{tp('size')}: {item.size}</span>}
                 {t('each', { price: item.price })}
               </p>
+              {hasStockConflict(item) && (
+                <p className="text-[11px] text-red-400 mt-1.5">
+                  {(item.maxQuantity ?? 0) <= 0
+                    ? t('lineSoldOut')
+                    : t('lineOnlyLeft', { count: item.maxQuantity ?? 0 })}
+                </p>
+              )}
               <div className="flex items-center gap-3 mt-4">
                 <button
                   onClick={() => updateQuantity(item.key, item.quantity - 1)}
