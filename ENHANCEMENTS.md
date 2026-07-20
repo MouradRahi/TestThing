@@ -67,8 +67,8 @@ Cookie-based: product page fires a tiny client effect → `POST /api/recently-vi
 
 ## C. Account & Order Experience
 
-### E10 ☐ 🔴 Account hardening & completion (contains bug B1)
-- **Forgot/reset password** (B1 — P0, do first) + **change password** on the account page
+### E10 ◐ 🔴 Account hardening & completion (contains bug B1)
+- ☑ **Forgot/reset password** (B1, Session 22 part 4) **+ change password** on the account page
 - Login/register accept `?next=` and return the customer where they started (wishlist tap on a product → login → back on that product, saved)
 - Nav shows the customer's name (or "Account") when logged in — needs a lightweight `GET /api/account/me` fetched client-side like WishlistButton does, so pages stay static
 - Wishlist cards: price + sold-out badge + add-to-cart (today: image + title only — a wishlist you can't buy from)
@@ -144,7 +144,7 @@ Upstash Redis / Vercel KV behind the existing `rateLimit()` signature (in-memory
 | # | Session theme | Contents | Why this order |
 |---|---|---|---|
 | 1 | **Correctness sweep** ☑ DONE (Session 22) | BUGS B2, B3, B5, B6, B7, B8, B11, B13, B15, B16 (◐), B23 | All small, all user-visible wrongness on the live site; zero schema changes |
-| 2 | **Account rescue** | B1 (+B22) via E10 phase 1: forgot/reset/change password, `?next=` redirect | P0 — real customers are creating accounts on the live site *now*; every day without reset = support debt |
+| 2 | **Account rescue** ◐ (B1 done, Session 22 part 4) | ☑ B1 forgot/reset/change password · remaining: B22, `?next=` redirect (E10 phase 2) | P0 — real customers are creating accounts on the live site *now*; every day without reset = support debt |
 | 3 | **Cart/checkout conversion** | E1, E2, E4, E3; F3 hardening (B4, B12, B14) | The money path; toast (E4) unblocks proper B6 fix |
 | 4 | **Discovery** | E5 (description first), E6, E7, E8 | Catalog is growing; product storytelling is the brand |
 | 5 | **Order experience** | E11, B3 verify, E12 (adds `locale` field — migration) | Post-purchase trust; groundwork for repeat customers |

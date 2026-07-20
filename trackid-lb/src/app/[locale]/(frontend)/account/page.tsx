@@ -9,6 +9,7 @@ import { resolveAlt } from '@/lib/image'
 import { formatPrice } from '@/lib/format'
 import { LogoutButton } from '@/components/account/LogoutButton'
 import { ProfileForm } from '@/components/account/ProfileForm'
+import { ChangePasswordForm } from '@/components/account/ChangePasswordForm'
 import { WishlistButton } from '@/components/account/WishlistButton'
 
 export async function generateMetadata({
@@ -126,6 +127,12 @@ export default async function AccountPage() {
           phone={(customer.phone as string) || ''}
           addresses={addresses}
         />
+      </section>
+
+      {/* Password */}
+      <section>
+        <h2 className="text-[10px] uppercase tracking-[0.3em] text-muted mb-5">{t('changePassword')}</h2>
+        <ChangePasswordForm />
       </section>
     </div>
   )

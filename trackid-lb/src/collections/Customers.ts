@@ -12,6 +12,12 @@ export const Customers: CollectionConfig = {
       sameSite: 'Lax',
       secure: process.env.NODE_ENV === 'production',
     },
+    // Payload's built-in email dispatch is unused (no email adapter is configured —
+    // the app sends its own branded Resend emails, see src/lib/notifications.ts).
+    // The forgot-password route calls disableEmail:true and sends the email itself.
+    forgotPassword: {
+      expiration: 30 * 60 * 1000, // 30 minutes
+    },
   },
   admin: {
     useAsTitle: 'email',

@@ -74,7 +74,15 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
           required
           autoComplete={isRegister ? 'new-password' : 'current-password'}
         />
-        {isRegister && <p className="text-[11px] text-muted -mt-2">{t('passwordHint')}</p>}
+        {isRegister ? (
+          <p className="text-[11px] text-muted -mt-2">{t('passwordHint')}</p>
+        ) : (
+          <p className="-mt-2 text-end">
+            <Link href="/account/forgot-password" className="text-[11px] text-accent hover:text-accent-hover transition-colors">
+              {t('forgotPasswordLink')}
+            </Link>
+          </p>
+        )}
 
         {error && <p className="text-sm text-red-400 border border-red-400/30 px-3 py-2">{error}</p>}
 
