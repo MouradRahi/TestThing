@@ -43,6 +43,26 @@ try {
     case 'down':
       await payload.db.migrateDown()
       break
+    case 'mark': {
+      // Baselining: record a migration as already applied WITHOUT running it —
+      // for databases that already carry the schema (built up via dev pushes).
+      if (!nameArg) {
+        console.error('Usage: npm run migrate:mark <migration_name>')
+        process.exit(1)
+      }
+      const { docs } = await payload.find({
+        collection: 'payload-migrations',
+        where: { name: { equals: nameArg } },
+        limit: 1,
+      })
+      if (docs.length) {
+        console.log(`Migration "${nameArg}" is already marked as applied.`)
+      } else {
+        await payload.create({ collection: 'payload-migrations', data: { name: nameArg, batch: 1 } })
+        console.log(`Marked "${nameArg}" as applied (batch 1) without running it.`)
+      }
+      break
+    }
     case 'fresh':
       if (process.env.NODE_ENV === 'production') {
         console.error('migrate:fresh destroys all data — refusing to run in production.')

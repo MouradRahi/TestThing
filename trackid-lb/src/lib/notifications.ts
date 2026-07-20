@@ -309,6 +309,70 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
   }
 }
 
+// --- Account ---
+
+export type PasswordResetEmailData = {
+  customerEmail: string
+  customerName: string
+  resetUrl: string
+  /** Brand voice from SiteSettings → Copy tab. Defaults applied when omitted. */
+  brand?: BrandCopy
+}
+
+export async function sendPasswordResetEmail(data: PasswordResetEmailData): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[notifications] RESEND_API_KEY not set — skipping password reset email')
+    return
+  }
+
+  const resend = new Resend(apiKey)
+  const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const brand = data.brand ?? DEFAULT_BRAND
+  const replyTo = brand.contactEmail
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reset your password</title></head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;">
+    <tr><td align="center" style="padding:48px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
+        </td></tr>
+        <tr><td style="padding:36px 0 6px;">
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">Reset your password</h1>
+        </td></tr>
+        <tr><td style="padding-bottom:28px;">
+          <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(data.customerName)},<br><br>We received a request to reset your password. This link expires in 30 minutes and can only be used once.</p>
+        </td></tr>
+        <tr><td style="padding-bottom:28px;">
+          <a href="${data.resetUrl}" style="display:inline-block;background-color:#c9a96e;color:#0a0a0a;text-decoration:none;font-size:12px;letter-spacing:0.1em;text-transform:uppercase;padding:12px 24px;">Reset password</a>
+        </td></tr>
+        <tr><td style="padding-top:24px;border-top:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">Didn't request this? You can safely ignore this email — your password will not change.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { error } = await resend.emails.send({
+      from,
+      to: data.customerEmail,
+      ...(replyTo ? { replyTo } : {}),
+      subject: 'Reset your password',
+      html,
+    })
+    if (error) console.error('[notifications] Resend password reset error:', error)
+  } catch (err) {
+    console.error('[notifications] Failed to send password reset email:', err)
+  }
+}
+
 // --- WhatsApp ---
 
 export async function sendOrderWhatsAppAlert(order: OrderNotificationData): Promise<void> {

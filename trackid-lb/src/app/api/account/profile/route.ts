@@ -1,5 +1,5 @@
 import { getPayload } from '@/lib/payload'
-import { rateLimit, clientIp } from '@/lib/api-guards'
+import { rateLimit, clientIp, isValidPhone } from '@/lib/api-guards'
 import { NextRequest, NextResponse } from 'next/server'
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
@@ -25,7 +25,14 @@ export async function POST(req: NextRequest) {
     if (!name) return NextResponse.json({ error: 'Name is required.' }, { status: 400 })
     data.name = name
   }
-  if ('phone' in body) data.phone = str(body.phone, 40) || undefined
+  if ('phone' in body) {
+    const phone = str(body.phone, 40)
+    // A junk phone saved here prefills checkout later and dead-ends there — reject now
+    if (phone && !isValidPhone(phone)) {
+      return NextResponse.json({ error: 'Please enter a valid phone number.' }, { status: 400 })
+    }
+    data.phone = phone || undefined
+  }
   if (Array.isArray(body.addresses)) {
     data.addresses = body.addresses.slice(0, 10).map((a: Record<string, unknown>) => ({
       label: str(a?.label, 60),

@@ -3,12 +3,21 @@ import Image from 'next/image'
 import { notFound } from 'next/navigation'
 import { getTranslations, getLocale } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
-import { getSiteSettings, DEFAULT_ORDER_THANKYOU_NOTE } from '@/lib/site-settings'
+import { getSiteSettings, getDeliveryZones, DEFAULT_ORDER_THANKYOU_NOTE } from '@/lib/site-settings'
+import { formatPrice } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 
-export const metadata: Metadata = { title: 'Order Confirmed' }
+// Always render fresh: customers revisit this page (and arrive via /track) to
+// see their live order status — a cached copy would freeze it at first view.
+export const dynamic = 'force-dynamic'
 
-type Props = { params: Promise<{ orderNumber: string }> }
+type Props = { params: Promise<{ locale: string; orderNumber: string }> }
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: 'order' })
+  return { title: t('metaTitle') }
+}
 
 export default async function OrderConfirmationPage({ params }: Props) {
   const { orderNumber } = await params
@@ -36,6 +45,9 @@ export default async function OrderConfirmationPage({ params }: Props) {
   const settings = await getSiteSettings(await getLocale())
   const bankInstructions = (settings.bankTransferInstructions as string) || ''
   const thankYouNote = (settings.orderThankYouNote as string) || DEFAULT_ORDER_THANKYOU_NOTE
+  // A 0 fee only means "free" when zones are configured; otherwise the fee is
+  // simply unknown and gets confirmed by phone (matches checkout + email copy).
+  const zonesConfigured = getDeliveryZones(settings).length > 0
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-20">
@@ -69,7 +81,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
                 </p>
               </div>
               <p className="text-xs text-foreground tabular-nums whitespace-nowrap">
-                ${(item.priceAtPurchase * item.quantity).toFixed(2)}
+                {formatPrice(item.priceAtPurchase * item.quantity)}
               </p>
             </div>
           ))}
@@ -78,23 +90,27 @@ export default async function OrderConfirmationPage({ params }: Props) {
         <div className="border-t border-border pt-4 space-y-2 text-xs">
           <div className="flex justify-between text-muted">
             <span>{t('subtotal')}</span>
-            <span className="tabular-nums">${Number(order.subtotal).toFixed(2)}</span>
+            <span className="tabular-nums">{formatPrice(Number(order.subtotal))}</span>
           </div>
           {Number(order.discountAmount) > 0 && (
             <div className="flex justify-between text-accent">
               <span>{t('discount')}{order.discountCode ? ` (${order.discountCode})` : ''}</span>
-              <span className="tabular-nums">−${Number(order.discountAmount).toFixed(2)}</span>
+              <span className="tabular-nums">−{formatPrice(Number(order.discountAmount))}</span>
             </div>
           )}
           <div className="flex justify-between text-muted">
             <span>{t('delivery')}</span>
             <span className="tabular-nums">
-              {Number(order.deliveryFee) > 0 ? `$${Number(order.deliveryFee).toFixed(2)}` : t('deliveryFree')}
+              {Number(order.deliveryFee) > 0
+                ? formatPrice(Number(order.deliveryFee))
+                : zonesConfigured
+                  ? t('deliveryFree')
+                  : t('deliveryByPhone')}
             </span>
           </div>
           <div className="flex justify-between text-foreground font-semibold pt-2 border-t border-border text-sm">
             <span>{t('total')}</span>
-            <span className="tabular-nums">${Number(order.total).toFixed(2)}</span>
+            <span className="tabular-nums">{formatPrice(Number(order.total))}</span>
           </div>
         </div>
       </div>

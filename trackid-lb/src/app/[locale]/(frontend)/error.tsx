@@ -16,8 +16,13 @@ export default function FrontendError({
   const t = useTranslations('errors')
 
   useEffect(() => {
-    // Surfaces in server logs / browser console for debugging
+    // Surfaces in server logs / browser console for debugging, and in Sentry
+    // when configured. Dynamic import — a static one would ship the SDK to
+    // every visitor regardless of whether Sentry is even set up.
     console.error(error)
+    if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
+      import('@sentry/nextjs').then((Sentry) => Sentry.captureException(error))
+    }
   }, [error])
 
   return (

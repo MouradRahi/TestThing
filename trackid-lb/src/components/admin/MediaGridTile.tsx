@@ -2,8 +2,8 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { useListDrawerContext } from '@payloadcms/ui'
 import type { CollectionSlug } from 'payload'
+import { useListDrawerContext } from '@payloadcms/ui'
 
 // A single media tile. On the normal list page it links to the doc's edit page.
 // When the same list view is rendered inside a relationship/upload "select
@@ -20,7 +20,7 @@ type Props = {
   editHref: string
   thumb?: string
   label: string
-  collectionSlug: string
+  collectionSlug: CollectionSlug
 }
 
 const cardStyle: React.CSSProperties = {

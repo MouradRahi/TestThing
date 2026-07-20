@@ -42,3 +42,12 @@ export function cleanOptional(value: unknown, maxLen: number): string | undefine
   if (value === undefined || value === null || value === '') return undefined
   return cleanString(value, maxLen)
 }
+
+/** Shared shape checks — one definition for every route that takes an email/phone. */
+export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
+/** Generic international phone: 7–15 digits, optional leading +, separators tolerated. */
+export function isValidPhone(value: string): boolean {
+  const digits = value.replace(/[\s()-]/g, '')
+  return /^\+?\d{7,15}$/.test(digits)
+}

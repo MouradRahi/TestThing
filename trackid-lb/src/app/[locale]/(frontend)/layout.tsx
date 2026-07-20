@@ -32,7 +32,7 @@ const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font
 
 const fontVariables = [inter, spaceGrotesk, playfair, dmSans, manrope].map((f) => f.variable).join(' ')
 
-const OG_LOCALE: Record<string, string> = { en: 'en_US', ar: 'ar_AR' }
+const OG_LOCALE: Record<string, string> = { en: 'en_US', ar: 'ar_LB' }
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))

@@ -28,3 +28,5 @@ export type CartNotice =
   | { type: 'sold_out'; title: string; size?: string }
   /** Requested quantity exceeds what's in stock now */
   | { type: 'reduced'; title: string; size?: string; available: number }
+  /** A cart mutation was rejected (client-side notice) — message is the server's error */
+  | { type: 'error'; message: string }

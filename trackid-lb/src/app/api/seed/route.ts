@@ -17,8 +17,10 @@ import type { Payload } from 'payload'
 
 // Dark placeholder that matches the default theme; rendered via next/image
 // (placehold.co is allowlisted in next.config for exactly this).
+// .png is required — placehold.co defaults to SVG, which next/image blocks
+// unless dangerouslyAllowSVG is enabled.
 function img(text: string, w = 800, h = 1000): string {
-  return `https://placehold.co/${w}x${h}/1a1a1a/e8d5b0?text=${encodeURIComponent(text)}`
+  return `https://placehold.co/${w}x${h}/1a1a1a/e8d5b0.png?text=${encodeURIComponent(text)}`
 }
 
 const CATEGORIES = [
