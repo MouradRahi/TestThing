@@ -8,12 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "seed": "node scripts/seed.mjs",
-<<<<<<< HEAD
-    "migrate:local": "node --import tsx scripts/migrate.mts",
-    "generate:types": "node --import tsx scripts/generate-types.mts",
-=======
     "generate:types": "node scripts/generate-types.mjs",
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
     "payload": "cross-env PAYLOAD_CONFIG_PATH=src/payload.config.ts payload",
     "migrate:create": "node scripts/migrate.mjs create",
     "migrate": "node scripts/migrate.mjs up",

@@ -47,11 +47,7 @@ export async function generateMetadata({
   const settings = await getSiteSettings(locale)
   const storeName = (settings.storeName as string) || 'trackID.lb'
   const tagline = (settings.tagline as string) || ''
-<<<<<<< HEAD
-  // Homepage title carries the brand tagline when set; inner pages keep "%s | store"
-=======
   // The tagline rides along on the default (homepage) title; inner pages use the template
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
   const defaultTitle = tagline ? `${storeName} — ${tagline}` : storeName
   const description =
     (settings.metaDescription as string) ||

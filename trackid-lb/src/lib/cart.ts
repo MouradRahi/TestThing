@@ -18,19 +18,6 @@ export function cartLineKey(id: string, size?: string): string {
 }
 
 /**
-<<<<<<< HEAD
- * The server re-resolves stock on every cart read, so a line whose quantity
- * exceeds current availability means the piece sold (or partially sold) since
- * it was added. Checkout would 409 — surface it before the customer gets there.
- */
-export function hasStockConflict(item: CartItem): boolean {
-  return item.maxQuantity != null && item.quantity > item.maxQuantity
-}
-
-export function cartHasStockConflicts(items: CartItem[]): boolean {
-  return items.some(hasStockConflict)
-}
-=======
  * A change the server detected while resolving the cart against the live
  * catalog — surfaced as a banner so lines never vanish or block silently.
  */
@@ -43,4 +30,3 @@ export type CartNotice =
   | { type: 'reduced'; title: string; size?: string; available: number }
   /** A cart mutation was rejected (client-side notice) — message is the server's error */
   | { type: 'error'; message: string }
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328

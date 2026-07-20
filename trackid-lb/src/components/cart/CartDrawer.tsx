@@ -5,12 +5,8 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
-<<<<<<< HEAD
-import { hasStockConflict, cartHasStockConflicts } from '@/lib/cart'
-=======
 import { CartNotices } from '@/components/cart/CartNotices'
 import { formatPrice } from '@/lib/format'
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 
 // Slide-over mini-cart. Opens on add-to-cart (and from the nav cart button) so
 // customers get immediate confirmation without a full-page navigation. The
@@ -19,7 +15,6 @@ export function CartDrawer() {
   const { items, isLoading, isOpen, closeCart, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
   const t = useTranslations('cart')
   const tp = useTranslations('product')
-  const stockConflicts = cartHasStockConflicts(items)
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
 
@@ -99,11 +94,6 @@ export function CartDrawer() {
           </div>
         ) : (
           <>
-            {stockConflicts && (
-              <p className="text-[11px] text-red-400 border-b border-red-400/30 bg-red-400/5 px-5 py-2.5 leading-relaxed shrink-0">
-                {t('stockNotice')}
-              </p>
-            )}
             <ul className="flex-1 overflow-y-auto divide-y divide-border">
               {items.map((item) => (
                 <li key={item.key} className="flex gap-3 p-4">
@@ -133,13 +123,6 @@ export function CartDrawer() {
                     </div>
                     {item.size && (
                       <p className="text-[10px] uppercase tracking-wider text-muted mt-1">{tp('size')}: {item.size}</p>
-                    )}
-                    {hasStockConflict(item) && (
-                      <p className="text-[10px] text-red-400 mt-1">
-                        {(item.maxQuantity ?? 0) <= 0
-                          ? t('lineSoldOut')
-                          : t('lineOnlyLeft', { count: item.maxQuantity ?? 0 })}
-                      </p>
                     )}
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex items-center gap-2">

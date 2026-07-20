@@ -1,4 +1,4 @@
-import { buildConfig, type RequiredDataFromCollectionSlug } from 'payload'
+import { buildConfig } from 'payload'
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { s3Storage } from '@payloadcms/storage-s3'
@@ -71,15 +71,7 @@ export default buildConfig({
       if (totalDocs === 0) {
         const defaults = ['Hoodie', 'T-Shirt', 'Jacket', 'Other']
         for (const name of defaults) {
-<<<<<<< HEAD
-          // slug is filled by the collection's beforeValidate hook
-          await payload.create({
-            collection: 'garment-types',
-            data: { name } as RequiredDataFromCollectionSlug<'garment-types'>,
-          })
-=======
           await payload.create({ collection: 'garment-types', data: { name, slug: slugify(name) } })
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
         }
       }
     } catch {
@@ -100,16 +92,11 @@ export default buildConfig({
     // Schema management policy:
     //   • Production NEVER auto-pushes — it only runs committed migrations, so a
     //     schema change can't silently drop/blank prod data.
-    //   • Dev push is OPT-IN (PAYLOAD_PUSH=true): the local dev DB is currently the
-    //     SAME database production runs on, so a casual `npm run dev` with schema
-    //     changes must never silently rewrite the live schema (drizzle push applies
-    //     destructive diffs with no data-preservation step — see MIGRATIONS.md).
-    //     Only set PAYLOAD_PUSH=true when you've reviewed the pending schema diff
-    //     (or once dev points at a disposable database).
-    push:
-      process.env.PAYLOAD_PUSH === 'true' &&
-      process.env.NODE_ENV !== 'production' &&
-      process.env.PAYLOAD_MIGRATE !== 'true',
+    //   • Local dev keeps drizzle `push` for fast iteration. Point local dev at a
+    //     DISPOSABLE dev database (separate Supabase project) so a push that blanks
+    //     data never hits anything you care about. Set PAYLOAD_MIGRATE=true to opt
+    //     a dev run into migration mode instead of push.
+    push: process.env.NODE_ENV !== 'production' && process.env.PAYLOAD_MIGRATE !== 'true',
     // Indexes defined per-collection in the collections files
   }),
   plugins: [

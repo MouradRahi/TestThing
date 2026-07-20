@@ -33,14 +33,10 @@ export async function Footer() {
   const tagline = (settings.footerTagline as string) || 'Hand-painted clothing for the artists you love. Made in Lebanon.'
   const footerNote = (settings.footerNote as string) || 'Cash on Delivery · Lebanon only'
   const copyright = resolveCopyright((settings.copyrightText as string) || '', storeName)
-<<<<<<< HEAD
-  const contactEmail = (settings.contactEmail as string) || ''
-=======
   const contactEmail =
     typeof settings.contactEmail === 'string' && settings.contactEmail.includes('@')
       ? settings.contactEmail.trim()
       : ''
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
   const socialLinks = Array.isArray(settings.socialLinks) ? settings.socialLinks : []
 
   const footerColumns = Array.isArray(nav.footerColumns) ? nav.footerColumns : []
@@ -66,11 +62,7 @@ export async function Footer() {
           {contactEmail && (
             <a
               href={`mailto:${contactEmail}`}
-<<<<<<< HEAD
-              className="text-xs text-foreground/70 hover:text-accent transition-colors mt-3 inline-block"
-=======
               className="text-xs text-foreground/70 hover:text-accent transition-colors inline-block mt-3"
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
             >
               {contactEmail}
             </a>

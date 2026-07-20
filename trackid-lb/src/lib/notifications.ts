@@ -35,13 +35,8 @@ export type BrandCopy = {
   storeName: string
   emailGreeting: string
   emailFooterNote: string
-<<<<<<< HEAD
-  /** SiteSettings contactEmail — used as the Resend reply-to when set */
-  replyTo?: string
-=======
   /** Reply-to for transactional emails (SiteSettings → Brand → contactEmail) */
   contactEmail?: string
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 }
 
 const DEFAULT_BRAND: BrandCopy = {
@@ -75,11 +70,7 @@ export async function sendOrderConfirmationEmail(order: OrderNotificationData): 
 
   const resend = new Resend(apiKey)
   const from = process.env.RESEND_FROM || 'orders@trackid.lb'
-<<<<<<< HEAD
-  const replyTo = order.brand?.replyTo
-=======
   const replyTo = order.brand?.contactEmail
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 
   try {
     const { error } = await resend.emails.send({
@@ -88,7 +79,6 @@ export async function sendOrderConfirmationEmail(order: OrderNotificationData): 
       ...(replyTo ? { replyTo } : {}),
       subject: `Order confirmed — ${order.orderNumber}`,
       html: buildOrderEmailHtml(order),
-      ...(replyTo ? { replyTo } : {}),
     })
     if (error) console.error('[notifications] Resend error:', error)
   } catch (err) {
@@ -312,7 +302,6 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
       ...(replyTo ? { replyTo } : {}),
       subject: `${copy.subject} — ${data.orderNumber}`,
       html,
-      ...(brand.replyTo ? { replyTo: brand.replyTo } : {}),
     })
     if (error) console.error('[notifications] Resend status email error:', error)
   } catch (err) {

@@ -138,19 +138,11 @@ export async function serializeCart(
   return { items: lines, notices, kept }
 }
 
-// Normalized write shape: product always a bare id (all cart reads/writes are depth 0).
-type WriteItem = { product: number; size?: string | null; quantity: number }
-
 // Combine two stored-item lists, summing quantities per product+size.
-<<<<<<< HEAD
-export function mergeItems(a: StoredItem[] = [], b: StoredItem[] = []): WriteItem[] {
-  const map = new Map<string, WriteItem>()
-=======
 // Output is normalized (plain numeric product ids) so it can be written back.
 export type NormalizedItem = { product: number; size?: string; quantity: number }
 export function mergeItems(a: StoredItem[] = [], b: StoredItem[] = []): NormalizedItem[] {
   const map = new Map<string, NormalizedItem>()
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
   for (const list of [a, b]) {
     for (const it of list) {
       const pid = pidOf(it.product)
@@ -185,23 +177,18 @@ export async function mergeGuestCart(
       // objects down to plain ids so the write matches the schema)
       await payload.update({
         collection: 'carts',
-<<<<<<< HEAD
-        id: Number(guest.id),
-        data: { customer: Number(customerId), sessionId: null, items: mergeItems(guest.items) },
-=======
         id: guest.id,
         data: { customer: cid, sessionId: null, items: mergeItems(guest.items) },
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
       })
       return
     }
 
     await payload.update({
       collection: 'carts',
-      id: Number(customerCart.id),
+      id: customerCart.id,
       data: { items: mergeItems(customerCart.items, guest.items) },
     })
-    await payload.delete({ collection: 'carts', id: Number(guest.id) })
+    await payload.delete({ collection: 'carts', id: guest.id })
   } catch {
     // Merge is best-effort — never block login on it
   }

@@ -6,17 +6,12 @@ import { useTranslations } from 'next-intl'
 import { useCart } from '@/components/cart/CartContext'
 import { CartNotices } from '@/components/cart/CartNotices'
 import { Button } from '@/components/ui/Button'
-<<<<<<< HEAD
-import { hasStockConflict, cartHasStockConflicts } from '@/lib/cart'
-=======
 import { formatPrice } from '@/lib/format'
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 
 export default function CartPage() {
   const { items, isLoading, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
   const t = useTranslations('cart')
   const tp = useTranslations('product')
-  const stockConflicts = cartHasStockConflicts(items)
 
   // Server cart still loading — skeleton, never a false "empty" flash
   if (isLoading && items.length === 0) {
@@ -57,12 +52,6 @@ export default function CartPage() {
         </span>
       </div>
 
-      {stockConflicts && (
-        <p className="text-xs text-red-400 border border-red-400/30 px-3 py-2.5 mb-6 leading-relaxed">
-          {t('stockNotice')}
-        </p>
-      )}
-
       <div className="space-y-0">
         {items.map((item) => (
           <div key={item.key} className="flex gap-4 py-6 border-b border-border">
@@ -83,13 +72,6 @@ export default function CartPage() {
                 {item.size && <span className="me-2 uppercase">{tp('size')}: {item.size}</span>}
                 {t('each', { price: formatPrice(item.price) })}
               </p>
-              {hasStockConflict(item) && (
-                <p className="text-[11px] text-red-400 mt-1.5">
-                  {(item.maxQuantity ?? 0) <= 0
-                    ? t('lineSoldOut')
-                    : t('lineOnlyLeft', { count: item.maxQuantity ?? 0 })}
-                </p>
-              )}
               <div className="flex items-center gap-3 mt-4">
                 <button
                   onClick={() => updateQuantity(item.key, item.quantity - 1)}

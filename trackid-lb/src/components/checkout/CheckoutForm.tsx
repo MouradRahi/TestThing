@@ -7,11 +7,7 @@ import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 import { Button } from '@/components/ui/Button'
 import { Field, TextareaField, SelectField, SectionLabel } from '@/components/ui/FormField'
-<<<<<<< HEAD
-import { cartHasStockConflicts } from '@/lib/cart'
-=======
 import { formatPrice } from '@/lib/format'
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 import type { DeliveryZone } from '@/lib/site-settings'
 
 type FormState = {
@@ -40,8 +36,6 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
   const { items, isLoading: cartLoading, total, clearCart } = useCart()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  // field name → 'required' | 'invalid' (server codes; translated at render)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [codeInput, setCodeInput] = useState('')
   const [discount, setDiscount] = useState<{ code: string; type: 'percentage' | 'fixed'; value: number } | null>(null)
   const [discountMsg, setDiscountMsg] = useState('')
@@ -64,7 +58,6 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
     setForm((prev) => ({ ...prev, area: a.area ?? '', deliveryAddress: a.deliveryAddress ?? '' }))
   }
 
-  const stockConflicts = cartHasStockConflicts(items)
   const hasZones = zones.length > 0
   const selectedZone = hasZones ? zones.find((z) => z.label === form.area) : undefined
   const freeDelivery =
@@ -115,33 +108,17 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
-    // editing a field clears its highlight
-    setFieldErrors((prev) => {
-      if (!prev[e.target.name]) return prev
-      const next = { ...prev }
-      delete next[e.target.name]
-      return next
-    })
-  }
-
-  const fieldError = (name: string): string | undefined => {
-    const code = fieldErrors[name]
-    if (!code) return undefined
-    if (name === 'customerPhone' && code === 'invalid') return t('phoneError')
-    return code === 'required' ? t('fieldRequired') : t('fieldInvalid')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (items.length === 0) return
     if (!/^\+?[\d\s()-]{7,20}$/.test(form.customerPhone.trim())) {
-      setFieldErrors({ customerPhone: 'invalid' })
       setError(t('phoneError'))
       return
     }
     setLoading(true)
     setError('')
-    setFieldErrors({})
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
@@ -159,12 +136,6 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
       })
       if (!res.ok) {
         const data = await res.json()
-        if (data.fields && typeof data.fields === 'object') {
-          setFieldErrors(data.fields)
-          setError(t('fixHighlighted'))
-          setLoading(false)
-          return
-        }
         throw new Error(data.error || 'Order failed')
       }
       const { orderNumber } = await res.json()
@@ -221,9 +192,9 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
 
           <SectionLabel>{t('yourDetails')}</SectionLabel>
 
-          <Field label={t('fullName')} name="customerName" value={form.customerName} onChange={handleChange} required error={fieldError('customerName')} />
-          <Field label={t('phone')} name="customerPhone" value={form.customerPhone} onChange={handleChange} required type="tel" placeholder="+961 XX XXX XXX" error={fieldError('customerPhone')} />
-          <Field label={t('email')} name="customerEmail" value={form.customerEmail} onChange={handleChange} type="email" error={fieldError('customerEmail')} />
+          <Field label={t('fullName')} name="customerName" value={form.customerName} onChange={handleChange} required />
+          <Field label={t('phone')} name="customerPhone" value={form.customerPhone} onChange={handleChange} required type="tel" placeholder="+961 XX XXX XXX" />
+          <Field label={t('email')} name="customerEmail" value={form.customerEmail} onChange={handleChange} type="email" />
 
           <SectionLabel className="pt-4">{t('delivery')}</SectionLabel>
 
@@ -247,7 +218,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           )}
 
           {hasZones ? (
-            <SelectField label={t('areaCity')} name="area" value={form.area} onChange={handleChange} required error={fieldError('area')}>
+            <SelectField label={t('areaCity')} name="area" value={form.area} onChange={handleChange} required>
               <option value="">{t('selectArea')}</option>
               {zones.map((zone) => (
                 <option key={zone.label} value={zone.label}>
@@ -263,7 +234,6 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
               onChange={handleChange}
               required
               placeholder={t('areaPlaceholder')}
-              error={fieldError('area')}
             />
           )}
 
@@ -275,7 +245,6 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
             required
             rows={3}
             placeholder={t('addressPlaceholder')}
-            error={fieldError('deliveryAddress')}
           />
 
           <SectionLabel className="pt-4">{t('payment')}</SectionLabel>
@@ -319,23 +288,13 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
             onChange={handleChange}
             rows={2}
             placeholder={t('notesPlaceholder')}
-            error={fieldError('notes')}
           />
-
-          {stockConflicts && (
-            <p className="text-sm text-red-400 border border-red-400/30 px-3 py-2 leading-relaxed">
-              {t('stockConflict')}{' '}
-              <Link href="/cart" className="underline hover:text-foreground transition-colors">
-                {t('reviewCart')}
-              </Link>
-            </p>
-          )}
 
           {error && (
             <p className="text-sm text-red-400 border border-red-400/30 px-3 py-2">{error}</p>
           )}
 
-          <Button type="submit" fullWidth disabled={loading || stockConflicts} className="mt-2">
+          <Button type="submit" fullWidth disabled={loading} className="mt-2">
             {loading ? t('placingOrder') : t('placeOrder')}
           </Button>
         </form>

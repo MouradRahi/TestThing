@@ -146,37 +146,15 @@ export async function POST(req: NextRequest) {
     const paymentMethod: 'cod' | 'bank_transfer' =
       body.paymentMethod === 'bank_transfer' ? 'bank_transfer' : 'cod'
 
-    // Per-field validation — `fields` maps field name → 'required' | 'invalid'
-    // so the checkout form can highlight exactly what to fix (localized client-side).
-    const fieldErrors: Record<string, 'required' | 'invalid'> = {}
-    if (!customerName) fieldErrors.customerName = 'required'
-    if (!customerPhone) fieldErrors.customerPhone = 'required'
-    if (!deliveryAddress) fieldErrors.deliveryAddress = 'required'
-    if (!area) fieldErrors.area = 'required'
-    if (customerEmail === null) fieldErrors.customerEmail = 'invalid'
-    if (notes === null) fieldErrors.notes = 'invalid'
-    if (discountCodeInput === null) fieldErrors.discountCode = 'invalid'
-
-    if (customerPhone && !fieldErrors.customerPhone) {
-      const phoneDigits = customerPhone.replace(/[\s()-]/g, '')
-      if (!/^\+?\d{7,15}$/.test(phoneDigits)) fieldErrors.customerPhone = 'invalid'
-    }
-
-<<<<<<< HEAD
-    // Compound condition doubles as the TS narrowing guard (string | null → string)
     if (
       !customerName || !customerPhone || !deliveryAddress || !area ||
-      customerEmail === null || notes === null || discountCodeInput === null ||
-      Object.keys(fieldErrors).length > 0
+      customerEmail === null || notes === null || discountCodeInput === null
     ) {
-      return NextResponse.json(
-        { error: 'Missing or invalid fields', fields: fieldErrors },
-        { status: 400 },
-      )
-=======
+      return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
+    }
+
     if (!isValidPhone(customerPhone)) {
       return NextResponse.json({ error: 'Please enter a valid phone number.' }, { status: 400 })
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
     }
 
     // Optional, but when present it must be deliverable — a typo'd email means
@@ -272,10 +250,7 @@ export async function POST(req: NextRequest) {
     }
     const deliveryFee = resolveDeliveryFee(settings, area, subtotal)
     if (deliveryFee === null) {
-      return NextResponse.json(
-        { error: 'Please select a valid delivery area.', fields: { area: 'invalid' } },
-        { status: 400 },
-      )
+      return NextResponse.json({ error: 'Please select a valid delivery area.' }, { status: 400 })
     }
 
     // Discount is recomputed here from the DB — the client code is only a request.
@@ -328,7 +303,7 @@ export async function POST(req: NextRequest) {
           customerName,
           customerPhone,
           customerEmail,
-          ...(customerId ? { customer: Number(customerId) } : {}),
+          ...(customerId ? { customer: customerId } : {}),
           deliveryAddress,
           area,
           items,

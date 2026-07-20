@@ -218,13 +218,8 @@ export type BrandCopy = {
   storeName: string
   emailGreeting: string
   emailFooterNote: string
-<<<<<<< HEAD
-  /** SiteSettings contactEmail — used as the Resend reply-to when set */
-  replyTo?: string
-=======
   /** Reply-to for transactional emails (SiteSettings → Brand → contactEmail) */
   contactEmail?: string
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 }
 
 export function resolveBrandCopy(settings: AnyRecord): BrandCopy {
@@ -236,11 +231,7 @@ export function resolveBrandCopy(settings: AnyRecord): BrandCopy {
     storeName: (settings.storeName as string) || DEFAULT_STORE_NAME,
     emailGreeting: (settings.emailGreeting as string) || DEFAULT_EMAIL_GREETING,
     emailFooterNote: (settings.emailFooterNote as string) || DEFAULT_EMAIL_FOOTER_NOTE,
-<<<<<<< HEAD
-    replyTo: (settings.contactEmail as string) || undefined,
-=======
     contactEmail,
->>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
   }
 }
 
