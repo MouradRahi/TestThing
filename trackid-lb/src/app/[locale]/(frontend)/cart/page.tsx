@@ -4,18 +4,42 @@ import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useCart } from '@/components/cart/CartContext'
+import { CartNotices } from '@/components/cart/CartNotices'
 import { Button } from '@/components/ui/Button'
+<<<<<<< HEAD
 import { hasStockConflict, cartHasStockConflicts } from '@/lib/cart'
+=======
+import { formatPrice } from '@/lib/format'
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
+  const { items, isLoading, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
   const t = useTranslations('cart')
   const tp = useTranslations('product')
   const stockConflicts = cartHasStockConflicts(items)
 
+  // Server cart still loading — skeleton, never a false "empty" flash
+  if (isLoading && items.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-12" aria-busy="true" aria-label={t('loading')}>
+        <div className="h-8 w-32 bg-surface animate-pulse mb-10" />
+        {[0, 1].map((i) => (
+          <div key={i} className="flex gap-4 py-6 border-b border-border">
+            <div className="w-20 h-24 bg-surface animate-pulse shrink-0" />
+            <div className="flex-1 space-y-3 pt-1">
+              <div className="h-4 w-2/3 bg-surface animate-pulse" />
+              <div className="h-3 w-1/3 bg-surface animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-6 py-32 text-center">
+        <CartNotices className="mb-8 text-start" />
         <h1 className="text-2xl font-bold text-foreground mb-3">{t('emptyTitle')}</h1>
         <p className="text-muted text-sm mb-10">{emptyCartMessage}</p>
         <Button href="/shop">{t('browseShop')}</Button>
@@ -25,6 +49,7 @@ export default function CartPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-12">
+      <CartNotices className="mb-8" />
       <div className="flex items-baseline justify-between mb-10">
         <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
         <span className="text-xs text-muted uppercase tracking-widest">
@@ -56,7 +81,7 @@ export default function CartPage() {
               <p className="text-sm text-foreground font-medium leading-snug">{item.title}</p>
               <p className="text-xs text-muted mt-1">
                 {item.size && <span className="me-2 uppercase">{tp('size')}: {item.size}</span>}
-                {t('each', { price: item.price })}
+                {t('each', { price: formatPrice(item.price) })}
               </p>
               {hasStockConflict(item) && (
                 <p className="text-[11px] text-red-400 mt-1.5">
@@ -87,7 +112,7 @@ export default function CartPage() {
             </div>
             <div className="text-right flex flex-col justify-between">
               <p className="text-sm text-foreground tabular-nums">
-                ${(item.price * item.quantity).toFixed(2)}
+                {formatPrice(item.price * item.quantity)}
               </p>
               <button
                 onClick={() => removeItem(item.key)}
@@ -104,7 +129,7 @@ export default function CartPage() {
       <div className="pt-8 space-y-3">
         <div className="flex justify-between text-sm text-muted">
           <span>{t('subtotal')}</span>
-          <span className="tabular-nums">${total.toFixed(2)}</span>
+          <span className="tabular-nums">{formatPrice(total)}</span>
         </div>
         <div className="flex justify-between text-xs text-muted">
           <span>{t('delivery')}</span>

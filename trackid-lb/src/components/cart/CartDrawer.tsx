@@ -5,13 +5,18 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
+<<<<<<< HEAD
 import { hasStockConflict, cartHasStockConflicts } from '@/lib/cart'
+=======
+import { CartNotices } from '@/components/cart/CartNotices'
+import { formatPrice } from '@/lib/format'
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 
 // Slide-over mini-cart. Opens on add-to-cart (and from the nav cart button) so
 // customers get immediate confirmation without a full-page navigation. The
 // full /cart and /checkout pages remain the source of truth.
 export function CartDrawer() {
-  const { items, isOpen, closeCart, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
+  const { items, isLoading, isOpen, closeCart, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
   const t = useTranslations('cart')
   const tp = useTranslations('product')
   const stockConflicts = cartHasStockConflicts(items)
@@ -54,7 +59,7 @@ export function CartDrawer() {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Shopping cart"
+        aria-label={t('title')}
         className={`absolute top-0 right-0 h-full w-full max-w-md bg-bg border-l border-border flex flex-col shadow-2xl transition-transform duration-300 ease-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
@@ -75,7 +80,13 @@ export function CartDrawer() {
           </button>
         </div>
 
-        {items.length === 0 ? (
+        <CartNotices className="mx-4 mt-4" />
+
+        {isLoading && items.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center" aria-busy="true">
+            <p className="text-muted text-xs uppercase tracking-widest animate-pulse">{t('loading')}</p>
+          </div>
+        ) : items.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center px-8 gap-5">
             <p className="text-muted text-sm">{emptyCartMessage}</p>
             <Link
@@ -150,7 +161,7 @@ export function CartDrawer() {
                           +
                         </button>
                       </div>
-                      <span className="text-sm text-foreground tabular-nums">${(item.price * item.quantity).toFixed(0)}</span>
+                      <span className="text-sm text-foreground tabular-nums">{formatPrice(item.price * item.quantity)}</span>
                     </div>
                   </div>
                 </li>
@@ -160,7 +171,7 @@ export function CartDrawer() {
             <div className="border-t border-border p-5 space-y-4 shrink-0">
               <div className="flex justify-between text-sm">
                 <span className="text-muted uppercase tracking-widest text-xs">{t('subtotal')}</span>
-                <span className="text-foreground tabular-nums">${total.toFixed(0)}</span>
+                <span className="text-foreground tabular-nums">{formatPrice(total)}</span>
               </div>
               <p className="text-[10px] text-muted/70">{t('deliveryNote')}</p>
               <Link

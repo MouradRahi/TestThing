@@ -18,7 +18,8 @@
     "removeShort": "Remove",
     "decrease": "Decrease quantity",
     "increase": "Increase quantity",
-    "each": "${price} each",
+    "each": "{price} each",
+    "loading": "Loading your cart…",
     "subtotal": "Subtotal",
     "delivery": "Delivery",
     "deliveryCalc": "Calculated at checkout",
@@ -26,9 +27,34 @@
     "checkout": "Checkout",
     "continueShopping": "Continue Shopping",
     "viewFullCart": "View full cart",
+<<<<<<< HEAD
     "stockNotice": "Availability changed for some items in your cart — adjust the quantities below before checking out.",
     "lineSoldOut": "This piece just sold out.",
     "lineOnlyLeft": "Only {count} left — reduce the quantity."
+=======
+    "noticeRemoved": "\"{title}\" is no longer available and was removed from your cart.",
+    "noticeRemovedGeneric": "An item is no longer available and was removed from your cart.",
+    "noticeSoldOut": "\"{title}\" just sold out — remove it or check back later.",
+    "noticeReduced": "Only {available} of \"{title}\" {available, plural, one {is} other {are}} left — please adjust the quantity.",
+    "noticeDismiss": "Dismiss cart notices"
+  },
+  "shop": {
+    "title": "Shop",
+    "noPieces": "No pieces",
+    "pieceCount": "{count} {count, plural, one {piece} other {pieces}}",
+    "searchPlaceholder": "Search pieces…",
+    "search": "Search",
+    "sort": "Sort",
+    "sortNewest": "Newest",
+    "sortPriceAsc": "Price ↑",
+    "sortPriceDesc": "Price ↓",
+    "all": "All",
+    "nothingFound": "Nothing found for “{query}”.",
+    "nothingYet": "Nothing here yet.",
+    "clearFilters": "Clear filters",
+    "firstPage": "← First Page",
+    "nextPage": "Next Page →"
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
   },
   "product": {
     "shop": "Shop",
@@ -91,12 +117,14 @@
     "reviewCart": "Review your cart"
   },
   "order": {
+    "metaTitle": "Order confirmed",
     "received": "Order received",
     "yourOrder": "Your Order",
     "subtotal": "Subtotal",
     "discount": "Discount",
     "delivery": "Delivery",
-    "deliveryFree": "Free / confirmed by phone",
+    "deliveryFree": "Free",
+    "deliveryByPhone": "Confirmed by phone",
     "total": "Total",
     "status": "Status",
     "payment": "Payment",
@@ -160,6 +188,33 @@
     "wishlistSave": "Save for later",
     "wishlistSaved": "Saved",
     "total": "Total"
+  },
+  "artist": {
+    "shop": "Shop",
+    "noPhoto": "No photo",
+    "browseAll": "Browse all {name} pieces",
+    "pieces": "Pieces — {name}"
+  },
+  "track": {
+    "metaTitle": "Track Order",
+    "metaDescription": "Check the status of your order using your order number.",
+    "title": "Track your order",
+    "intro": "Enter the order number from your confirmation — we’ll show you where your piece is.",
+    "orderNumber": "Order Number",
+    "placeholder": "e.g. TRK-123456-AB12",
+    "lookingUp": "Looking up…",
+    "cta": "Track Order"
+  },
+  "errors": {
+    "notFoundEyebrow": "Error 404",
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "The page you’re looking for doesn’t exist or may have moved.",
+    "backHome": "Back to home",
+    "errorEyebrow": "Something went wrong",
+    "errorTitle": "This page hit an error",
+    "errorBody": "Please try again, or head back to the shop.",
+    "tryAgain": "Try again",
+    "backToShop": "Back to shop"
   },
   "locale": {
     "label": "Language",

@@ -1,6 +1,7 @@
 import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { getTranslations } from 'next-intl/server'
+import { formatPrice } from '@/lib/format'
 
 type Props = {
   slug: string
@@ -41,7 +42,7 @@ export async function ProductCard({ slug, title, price, imageUrl, imageAlt, arti
           <p className="text-[10px] text-accent uppercase tracking-[0.2em]">{artistName}</p>
         )}
         <p className="text-sm text-foreground leading-snug">{title}</p>
-        <p className="text-sm text-muted">${price}</p>
+        <p className="text-sm text-muted">{formatPrice(price)}</p>
       </div>
     </Link>
   )

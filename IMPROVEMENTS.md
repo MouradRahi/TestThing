@@ -9,6 +9,8 @@
 > Goal: a complete, launch-ready e-commerce platform that is **fully white-label** — any brand identity should be expressible from the admin panel alone, with zero code changes.
 >
 > Status legend: ☐ todo · ☑ done
+>
+> **2026-07-11 (Session 22)**: active work now tracks in **`BUGS.md`** (defects) and **`ENHANCEMENTS.md`** (UI/UX + features, with the current execution order). This file remains the historical record of §1–§8. ⚠️ §8 (AI Assistant) and online payments are **on hold by owner directive** — don't pick them up.
 
 ---
 
@@ -116,9 +118,15 @@ The button is a full navigation to `?cursor=…` — the next page **replaces** 
 - ☑ Phone validation on checkout — generic international format (7–15 digits, optional +), client + server; kept brand-agnostic for white-label
 - ☑ Quantity selector on product page (− n +, clamped to stock; hidden for single-stock pieces)
 - ☑ Add-to-cart feedback: button shows "Added ✓" for ~1.6s
+<<<<<<< HEAD
 - ☑ Cart re-validates prices/stock against the server when rendered — server-backed cart re-resolves every line from the DB on read (Session 19); explicit sold-out / "only X left" notices in cart page + drawer + checkout (Session 20, checkout submit disabled on conflict)
 - ☑ Per-field server-side validation errors surfaced on the form (Session 20): orders API returns a `fields` map (`required`/`invalid` codes), FormField components render red border + message, localized client-side (en/ar), cleared on edit
 - ☑ Mini-cart drawer (see P4)
+=======
+- ☑ Cart re-validates prices/stock against the server when rendered — server-backed cart re-resolves every read (Session 19); catalog changes surface as dismissible notices (Session 20)
+- ☐ Per-field server-side validation errors surfaced on the form (currently one generic message)
+- ☐ Mini-cart drawer (see P4)
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 
 ### 2.6 Customer-notified status updates — ☑ FIXED (Session 9)
 Status changes (confirmed → shipped) happen in admin but the customer never hears about them.
@@ -142,8 +150,13 @@ The stated goal: a business owner expresses their **entire** brand from the admi
 ### 3.1 Dead SiteSettings fields (defined, never rendered) 🐛
 - ☑ `logoUrl` — rendered in Nav + Footer (text logo when blank); fixed-height `<img>` keeps the true aspect ratio. Email header still text-only (revisit with 3.2)
 - ☑ `ogImage` (SEO tab) — wired into layout `generateMetadata` as the default OG/Twitter image
+<<<<<<< HEAD
 - ☑ `contactEmail` — wired (Session 20): `resolveBrandCopy` carries it as `replyTo`, both Resend sends (confirmation + status) set it when present; shown as a mailto link in the footer brand column
 - ☑ `tagline` (Brand tab) — wired (Session 20): homepage `<title>` becomes `storeName — tagline` (inner pages keep `%s | storeName`); also used for OG/Twitter titles
+=======
+- ☑ `contactEmail` — `replyTo` on both order emails (confirmation + status, threaded via `BrandCopy`); shown as a mailto link in the footer brand column (Session 20)
+- ☑ `tagline` (Brand tab) — appended to the homepage default/OG/Twitter title (`Store — tagline`) and shown as the homepage empty-state headline (Session 20)
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 - ☑ `whatsappNumber` — floating WhatsApp chat button (`src/components/WhatsAppButton.tsx`, rendered in frontend layout); `getWhatsAppLink` helper sanitizes to a `wa.me` link. Renders only when a number is set
 
 ### 3.2 Hardcoded brand strings that must move to CMS — ☑ DONE (Session 11)
@@ -204,12 +217,14 @@ Every image today is "upload to Supabase dashboard by hand, copy the public URL,
 - ☑ Sharp generates thumbnail/card/feature sizes on upload; `alt` text lives with the file
 - ☑ **Picker (not migration)**: added an `upload`-relation field next to every existing URL field — `products.images[].image`, `artists.photoMedia`, SiteSettings `logo`/`ogImageMedia`/`faviconMedia`, hero/cta-banner `bgImageMedia`, slideshow `slides[].bgImageMedia`, image-text `imageMedia`. A `beforeValidate` hook (`src/lib/media-fill.ts → mediaUrl`) copies the picked media's public URL into the text field the storefront already reads — **zero component changes, existing URLs and manual entry still work**. Required URL fields relaxed to optional so the admin's client-side validation doesn't block picking media
 - ⚠️ Schema push needed: new `media` table + upload-relation columns only push on `npm run dev` (Payload dev-only schema sync) — run dev once before any prod build or it fails with `relation "media" does not exist`
+- ☑ Media grid search + bulk delete (Session 20): `MediaGridClient.tsx` — search box drives Payload's `?search=` list param (`listSearchableFields: ['alt','filename']`), Select mode overlays checkboxes on tiles, Delete Selected hits the REST API (`DELETE /api/media?where[id][in]=…`) with confirm + toast; selection UI hidden inside pick-an-image drawers
 - ☐ Later: drop the now-redundant URL text fields once all content is migrated to uploads (keep during transition)
 
-### 4.2 Generate Payload types (config exists, file doesn't)
+### 4.2 Generate Payload types — ☑ DONE (Session 20)
 `payload-types.ts` was never generated — every global/product is typed `Record<string, any>`, which is how dead fields (3.1) went unnoticed.
-- ☐ Add `"generate:types": "payload generate:types"` script, run it, commit the file
-- ☐ Replace `AnyRecord` casts in `site-settings.ts`, page components, and BlockRenderer with generated types
+- ☑ `npm run generate:types` → `scripts/generate-types.mjs` — bypasses the Payload CLI (its tsx loader fails on this machine's Node even at 24 LTS) by bundling the config with esbuild (`scripts/bundle-config.mjs`) and calling `generateTypes()` from `payload/node`. `src/payload-types.ts` generated + committed; the same mechanism now powers the `migrate:*` scripts (`scripts/migrate.mjs`) — **the "Node LTS only" migration constraint is gone**
+- ☑ The generated module augmentation makes the Local API strictly typed — surfaced 16 latent type errors (null vs undefined image URLs, wrong `customer` id type in the orders route, unormalized cart items in `mergeGuestCart`, missing `slug` in the garment-type seeding, `SiteSetting` casts), all fixed
+- ☐ Replace remaining explicit `AnyRecord` casts in `site-settings.ts`, page components, and BlockRenderer with generated types (cosmetic now — the API itself is typed)
 
 ### 4.3 Drafts, versions & preview — ☑ status field DONE (Session 13); versions + live preview deferred
 Pages and Homepage edits go live instantly (within cache TTL) with no undo.
@@ -269,8 +284,13 @@ A stats view inside the Payload admin so the owner sees business health at a gla
   - ⚠️ Schema push needed: new `discounts` table + `orders.discount_code`/`orders.discount_amount` columns push only on `npm run dev`
 - ☐ Instagram feed embed (deferred — waiting on handle)
 - ☐ WhatsApp Cloud API activation (code ready; needs Meta keys)
+<<<<<<< HEAD
 - ☑ Phase 10 i18n (Session 18): `next-intl` v4 (`localePrefix: 'as-needed'` → English `/shop`, Arabic `/ar/shop`); all `(frontend)` routes under `app/[locale]/`; RTL via `dir` (locale-set driven); Payload `localization: ['en','ar']` with `localized: true` on content fields + SiteSettings copy + Navigation labels; `locale` threaded through every storefront query; UI chrome translated + nav locale switcher; sitemap emits `/ar` variants. Adding a 3rd locale (`ja`) = 1 line in routing + a messages file + config locale. ⚠️ needs a `npm run dev` schema push. Deferred: homepage-block/product-alt localization, a few decorative strings, localized order emails
 - ☑ **Customer accounts** (Session 19) — **Phase A**: `Customers` auth collection, login/register/logout, `/account` dashboard (order history + saved addresses + wishlist + profile), orders linked to accounts, checkout prefill, product-page wishlist. **Phase B**: server-backed `Carts` collection (keyed by httpOnly `cart-session` cookie or customer) + `/api/cart` + rewritten `CartContext` (optimistic) + guest→account merge on login. **localStorage fully removed** — the no-localStorage mandate is satisfied. Bonus: the cart now re-resolves prices/stock server-side on every read (fixes stale prices). ⚠️ additive schema push (`carts` table). The "cart line changed/sold out" UI notice landed in Session 20 (cart page + drawer banners, checkout blocked on conflict)
+=======
+- ☑ Phase 10 i18n (Session 18): `next-intl` v4 (`localePrefix: 'as-needed'` → English `/shop`, Arabic `/ar/shop`); all `(frontend)` routes under `app/[locale]/`; RTL via `dir` (locale-set driven); Payload `localization: ['en','ar']` with `localized: true` on content fields + SiteSettings copy + Navigation labels; `locale` threaded through every storefront query; UI chrome translated + nav locale switcher; sitemap emits `/ar` variants. Adding a 3rd locale (`ja`) = 1 line in routing + a messages file + config locale. ⚠️ needs a `npm run dev` schema push. ☑ Decorative strings localized (Session 20): shop page (heading, piece count, search, sort, filters, empty states, pagination), track page + form, artist page (breadcrumb, no-photo, browse-all, pieces heading), 404 + error boundary, skip-link. Still deferred: homepage-block/product-alt localization, localized order emails
+- ☑ **Customer accounts** (Session 19) — **Phase A**: `Customers` auth collection, login/register/logout, `/account` dashboard (order history + saved addresses + wishlist + profile), orders linked to accounts, checkout prefill, product-page wishlist. **Phase B**: server-backed `Carts` collection (keyed by httpOnly `cart-session` cookie or customer) + `/api/cart` + rewritten `CartContext` (optimistic) + guest→account merge on login. **localStorage fully removed** — the no-localStorage mandate is satisfied. Bonus: the cart now re-resolves prices/stock server-side on every read (fixes stale prices). ⚠️ additive schema push (`carts` table). ☑ Cart-change notices (Session 20): `serializeCart` returns structured notices (line `removed` / `sold_out` / `reduced`), dead lines pruned from the stored cart, `CartNotices` banner (dismissible, translated en/ar) in the drawer + cart page
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 - ☐ Email capture / drop-announcement newsletter block (Resend Audiences)
 - ☐ Sitemap/staticParams limits (500/200) — fine for years; revisit if catalog explodes
 
@@ -286,6 +306,31 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 
 ---
 
+## 8. AI Assistant (Claude-powered) — planned Session 21
+
+> Owner request (2026-07-06): an AI assistant on the site with two faces — **a business/KPI copilot for the admin** and **a customer-support chat for shoppers**. Build on the Claude API (`@anthropic-ai/sdk`, model `claude-opus-4-8`, streaming + tool use); we host the loop in Next.js API routes, tools execute against Payload's Local API. Requires `ANTHROPIC_API_KEY` (server-only env, Vercel + local); everything degrades gracefully when unset (widget hidden, admin panel shows a setup note) — same pattern as Resend/WhatsApp.
+
+### 8.1 Shared foundation
+- ☐ `src/lib/assistant/` — Anthropic client singleton, streaming helper (SSE from a route handler), shared tool-execution loop (manual loop: check `stop_reason === "tool_use"`, run tools server-side, feed `tool_result` back)
+- ☐ Prompt caching: stable system prompt + tool definitions first with `cache_control`, per-request content after (keeps per-turn cost low)
+- ☐ Conversation state: client holds the message history (stateless API, same as the cart pre-accounts); cap history length server-side
+
+### 8.2 Admin KPI copilot
+- ☐ `POST /api/admin/assistant` — auth via Payload cookie (`payload.auth`) + `isAdmin` gate (mirrors the SalesDashboard gate); streams responses
+- ☐ Tools over the Orders/Products/CustomRequests data (reuse/extract the SalesDashboard aggregation logic): `get_sales_summary({range})` (revenue/orders/AOV + prior-period delta), `get_top_products`, `get_top_artists`, `get_sales_by_area`, `get_orders({status, range})`, `get_low_stock`, `get_custom_requests`, `get_discount_performance`
+- ☐ Chat UI in the Payload admin — panel alongside the SalesDashboard (`beforeDashboard` component or a dedicated admin view), client component
+- ☐ System prompt: store context (Lebanon, COD + bank transfer, USD, hand-painted one-of-a-kind pieces), instruction to answer with concrete numbers + one actionable insight
+
+### 8.3 Customer support chat
+- ☐ `POST /api/support/assistant` — public, rate-limited via `api-guards` (~20 msgs/10min/IP), honeypot-free (no form), history length caps
+- ☐ Tools (read-only, public-safe): `track_order({orderNumber})` (order number acts as the access token — same trust model as `/track`), `search_products({query})` (published only), `get_delivery_info()` (zones/fees/threshold from SiteSettings), `get_store_info()` (payment methods, WhatsApp contact), `get_page_content({slug})` (published CMS pages — FAQ/About as the policy source)
+- ☐ Guardrails in the system prompt: order lookups only with an order number; never reveal other customers' data; don't invent prices/policies — always use tools; escalate to the WhatsApp human channel when stuck; reply in the user's language (en/ar — locale passed with the request)
+- ☐ Chat widget on the storefront — floating button coexisting with (or wrapping) the WhatsApp button: assistant first, "talk to a human" opens wa.me; translated en/ar; RTL-aware
+- ☐ SiteSettings → new **Assistant** tab: `assistantEnabled` toggle, `assistantName`, `assistantExtraInstructions` (brand-voice addendum, localized) — keeps the white-label promise
+- ☐ Cost guard: per-IP rate limit + capped `max_tokens`; consider `claude-haiku-4-5` for the support side later if volume makes Opus pricing matter (owner decision)
+
+---
+
 ## Suggested Execution Order
 
 | Phase | Scope | Items |
@@ -293,13 +338,19 @@ A stats view inside the Payload admin so the owner sees business health at a gla
 | **9a — Trust the server** ☑ DONE (Session 9) | Order integrity & security | 1.1, 1.2, 1.4, 1.5, 1.6, 1.9, 1.11 |
 | **9b — Launch UX** ☑ DONE (Session 9; 2.5 partial — cart revalidation + per-field errors remain) | Customer-facing launch blockers | 1.7, 1.8, 1.10, 2.1, 2.2, 2.4, 2.5, mobile nav |
 | **10 — Commerce depth** ☑ DONE (Session 9; artist-filter dropdown scaling deferred) | 2.3 variants, 2.6 status updates, 2.7 search/sort, 1.3 revalidation hooks |
+<<<<<<< HEAD
 | **11 — True white-label** ☑ (S11+S20) | 3.1 dead fields ☑ (contactEmail + tagline closed S20) · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · remaining: 4.2 types (blocked on Node LTS) |
+=======
+| **11 — True white-label** ☑ (S11 + S20) | 3.1 dead fields ☑ · 3.5 favicon/OG ☑ · 3.3 fonts ☑ · 3.4 radius ☑ · 3.2 Copy tab ☑ · 4.2 types ☑ (S20, CLI blocker solved) · 3.1 leftovers (contactEmail reply-to ☑, tagline ☑ — S20) |
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
 | **12 — Admin experience** | 4.1 media uploads ☑ (S10) · 3.6 blocks-on-pages ☑ (S12) · 4.3 page drafts (status field) ☑ (S13) · 4.5 seed script ☑ (S14) · 4.6 dashboard v2 ☑ (S15) · remaining: 4.3 versions/live-preview (deferred), weekly email summary (deferred) |
 | **P4 — Storefront polish** ☑ (S16) | cart drawer, gallery, a11y (icons/aria/skip-link), canonicals, reactCompiler removal, honest `/shop` rendering; deferred: wishlist + recently-viewed |
 | **P5 — Growth** ☑ (S17) | discount codes ☑ · analytics (Vercel + GA4/Pixel) ☑ · deferred: newsletter, Instagram, WhatsApp keys |
 | **Localization (Phase 10)** ☑ (S18) | next-intl en/ar + RTL · routes under `[locale]` · Payload content localization · UI catalogs · locale switcher · sitemap `/ar`. ⚠️ localization schema push blanked existing (disposable) data → recovered via `npm run seed -- --reset` |
-| **Migrations workflow** ☑ (S18) | prod `push: false` (migration-only) · `migrate:*` scripts · `MIGRATIONS.md` · Vercel build runs `migrate`; ⚠️ CLI needs Node LTS |
-| **Next — Customer accounts** | server-backed accounts + order history; **removes the localStorage cart** (owner mandate); do via a reviewed migration |
+| **Migrations workflow** ☑ (S18, CLI unblocked S20) | prod `push: false` (migration-only) · `migrate:*` scripts · `MIGRATIONS.md` · Vercel build runs `migrate` |
+| **Customer accounts** ☑ (S19) | server-backed accounts + order history + server cart (localStorage removed) |
+| **Next — AI Assistant (§8)** | admin KPI copilot + customer support chat on the Claude API; then remaining deferred polish |
+| **Last — Online payments** | owner decision (2026-07-06): deferred to the end; Lebanon-viable gateways (Whish/Areeba), additive to the orders API |
 
 ---
 

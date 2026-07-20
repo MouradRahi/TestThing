@@ -21,6 +21,7 @@ import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
 import { Homepage } from './globals/Homepage'
+import { slugify } from './lib/slug'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -70,11 +71,15 @@ export default buildConfig({
       if (totalDocs === 0) {
         const defaults = ['Hoodie', 'T-Shirt', 'Jacket', 'Other']
         for (const name of defaults) {
+<<<<<<< HEAD
           // slug is filled by the collection's beforeValidate hook
           await payload.create({
             collection: 'garment-types',
             data: { name } as RequiredDataFromCollectionSlug<'garment-types'>,
           })
+=======
+          await payload.create({ collection: 'garment-types', data: { name, slug: slugify(name) } })
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
         }
       }
     } catch {

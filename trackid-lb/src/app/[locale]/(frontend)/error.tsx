@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/Button'
 
 // Frontend-group error boundary. Catches render/data errors in any storefront
@@ -12,6 +13,8 @@ export default function FrontendError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const t = useTranslations('errors')
+
   useEffect(() => {
     // Surfaces in server logs / browser console for debugging
     console.error(error)
@@ -19,13 +22,13 @@ export default function FrontendError({
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-28 text-center">
-      <p className="text-xs uppercase tracking-[0.3em] text-muted mb-6">Something went wrong</p>
-      <h1 className="text-2xl font-bold text-foreground mb-4 leading-tight">This page hit an error</h1>
-      <p className="text-muted mb-10">Please try again, or head back to the shop.</p>
+      <p className="text-xs uppercase tracking-[0.3em] text-muted mb-6">{t('errorEyebrow')}</p>
+      <h1 className="text-2xl font-bold text-foreground mb-4 leading-tight">{t('errorTitle')}</h1>
+      <p className="text-muted mb-10">{t('errorBody')}</p>
       <div className="flex gap-3 justify-center">
-        <Button onClick={reset}>Try again</Button>
+        <Button onClick={reset}>{t('tryAgain')}</Button>
         <Button href="/shop" variant="secondary">
-          Back to shop
+          {t('backToShop')}
         </Button>
       </div>
     </div>

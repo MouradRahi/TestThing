@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useRouter } from '@/i18n/navigation'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/FormField'
 
 export function TrackForm() {
+  const t = useTranslations('track')
   const router = useRouter()
   const [orderNumber, setOrderNumber] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,16 +23,16 @@ export function TrackForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <Field
-        label="Order Number"
+        label={t('orderNumber')}
         name="orderNumber"
         value={orderNumber}
         onChange={(e) => setOrderNumber(e.target.value)}
         required
-        placeholder="e.g. TRK-123456-AB12"
+        placeholder={t('placeholder')}
         autoComplete="off"
       />
       <Button type="submit" fullWidth disabled={loading}>
-        {loading ? 'Looking up…' : 'Track Order'}
+        {loading ? t('lookingUp') : t('cta')}
       </Button>
     </form>
   )

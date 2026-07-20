@@ -1368,9 +1368,18 @@ export interface SiteSetting {
    * Auto-filled from the logo above, or paste a Supabase Storage public URL. Leave blank to use the text logo.
    */
   logoUrl?: string | null;
+<<<<<<< HEAD
   tagline?: string | null;
   /**
    * Shown in order confirmation emails as reply-to.
+=======
+  /**
+   * Appended to the homepage browser-tab / social-share title ("Store — tagline") and shown on the homepage when no sections are configured.
+   */
+  tagline?: string | null;
+  /**
+   * Reply-to address on all order emails; also shown in the footer.
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
    */
   contactEmail?: string | null;
   /**

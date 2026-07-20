@@ -1,6 +1,6 @@
 import { getPayload } from '@/lib/payload'
 import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
-import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
+import { rateLimit, clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
 import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy } from '@/lib/site-settings'
 import { resolveDiscount } from '@/lib/discounts'
 import { getSizes } from '@/lib/stock'
@@ -162,6 +162,7 @@ export async function POST(req: NextRequest) {
       if (!/^\+?\d{7,15}$/.test(phoneDigits)) fieldErrors.customerPhone = 'invalid'
     }
 
+<<<<<<< HEAD
     // Compound condition doubles as the TS narrowing guard (string | null → string)
     if (
       !customerName || !customerPhone || !deliveryAddress || !area ||
@@ -172,6 +173,16 @@ export async function POST(req: NextRequest) {
         { error: 'Missing or invalid fields', fields: fieldErrors },
         { status: 400 },
       )
+=======
+    if (!isValidPhone(customerPhone)) {
+      return NextResponse.json({ error: 'Please enter a valid phone number.' }, { status: 400 })
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
+    }
+
+    // Optional, but when present it must be deliverable — a typo'd email means
+    // the confirmation silently never arrives.
+    if (customerEmail && !EMAIL_RE.test(customerEmail)) {
+      return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 })
     }
 
     const rawItems = Array.isArray(body.items) ? body.items : []
@@ -285,11 +296,11 @@ export async function POST(req: NextRequest) {
     const total = Math.max(0, subtotal - discountAmount) + deliveryFee
 
     // Link the order to the logged-in customer account, if any (guest orders have none)
-    let customerId: string | number | undefined
+    let customerId: number | undefined
     try {
       const { user } = await payload.auth({ headers: req.headers })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (user && (user as any).collection === 'customers') customerId = user.id
+      if (user && (user as any).collection === 'customers') customerId = Number(user.id)
     } catch {
       // not signed in — guest order
     }

@@ -2,17 +2,22 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useLocale } from 'next-intl'
-import type { CartItem } from '@/lib/cart'
+import type { CartItem, CartNotice } from '@/lib/cart'
 import { cartLineKey } from '@/lib/cart'
 
 type CartContextValue = {
   items: CartItem[]
+  /** False until the first server-cart fetch resolves — render skeletons, not "empty". */
+  isLoading: boolean
   addItem: (item: Omit<CartItem, 'quantity' | 'key'>, quantity?: number) => void
   removeItem: (key: string) => void
   updateQuantity: (key: string, qty: number) => void
   clearCart: () => void
   /** Re-fetch the server cart (e.g. after login merges the guest cart). */
   refreshCart: () => void
+  /** Catalog changes the server detected (line removed / sold out / stock reduced). */
+  notices: CartNotice[]
+  dismissNotices: () => void
   itemCount: number
   total: number
   /** CMS-driven copy shown on the empty cart page (SiteSettings → Copy). */
@@ -42,18 +47,23 @@ export function CartProvider({
 }) {
   const locale = useLocale()
   const [items, setItems] = useState<CartItem[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [notices, setNotices] = useState<CartNotice[]>([])
   const [isOpen, setIsOpen] = useState(false)
 
   const openCart = useCallback(() => setIsOpen(true), [])
   const closeCart = useCallback(() => setIsOpen(false), [])
+  const dismissNotices = useCallback(() => setNotices([]), [])
 
   const refreshCart = useCallback(() => {
     fetch(`/api/cart?locale=${locale}`)
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d?.items)) setItems(d.items)
+        if (Array.isArray(d?.notices)) setNotices(d.notices)
       })
       .catch(() => {})
+      .finally(() => setIsLoading(false))
   }, [locale])
 
   // Load the server cart after mount (and when locale changes → re-localized titles)
@@ -72,12 +82,22 @@ export function CartProvider({
           body: JSON.stringify({ ...body, locale }),
         })
         const d = await res.json().catch(() => null)
-        if (res.ok && Array.isArray(d?.items)) setItems(d.items)
+        if (res.ok) {
+          if (Array.isArray(d?.items)) setItems(d.items)
+          if (Array.isArray(d?.notices)) setNotices(d.notices)
+        } else {
+          // Rejected (sold out, invalid size, …) — undo the optimistic update by
+          // re-fetching the authoritative cart, and tell the customer why.
+          if (typeof d?.error === 'string' && d.error) {
+            setNotices((prev) => [...prev, { type: 'error', message: d.error }])
+          }
+          refreshCart()
+        }
       } catch {
         // network error — leave the optimistic state; next refresh reconciles
       }
     },
-    [locale],
+    [locale, refreshCart],
   )
 
   const addItem = useCallback(
@@ -128,7 +148,7 @@ export function CartProvider({
 
   return (
     <CartContext.Provider
-      value={{ items, addItem, removeItem, updateQuantity, clearCart, refreshCart, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}
+      value={{ items, isLoading, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}
     >
       {children}
     </CartContext.Provider>

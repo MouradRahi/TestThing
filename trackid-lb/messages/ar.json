@@ -18,7 +18,8 @@
     "removeShort": "إزالة",
     "decrease": "إنقاص الكمية",
     "increase": "زيادة الكمية",
-    "each": "${price} للقطعة",
+    "each": "{price} للقطعة",
+    "loading": "جارٍ تحميل سلتك…",
     "subtotal": "المجموع الفرعي",
     "delivery": "التوصيل",
     "deliveryCalc": "تُحتسب عند الدفع",
@@ -26,9 +27,34 @@
     "checkout": "إتمام الشراء",
     "continueShopping": "متابعة التسوّق",
     "viewFullCart": "عرض السلة كاملة",
+<<<<<<< HEAD
     "stockNotice": "تغيّر توفّر بعض القطع في سلتك — عدّل الكميات أدناه قبل إتمام الشراء.",
     "lineSoldOut": "نفدت هذه القطعة للتو.",
     "lineOnlyLeft": "تبقّى {count} فقط — قلّل الكمية."
+=======
+    "noticeRemoved": "«{title}» لم يعد متوفراً وتمت إزالته من سلتك.",
+    "noticeRemovedGeneric": "أحد المنتجات لم يعد متوفراً وتمت إزالته من سلتك.",
+    "noticeSoldOut": "«{title}» نفد للتو — أزله أو عاود التحقق لاحقاً.",
+    "noticeReduced": "تبقّى {available} فقط من «{title}» — الرجاء تعديل الكمية.",
+    "noticeDismiss": "إخفاء تنبيهات السلة"
+  },
+  "shop": {
+    "title": "المتجر",
+    "noPieces": "لا قطع",
+    "pieceCount": "{count} {count, plural, one {قطعة} other {قطع}}",
+    "searchPlaceholder": "ابحث عن قطعة…",
+    "search": "بحث",
+    "sort": "ترتيب",
+    "sortNewest": "الأحدث",
+    "sortPriceAsc": "السعر ↑",
+    "sortPriceDesc": "السعر ↓",
+    "all": "الكل",
+    "nothingFound": "لا نتائج لـ «{query}».",
+    "nothingYet": "لا شيء هنا بعد.",
+    "clearFilters": "مسح الفلاتر",
+    "firstPage": "→ الصفحة الأولى",
+    "nextPage": "الصفحة التالية ←"
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
   },
   "product": {
     "shop": "المتجر",
@@ -91,12 +117,14 @@
     "reviewCart": "راجع سلتك"
   },
   "order": {
+    "metaTitle": "تم تأكيد الطلب",
     "received": "تم استلام الطلب",
     "yourOrder": "طلبك",
     "subtotal": "المجموع الفرعي",
     "discount": "الخصم",
     "delivery": "التوصيل",
-    "deliveryFree": "مجاني / يُؤكَّد عبر الهاتف",
+    "deliveryFree": "مجاني",
+    "deliveryByPhone": "يُؤكَّد عبر الهاتف",
     "total": "الإجمالي",
     "status": "الحالة",
     "payment": "الدفع",
@@ -160,6 +188,33 @@
     "wishlistSave": "حفظ لوقت لاحق",
     "wishlistSaved": "محفوظ",
     "total": "الإجمالي"
+  },
+  "artist": {
+    "shop": "المتجر",
+    "noPhoto": "لا توجد صورة",
+    "browseAll": "تصفّح كل قطع {name}",
+    "pieces": "قطع — {name}"
+  },
+  "track": {
+    "metaTitle": "تتبّع الطلب",
+    "metaDescription": "تحقق من حالة طلبك باستخدام رقم الطلب.",
+    "title": "تتبّع طلبك",
+    "intro": "أدخل رقم الطلب من رسالة التأكيد — وسنعرض لك أين وصلت قطعتك.",
+    "orderNumber": "رقم الطلب",
+    "placeholder": "مثال: TRK-123456-AB12",
+    "lookingUp": "جارٍ البحث…",
+    "cta": "تتبّع الطلب"
+  },
+  "errors": {
+    "notFoundEyebrow": "خطأ 404",
+    "notFoundTitle": "الصفحة غير موجودة",
+    "notFoundBody": "الصفحة التي تبحث عنها غير موجودة أو ربما انتقلت.",
+    "backHome": "العودة إلى الرئيسية",
+    "errorEyebrow": "حدث خطأ ما",
+    "errorTitle": "واجهت هذه الصفحة خطأ",
+    "errorBody": "حاول مجدداً، أو عد إلى المتجر.",
+    "tryAgain": "حاول مجدداً",
+    "backToShop": "العودة إلى المتجر"
   },
   "locale": {
     "label": "اللغة",

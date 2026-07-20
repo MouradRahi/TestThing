@@ -9,13 +9,23 @@ import { CTABannerSection } from './CTABannerSection'
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Block = Record<string, any> & { blockType: string; hidden?: boolean }
 
-export function BlockRenderer({ sections }: { sections: Block[] }) {
+export function BlockRenderer({
+  sections,
+  emptyHeadline,
+}: {
+  sections: Block[]
+  /** Brand tagline shown when no sections are configured (homepage passes SiteSettings.tagline) */
+  emptyHeadline?: string
+}) {
   const visible = sections.filter(b => !b.hidden)
 
   if (!visible.length) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-center px-6">
         <div>
+          {emptyHeadline && (
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight mb-6">{emptyHeadline}</h1>
+          )}
           <p className="text-muted text-sm">No sections configured.</p>
           <p className="text-muted/40 text-xs mt-2 uppercase tracking-widest">
             Admin → Site Configuration → Homepage

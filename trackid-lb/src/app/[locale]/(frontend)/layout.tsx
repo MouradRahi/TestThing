@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Inter, Space_Grotesk, Playfair_Display, DM_Sans, Manrope } from 'next/font/google'
 import { NextIntlClientProvider, hasLocale } from 'next-intl'
-import { setRequestLocale } from 'next-intl/server'
+import { setRequestLocale, getTranslations } from 'next-intl/server'
 import { routing, isRtl } from '@/i18n/routing'
 import { CartProvider } from '@/components/cart/CartContext'
 import { CartDrawer } from '@/components/cart/CartDrawer'
@@ -32,7 +32,7 @@ const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font
 
 const fontVariables = [inter, spaceGrotesk, playfair, dmSans, manrope].map((f) => f.variable).join(' ')
 
-const OG_LOCALE: Record<string, string> = { en: 'en_US', ar: 'ar_AR' }
+const OG_LOCALE: Record<string, string> = { en: 'en_US', ar: 'ar_LB' }
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))
@@ -47,7 +47,11 @@ export async function generateMetadata({
   const settings = await getSiteSettings(locale)
   const storeName = (settings.storeName as string) || 'trackID.lb'
   const tagline = (settings.tagline as string) || ''
+<<<<<<< HEAD
   // Homepage title carries the brand tagline when set; inner pages keep "%s | store"
+=======
+  // The tagline rides along on the default (homepage) title; inner pages use the template
+>>>>>>> 5d6610bce63ba80a5e9557a74bf8f9061cc35328
   const defaultTitle = tagline ? `${storeName} — ${tagline}` : storeName
   const description =
     (settings.metaDescription as string) ||
@@ -89,7 +93,7 @@ export default async function FrontendLayout({
   // Enable static rendering for this locale
   setRequestLocale(locale)
 
-  const settings = await getSiteSettings(locale)
+  const [settings, tCommon] = await Promise.all([getSiteSettings(locale), getTranslations('common')])
   const cssVars = buildThemeCssVars(settings)
   const fontVars = {
     '--font-heading': resolveFontStack(settings.headingFont),
@@ -110,7 +114,7 @@ export default async function FrontendLayout({
               href="#main-content"
               className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:z-[70] focus:bg-accent focus:text-on-accent focus:px-4 focus:py-2 focus:text-xs focus:uppercase focus:tracking-widest ltr:focus:left-3 rtl:focus:right-3"
             >
-              Skip to content
+              {tCommon('skipToContent')}
             </a>
             {/* Announcement + nav stick together; nav is in normal flow so the bar is never covered */}
             <div className="sticky top-0 z-50">

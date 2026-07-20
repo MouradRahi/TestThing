@@ -7,8 +7,10 @@ import { AddToCart } from '@/components/product/AddToCart'
 import { ProductCard } from '@/components/product/ProductCard'
 import { ProductGallery } from '@/components/product/ProductGallery'
 import { WishlistButton } from '@/components/account/WishlistButton'
+import { RichTextRenderer } from '@/components/RichTextRenderer'
 import { getSizes, totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
+import { formatPrice } from '@/lib/format'
 import {
   getSiteSettings,
   resolveStoreName,
@@ -228,7 +230,7 @@ export default async function ProductPage({
 
           <h1 className="text-3xl font-bold text-foreground leading-tight">{product.title}</h1>
 
-          <p className="text-xl text-foreground">${product.price}</p>
+          <p className="text-xl text-foreground">{formatPrice(product.price)}</p>
 
           {product.isOneOfAKind && (
             <span className="inline-block text-[10px] uppercase tracking-[0.2em] text-accent border border-accent/40 px-2.5 py-1">
@@ -257,6 +259,15 @@ export default async function ProductPage({
               <WishlistButton productId={String(product.id)} fetchState />
             </div>
           </div>
+
+          {/* The piece's own story, written per-product in the admin (localized) */}
+          {product.description && (
+            <div className="pt-4 border-t border-border">
+              <RichTextRenderer
+                content={product.description as unknown as Parameters<typeof RichTextRenderer>[0]['content']}
+              />
+            </div>
+          )}
 
           <div className="pt-4 border-t border-border space-y-2 text-xs text-muted">
             {category && 'name' in category && 'slug' in category && (

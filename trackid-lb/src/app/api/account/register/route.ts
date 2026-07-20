@@ -1,10 +1,8 @@
 import { getPayload } from '@/lib/payload'
 import { setAuthCookie } from '@/lib/auth'
 import { CART_COOKIE, mergeGuestCart } from '@/lib/cart-server'
-import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
+import { rateLimit, clientIp, cleanString, cleanOptional, EMAIL_RE } from '@/lib/api-guards'
 import { NextRequest, NextResponse } from 'next/server'
-
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
 export async function POST(req: NextRequest) {
   if (!rateLimit(`register:${clientIp(req)}`, 5, 10 * 60_000)) {
