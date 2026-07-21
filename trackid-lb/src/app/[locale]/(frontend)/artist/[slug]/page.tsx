@@ -8,6 +8,7 @@ import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
 import { resolveAlt } from '@/lib/image'
 import { getSiteSettings, resolveStoreName } from '@/lib/site-settings'
+import { localizedAlternates } from '@/lib/seo'
 
 export const revalidate = 3600
 
@@ -45,7 +46,7 @@ export async function generateMetadata({
   return {
     title: artist.name,
     description,
-    alternates: { canonical: `/artist/${artist.slug}` },
+    alternates: localizedAlternates(`/artist/${artist.slug}`, locale),
     openGraph: {
       title: artist.name,
       description,

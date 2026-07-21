@@ -36,6 +36,12 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
   const { items, isLoading: cartLoading, total, clearCart } = useCart()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Stable for this checkout attempt (component lifetime) — a retried
+  // request (network timeout, double-tap before the button disables) reuses
+  // it and gets back the original order instead of creating a second one.
+  // Only successful orders get cached server-side, so retrying after a fixed
+  // validation error still goes through normally.
+  const [idempotencyKey] = useState(() => crypto.randomUUID())
   const [codeInput, setCodeInput] = useState('')
   const [discount, setDiscount] = useState<{ code: string; type: 'percentage' | 'fixed'; value: number } | null>(null)
   const [discountMsg, setDiscountMsg] = useState('')
@@ -122,7 +128,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
     try {
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
           ...form,
           discountCode: discount?.code,

@@ -7,11 +7,15 @@ import { Button } from '@/components/ui/Button'
 import { totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
 import { routing } from '@/i18n/routing'
+import { localizedAlternates } from '@/lib/seo'
 import type { Where } from 'payload'
 
 // Filter/search/sort variants all point back to the base shop URL for SEO.
-export const metadata: Metadata = {
-  alternates: { canonical: '/shop' },
+// A locale-aware function (not a static object) — the canonical must be
+// /shop on the English site but /ar/shop on the Arabic one (BUGS.md B9).
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale()
+  return { alternates: localizedAlternates('/shop', locale) }
 }
 
 // /shop reads searchParams (filters, search, sort, cursor) so it renders

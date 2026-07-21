@@ -1,10 +1,12 @@
 import { getPayload } from '@/lib/payload'
-import { rateLimit, clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
+import { clientIp, cleanString, cleanOptional } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
   try {
-    if (!rateLimit(`custom-requests:${clientIp(req)}`, 3, 10 * 60_000)) {
+    const payload = await getPayload()
+    if (!(await durableRateLimit(payload, `custom-requests:${clientIp(req)}`, 3, 10 * 60_000))) {
       return NextResponse.json(
         { error: 'Too many requests from this connection. Please wait a few minutes and try again.' },
         { status: 429 },
@@ -31,8 +33,6 @@ export async function POST(req: NextRequest) {
     if (!name || !phone || !description || email === null || referenceArtist === null || referenceSong === null) {
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
     }
-
-    const payload = await getPayload()
 
     // Validate the garment type against the admin-managed list (ignore if unknown)
     let garmentType: string | number | undefined = undefined

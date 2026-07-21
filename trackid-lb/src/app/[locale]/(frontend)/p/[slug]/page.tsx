@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { RichTextRenderer } from '@/components/RichTextRenderer'
 import { BlockRenderer } from '@/components/sections/BlockRenderer'
+import { localizedAlternates } from '@/lib/seo'
 
 export const revalidate = 300
 export const dynamicParams = true
@@ -37,7 +38,7 @@ export async function generateMetadata({
   return {
     title: seo?.metaTitle || page.title,
     description: seo?.metaDescription || undefined,
-    alternates: { canonical: `/${slug}` },
+    alternates: localizedAlternates(`/${slug}`, locale),
   }
 }
 

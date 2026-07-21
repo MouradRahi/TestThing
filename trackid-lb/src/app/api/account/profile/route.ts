@@ -1,16 +1,17 @@
 import { getPayload } from '@/lib/payload'
-import { rateLimit, clientIp, isValidPhone } from '@/lib/api-guards'
+import { clientIp, isValidPhone } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
 // Update the logged-in customer's own profile (name, phone, saved addresses).
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`profile:${clientIp(req)}`, 20, 10 * 60_000)) {
+  const payload = await getPayload()
+  if (!(await durableRateLimit(payload, `profile:${clientIp(req)}`, 20, 10 * 60_000))) {
     return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
   }
 
-  const payload = await getPayload()
   const { user } = await payload.auth({ headers: req.headers })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!user || (user as any).collection !== 'customers') {

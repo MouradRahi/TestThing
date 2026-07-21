@@ -1,11 +1,13 @@
 import { getPayload } from '@/lib/payload'
 import { setAuthCookie } from '@/lib/auth'
 import { CART_COOKIE, mergeGuestCart } from '@/lib/cart-server'
-import { rateLimit, clientIp, cleanString } from '@/lib/api-guards'
+import { clientIp, cleanString } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`login:${clientIp(req)}`, 10, 10 * 60_000)) {
+  const payload = await getPayload()
+  if (!(await durableRateLimit(payload, `login:${clientIp(req)}`, 10, 10 * 60_000))) {
     return NextResponse.json({ error: 'Too many attempts. Please wait a few minutes.' }, { status: 429 })
   }
 
@@ -16,7 +18,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Enter your email and password.' }, { status: 400 })
   }
 
-  const payload = await getPayload()
   try {
     const result = await payload.login({
       collection: 'customers',

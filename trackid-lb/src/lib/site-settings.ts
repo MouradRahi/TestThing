@@ -210,6 +210,25 @@ export const DEFAULT_EMAIL_FOOTER_NOTE = "Lebanon's music fashion brand."
 export const DEFAULT_PRODUCT_BLURB =
   'Hand-painted in Beirut. Each piece is unique — colours and details may vary slightly from the photo.'
 export const DEFAULT_PRODUCT_META_TAGLINE = 'One-of-a-kind piece, made in Lebanon.'
+export const DEFAULT_PRODUCT_META_PATTERN = 'Hand-painted by {store} — {title}. {tagline}'
+
+/**
+ * Product SEO/social description — was hardcoded English on every locale
+ * (BUGS.md B10); now built from the (localized) Copy-tab pattern so an /ar
+ * page gets Arabic meta copy, and a white-label reseller isn't stuck with
+ * "Hand-painted" in their JSON-LD regardless of vertical.
+ */
+export function resolveProductMetaDescription(
+  settings: AnyRecord,
+  vars: { store: string; title: string; tagline: string },
+): string {
+  const pattern = (settings.productMetaPattern as string) || DEFAULT_PRODUCT_META_PATTERN
+  return pattern
+    .replace('{store}', vars.store)
+    .replace('{title}', vars.title)
+    .replace('{tagline}', vars.tagline)
+    .trim()
+}
 export const DEFAULT_EMPTY_CART_MESSAGE = 'Find a piece that speaks to you.'
 export const DEFAULT_ORDER_THANKYOU_NOTE =
   'Our team will reach out shortly to confirm your delivery details. Keep your phone nearby.'

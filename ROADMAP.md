@@ -53,11 +53,21 @@ adjacent phases as we go.
 
 ---
 
-## Part 1 — Foundation hardening (prerequisite for money)
+## Part 1 — Foundation hardening (prerequisite for money) — ☑ SUBSTANTIALLY DONE (Session 22)
 
 You cannot run online payments on the current operational setup. These are not
 nice-to-haves — a payment dispute with no audit trail, or a webhook lost to an
 in-memory queue, is real money lost.
+
+All seven sub-items are now code-complete and verified (1.1–1.7). Two small
+non-code items remain, both one-off manual actions rather than build work:
+create the `products` storage bucket in the dev Supabase project (1.1 leftover),
+and run the one-line `payload_migrations` INSERT on **prod** before the next
+deploy so its build doesn't try to re-create tables that already exist there
+(1.2 — SQL in MIGRATIONS.md §Baselining). The two *new* migrations from this
+session (rate-limit/idempotency, audit-log) need no such treatment on prod —
+those tables are genuinely new there, so `npm run migrate` on deploy will
+create them for real, same as any normal migration.
 
 ### 1.1 Split dev/prod databases ⚠️ do this first — ☑ DONE (Session 21)
 - ☑ New disposable Supabase project for dev (`lsrmtpazcdksdllfrsqw`, ap-southeast-2); `.env.local` fully repointed (DB + storage + S3 keys), `PAYLOAD_PUSH=true` set
@@ -69,24 +79,27 @@ in-memory queue, is real money lost.
 - ◐ Baseline migration created + marked applied — dev ☑ (Session 22); prod needs the one-line INSERT (MIGRATIONS.md §Baselining) before next deploy
 - ☐ Every schema change in this roadmap ships as a reviewed migration file
 
-### 1.3 Durable rate limiting + idempotency
-- ☐ Replace the in-memory sliding-window limiter (`api-guards.ts`) with Upstash Redis (or Vercel KV) — the in-memory one resets per serverless instance, useless against a real attack and dangerous around payment endpoints
-- ☐ Idempotency-key support on `POST /api/orders` and all payment endpoints (client sends a UUID; duplicate submissions return the original result instead of double-charging/double-decrementing)
+### 1.3 Durable rate limiting + idempotency — ☑ DONE (Session 22, part 10)
+- ☑ **Durable rate limiting** — `src/lib/durable-rate-limit.ts` replaces the in-memory sliding-window map with a Postgres-backed fixed-window counter (`rate_limit_counters` table, new collection). **Chose Postgres over Upstash/Vercel KV** — the actual problem (per-instance in-memory state doesn't survive across serverless instances) is solved just as well by the database every instance already shares, with zero new external account/service/env-var needed. A single atomic UPSERT does the whole read-window/decide/write cycle (mirrors the stock-decrement and discount-redemption atomic patterns already in this codebase) — two concurrent requests for the same key can't both slip through. Falls back to the old in-memory limiter only if the pool is unreachable. **All 11 call sites swapped** (orders, cart, login, register, forgot/reset/change-password, profile, wishlist, custom-requests, discount-validate) — the in-memory version is no longer used anywhere except as that fallback. Verified against the real dev DB: 3 hits under a limit of 3 all allowed, the 4th correctly rejected, confirmed again via real HTTP requests against a running server (3/10min limit on `/api/custom-requests` correctly allowed 3 then 429'd the 4th).
+- ☑ **Idempotency-key support** on `POST /api/orders` — `src/lib/idempotency.ts` (new `idempotency-keys` collection). Client (`CheckoutForm.tsx`) generates one UUID per checkout attempt (stable for the component's lifetime via `useState(() => crypto.randomUUID())`) and sends it as an `Idempotency-Key` header; a retried request with the same key returns the original order response instead of creating a second order. Only successful (201) responses are cached, so retrying after a fixed validation error still goes through normally. Verified against a real running server: POSTing the same order twice with the same key returned the identical `orderNumber` both times, stock decremented exactly once (not twice), and exactly one order document existed in the DB afterward.
+- Payment endpoints don't exist yet (Whish skipped, cards/OMT not built) — the idempotency pattern is ready to extend to them when F1/F2 land.
 
 ### 1.4 Observability
 - ◐ **Sentry wired (Session 22, part 7)** — client + RSC/route-handler error boundaries report to Sentry (`error.tsx`, `global-error.tsx`, `reportServerError()` helper); fully optional, zero build/bundle cost with no `NEXT_PUBLIC_SENTRY_DSN` set (verified: bundle sizes identical with/without the code present). ⚠️ **`onRequestError` (the Next.js hook that catches errors bypassing app-level try/catch) is deliberately NOT wired** — even behind a runtime guard, exporting it forces Next.js to inline the full SDK into the edge/middleware bundle unconditionally (~80KB verified), which this project's minimal-middleware philosophy doesn't justify for a locale-routing middleware. Coverage instead relies on explicit `reportServerError()` calls in route catch blocks — **only wired into `orders/route.ts` so far**; adopt it in other routes' catch blocks as they're touched (cart, discounts/validate, custom-requests), and revisit `onRequestError` if edge/middleware errors turn out to be a real blind spot in practice. Needs a `NEXT_PUBLIC_SENTRY_DSN` (+ optionally `SENTRY_ORG`/`SENTRY_PROJECT`/`SENTRY_AUTH_TOKEN` for source maps) from a Sentry account — not yet set.
 - ☐ Structured logging on all payment/webhook paths (who, what, provider ref, amount) — natural extension of `reportServerError()`'s `context` param once F1 payments land
 
-### 1.5 Audit log
-- ☐ `AuditLog` collection: admin actions on Orders (status changes, refunds), Discounts, SiteSettings — who changed what, when, from/to. Payload `afterChange` hooks. Required for dispute resolution and multi-staff stores.
+### 1.5 Audit log — ☑ DONE (Session 22, part 10)
+- ☑ `AuditLog` collection (`src/collections/AuditLog.ts`, `src/lib/audit-log.ts`) — logs who changed what, when. Wired into three `afterChange`/`afterDelete` hooks: **Orders** (orderStatus/paymentStatus transitions, with before→after values — orders are only ever updated from admin, the storefront API only creates, so this cleanly captures "admin changed a status"), **Discounts** (create/update/delete — `usageCount` bumps via raw SQL bypass Payload's hooks entirely, so this only ever fires for genuine admin edits, never the automatic per-order redemption), **SiteSettings** (which top-level fields changed). Uses a shallow top-level-key diff (`changedTopLevelFields()`) rather than a deep/rich-text-aware diff — enough to know *what* was touched, not a full value history. `logAuditEvent()` silently no-ops if there's no authenticated staff user on the request (never blocks the underlying save over a logging concern) and snapshots the admin's email (survives that user account later being deleted). Verified against the real dev DB: simulated an admin-driven order status change, a discount create+update, and two SiteSettings updates — all four produced correct, correctly-worded audit rows.
 
-### 1.6 Admin account security
-- ☐ 2FA for admin users (TOTP — Payload supports custom auth strategies) or at minimum enforced strong passwords + login-attempt lockout
-- ☐ Role review: granular gates on Products/Pages/Settings (the 1.11 leftover)
+### 1.6 Admin account security — ☑ DONE (Session 22, part 10)
+- ☑ **Login-attempt lockout** — turned out to need zero new code. Payload's `auth: true` default (used by `Users.ts` all along) already sets `maxLoginAttempts: 5` / `lockTime: 10min` unless explicitly overridden, which nobody had. Verified end-to-end with a throwaway staff account: 5 failed logins locked the account, and the 6th attempt was rejected *even with the correct password*. Full TOTP 2FA (the roadmap's stronger alternative) stays a real future upgrade if this ever proves insufficient, but the roadmap's own "or at minimum" bar is met.
+- ☑ **Enforced strong passwords** — Payload's own default password `minLength` is a permissive 3 characters with no complexity check, and there's no built-in collection-level override for it. Added a `beforeValidate` hook on `Users.ts`: staff passwords must be ≥12 characters and include both a letter and a number (stricter than the storefront's 8-char customer minimum, since a compromised staff account is higher-stakes). Verified: `short1`, an 18-char letters-only string, and a 12-digit-only string were all correctly rejected; a 22-char mixed password was correctly accepted.
+- ☑ **Role review (the 1.11 leftover)** — Products, Pages, Categories, Artists had *no access block at all* (Payload's actual default, confirmed by reading its source, is `Boolean(user)` — any authenticated user of *any* auth collection, not gated by role at all); GarmentTypes/Media only specified public `read`. Editors still need to manage the catalog day-to-day, so `create`/`update` stay open to any staff — only `delete` is now admin-only on all six (mirrors the Orders/Users pattern already fixed in Session 9). **SiteSettings** (the "Settings" the roadmap explicitly named) went further: `update` itself is admin-only, since it governs money-relevant config (delivery zones, bank transfer instructions) that isn't routine editorial work the way product/page edits are. Verified against the real dev DB with a throwaway editor account: editor could update a product but not delete it, could not update SiteSettings at all; an admin could do both.
 
-### 1.7 Automated test safety-net
-- ☐ Playwright smoke suite: browse → add to cart → checkout (COD) → order appears in admin. Runs in CI before deploy. *(No CI pipeline exists yet either — this needs a GitHub Actions workflow as part of the same lift.)*
-- ☑ **Unit tests for money math (Session 22, part 8)** — Vitest (`npm test` / `npm run test:watch`), 25 tests across 4 files: `computeDiscountAmount` (percentage/fixed, subtotal clamping, rounding, negative/zero-subtotal edge cases), `resolveDeliveryFee`/`getDeliveryZones` (no-zones free mode, zone match, no-match rejection, free-delivery threshold, malformed-data filtering), `getSizes`/`totalStock` (sized vs. flat stock, malformed rows), `cartLineKey` (line uniqueness per product+size). Deliberately scoped to functions that were **already pure** — stock decrement/restock and discount redemption stay DB-coupled (atomic SQL, verified manually per-change so far, see B4/B14 session notes) and are Playwright/integration-test territory, not unit-test territory; forcing them into unit tests would mean mocking away the exact atomicity behavior that matters.
+### 1.7 Automated test safety-net — ☑ DONE (Session 22, parts 8–9)
+- ☑ **Unit tests for money math** — Vitest (`npm test` / `npm run test:watch`), 25 tests across 4 files: `computeDiscountAmount` (percentage/fixed, subtotal clamping, rounding, negative/zero-subtotal edge cases), `resolveDeliveryFee`/`getDeliveryZones` (no-zones free mode, zone match, no-match rejection, free-delivery threshold, malformed-data filtering), `getSizes`/`totalStock` (sized vs. flat stock, malformed rows), `cartLineKey` (line uniqueness per product+size). Deliberately scoped to functions that were **already pure** — stock decrement/restock and discount redemption stay DB-coupled (atomic SQL, verified manually per-change so far, see B4/B14 session notes) and are Playwright/integration-test territory, not unit-test territory; forcing them into unit tests would mean mocking away the exact atomicity behavior that matters.
+- ☑ **Playwright smoke suite** (`e2e/checkout.spec.ts`, `npm run test:e2e`) — browse `/shop` → open a product → (pick a size if sized) → Add to Cart → Checkout (from the mini-cart drawer) → fill delivery/payment (COD) → Place Order → asserts the redirect lands on `/order/<number>` and the confirmation page renders that same number (proof the order was actually persisted, not just that the form submitted). Deliberately catalog-agnostic — picks "whichever product/zone is first" rather than hardcoding demo data names, so it survives reseeds/edits to the dev catalog. Runs against a real `next build && next start` (not dev mode) for pre-deploy fidelity. Verified passing twice against the real dev DB.
+- ☑ **First CI pipeline for this repo** — `.github/workflows/test.yml`: unit tests + `tsc --noEmit` run on every push/PR with no setup; the E2E job needs `CI_*` repository secrets (pointed at the **dev** Supabase project only, documented in DEPLOY.md §5a) that aren't added yet — safe to leave inactive, it just skips.
 - Why: a sellable product cannot regress checkout with every feature added; payments make this mandatory
 
 ---
@@ -388,7 +401,7 @@ The features "any business could possibly require" that aren't payments/reports/
 
 | Phase | Contents | Size | Depends on |
 |---|---|---|---|
-| **F0 — Foundation** | Part 1 (DB split, baseline migration, Upstash, Sentry, audit log, Playwright smoke) + Part 0 quick items | M | — |
+| **F0 — Foundation** ☑ DONE (Session 22) | Part 1 (DB split ☑, migrations ☑, durable rate-limit+idempotency ☑, Sentry ◐, audit log ☑, admin security ☑, Playwright+unit tests ☑) + Part 0 quick items | M | — |
 | **F1 — Payments core + cards** | 2.1 abstraction, 2.3 card gateway (Areeba MPGS / NetCommerce), 2.5 currency, stock reservation + expiry cron *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
 | **F2 — OMT + refunds + reconciliation** | 2.4, 2.6, 2.7 | M | F1 |
 | **F3 — Invoicing & fulfillment** | Part 3 (invoices/VAT, courier, inventory ops) | M | F0; invoices richer after F1 |

@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { formatSlug } from '../lib/slug'
 import { safeRevalidatePath } from '../lib/revalidate'
 import { fillBlocksMedia } from '../lib/media-fill'
+import { isAdmin } from '../lib/access'
 import { HeroBlock } from '../globals/blocks/hero'
 import { SlideshowBlock } from '../globals/blocks/slideshow'
 import { FeaturedProductsBlock } from '../globals/blocks/featured-products'
@@ -22,6 +23,13 @@ export const Pages: CollectionConfig = {
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'slug', 'status', 'updatedAt'],
+  },
+  // Editors manage content day-to-day; only admins can delete (ROADMAP F0 §1.6).
+  access: {
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => isAdmin(req.user),
   },
   hooks: {
     // Picked Media on any section block → copy its public URL into the text field the section reads

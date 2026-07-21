@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { isAdmin } from '../lib/access'
+import { logAuditEvent, changedTopLevelFields } from '../lib/audit-log'
 
 // Discount codes applied at checkout. The actual discount is always recomputed
 // server-side in the orders API (see src/lib/discounts.ts) — the code field on
@@ -16,6 +17,41 @@ export const Discounts: CollectionConfig = {
     create: ({ req }) => isAdmin(req.user),
     update: ({ req }) => isAdmin(req.user),
     delete: ({ req }) => isAdmin(req.user),
+  },
+  hooks: {
+    // Audit trail (ROADMAP F0 §1.5). Note: usageCount is bumped via raw SQL
+    // in src/lib/discounts.ts (redeemDiscount/releaseDiscount), which bypasses
+    // Payload's hooks entirely — so this only ever fires for genuine
+    // admin-driven edits (create/update/delete are already isAdmin-gated
+    // above), never for the automatic per-order redemption count.
+    afterChange: [
+      async ({ doc, previousDoc, operation, req }) => {
+        const changes = operation === 'create' ? Object.keys(doc) : changedTopLevelFields(previousDoc, doc)
+        if (operation === 'update' && changes.length === 0) return
+        await logAuditEvent(req.payload, {
+          collectionSlug: 'discounts',
+          documentId: String(doc.id),
+          action: operation === 'create' ? 'create' : 'update',
+          req,
+          summary:
+            operation === 'create'
+              ? `Discount code ${doc.code} created`
+              : `Discount code ${doc.code} updated: ${changes.join(', ')}`,
+          changedFields: changes,
+        })
+      },
+    ],
+    afterDelete: [
+      async ({ doc, req }) => {
+        await logAuditEvent(req.payload, {
+          collectionSlug: 'discounts',
+          documentId: String(doc.id),
+          action: 'delete',
+          req,
+          summary: `Discount code ${doc.code} deleted`,
+        })
+      },
+    ],
   },
   fields: [
     {

@@ -18,6 +18,7 @@ import {
   resolveFontStack,
   DEFAULT_EMPTY_CART_MESSAGE,
 } from '@/lib/site-settings'
+import { localizedAlternates } from '@/lib/seo'
 import './globals.css'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -59,6 +60,10 @@ export async function generateMetadata({
     title: { default: defaultTitle, template: `%s | ${storeName}` },
     description,
     metadataBase: new URL(siteUrl),
+    // Layout-level default — only the homepage has no page-level override for
+    // this; every other route sets its own (more specific) alternates, which
+    // wins per Next.js's metadata merge rules.
+    alternates: localizedAlternates('/', locale),
     ...(faviconUrl ? { icons: { icon: faviconUrl } } : {}),
     openGraph: {
       siteName: storeName,

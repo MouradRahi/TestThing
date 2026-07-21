@@ -37,7 +37,7 @@ Every other public POST route uses `rateLimit()`; the cart route uses none. A co
 
 ---
 
-## P1 — Visible wrongness
+## P1 — Visible wrongness — ☑ ALL FIXED (Session 22, part 11)
 
 ### B5 ☑ FIXED (Session 22) — Cart & checkout flash "empty" while the server cart loads
 `CartContext` starts with `items: []` and no loading flag; `/checkout` and `/cart` render their empty states immediately, then pop the items in when `GET /api/cart` returns. On a slow connection a customer with a full cart sees "Your cart is empty / Find a piece that speaks to you" for seconds — on checkout, that's an abandonment trigger.
@@ -59,24 +59,25 @@ The search `<form action="/shop">` submits a plain GET to the unprefixed path �
 - **Fix**: compute the action with the locale prefix (`locale === 'en' ? '/shop' : '/' + locale + '/shop'`), or a tiny client wrapper using `useRouter` from `@/i18n/navigation`. Audit for the same pattern anywhere else a raw `action`/`href` string is used (TrackForm uses the i18n router ✓ — verify).
 - Files: `src/app/[locale]/(frontend)/shop/page.tsx:106`.
 
-### B9 ☐ Arabic pages declare the English URL as canonical; no hreflang anywhere
+### B9 ☑ FIXED (Session 22, part 11) — Arabic pages declare the English URL as canonical; no hreflang anywhere
 Product/artist/shop/pages set `alternates.canonical: '/product/<slug>'` etc. — unprefixed, so on `/ar/product/x` the canonical tag points to the **English** page. Search engines are being told the Arabic site is a duplicate of the English one; combined with zero `alternates.languages` (hreflang), Arabic content will effectively never rank. The sitemap emits `/ar` URLs whose pages then canonicalize away from themselves — contradictory signals.
-- **Fix**: make canonicals locale-aware (prefix for non-default locales) and add `alternates.languages` (`en`, `ar`, `x-default`) in every `generateMetadata` that sets a canonical + the layout. Consider a small helper `localizedAlternates(path, locale)` in `src/lib/`.
-- Files: `product/[slug]/page.tsx:60`, `artist/[slug]/page.tsx`, `shop/page.tsx:12-14`, `[slug]/page.tsx`, `p/[slug]/page.tsx`, `(frontend)/layout.tsx`.
+- **Fixed**: new `src/lib/seo.ts → localizedAlternates(path, locale)` — canonical points at the *current* locale's own URL, `languages` lists every locale plus `x-default`. Applied to all 5 spots: `product/[slug]`, `artist/[slug]`, `[slug]` + `p/[slug]` (the CMS-page renderer and its `/p` alias, both already canonicalized to the clean URL — now locale-aware too), and the root `(frontend)/layout.tsx` (the homepage's own metadata — it has no page-level override, so this is what actually governs `/` and `/ar`). `shop/page.tsx` needed converting from a static `export const metadata` to an async `generateMetadata()` since a static object can't read the request locale. Verified against a real built+started server: `/product/x` correctly canonicals to itself (no prefix) with `hreflang="ar"` pointing at `/ar/product/x`; `/ar/product/x` correctly canonicals to `/ar/product/x` with the full en/ar/x-default set present on both.
+- Files: `src/lib/seo.ts` (new), `product/[slug]/page.tsx`, `artist/[slug]/page.tsx`, `shop/page.tsx`, `[slug]/page.tsx`, `p/[slug]/page.tsx`, `(frontend)/layout.tsx`.
 
-### B10 ☐ Product SEO copy is hardcoded English (and brand-voice-locked) for every locale
+### B10 ☑ FIXED (Session 22, part 11) — Product SEO copy is hardcoded English (and brand-voice-locked) for every locale
 `generateMetadata` + JSON-LD build `"Hand-painted by ${storeName} — …"` — the phrase is baked-in English even on `/ar` pages (Arabic pages get English meta descriptions) and locks the "hand-painted" brand voice into code, which 3.2 (white-label Copy tab) was supposed to have eliminated. Same string in the JSON-LD `description`.
-- **Fix**: move the pattern into the Copy tab (localized field, e.g. `productMetaPattern` with `{title}`/`{store}` placeholders, defaulting to the current text) or at minimum translate via `messages/*.json` and interpolate.
-- Files: `product/[slug]/page.tsx:55,122`, `src/globals/SiteSettings.ts`, `src/lib/site-settings.ts`.
+- **Fixed**: new **localized** Copy-tab field `productMetaPattern` (`SiteSettings.ts`), default `'Hand-painted by {store} — {title}. {tagline}'`, plus `resolveProductMetaDescription()` (`site-settings.ts`) that interpolates it. Also fixed `productMetaTagline` itself missing `localized: true` — it was a per-brand override but not a per-*locale* one, the same bug in miniature. Both `generateMetadata`'s meta description and the JSON-LD `description` now call the same resolver (previously the JSON-LD version was a second, slightly different hardcoded copy that was even missing the tagline). An admin can now translate the whole pattern per locale — word order legitimately differs in Arabic, which a placeholder-only translation wouldn't fix — and a white-label reseller isn't stuck with "Hand-painted" regardless of vertical. Verified: built page's `<meta name="description">` and JSON-LD `description` now both read "Hand-painted by trackID.lb — Vinyl Enamel Pin. One-of-a-kind piece, made in Lebanon." — correctly interpolated and, for the first time, identical to each other.
+- Files: `src/globals/SiteSettings.ts`, `src/lib/site-settings.ts`, `product/[slug]/page.tsx`.
 
 ### B11 ☑ FIXED (Session 22) — Order confirmation says delivery is "Free" when the store has no zones configured
 The page renders `deliveryFee > 0 ? $X : "Free"`. For a store without delivery zones the fee is 0 because it's **unknown** (checkout correctly says "confirmed by phone") — but the confirmation page and the customer's mental record say "Free". Wrong promise, support burden.
 - **Fix**: thread the same `zonesConfigured` distinction the orders API already computes — simplest: store `deliveryFee: null`-vs-0 semantics, or check `getDeliveryZones(settings).length` on the page and show the "confirmed by phone" copy when no zones exist. Check the email template for the same conflation.
 - Files: `order/[orderNumber]/page.tsx:89-94`, `src/lib/notifications.ts`.
 
-### B12 ☐ Rapid cart clicks can reconcile out of order
+### B12 ☑ FIXED (Session 22, part 11) — Rapid cart clicks can reconcile out of order
 Each +/− click fires `mutate()`; responses `setItems` unconditionally. Two in-flight requests can resolve in reverse order (network jitter), leaving the UI showing the older server state (e.g. click + + fast → shows qty 2, server says 3). Server data is fine; display is wrong until next refresh.
-- **Fix**: sequence mutations (a promise queue / in-flight counter — only apply a response if it's from the newest request), or debounce quantity updates.
+- **Fixed**: a `useRef` monotonic request counter — each `mutate()` call claims the next id before firing its fetch, and only applies a response (success or error-notice) if its id still matches the *latest* issued id when the response arrives; anything superseded by a newer mutation is silently discarded. Every response is a full cart snapshot, so this is correct with a single global counter (not per-line) — whichever mutation was issued last always carries the complete, correct state forward, regardless of arrival order.
+- **Verification note**: confirmed by code review (a standard, low-risk "latest request wins" pattern) plus the full Playwright checkout suite still passing — did not build a dedicated network-delay race test (would need Playwright route-interception with artificial delays); flagging that gap rather than overstating the verification depth.
 - Files: `src/components/cart/CartContext.tsx`.
 
 ### B13 ☑ FIXED (Session 22) — Orders API accepts any string as `customerEmail`

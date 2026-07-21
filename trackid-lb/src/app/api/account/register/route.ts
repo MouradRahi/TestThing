@@ -1,11 +1,13 @@
 import { getPayload } from '@/lib/payload'
 import { setAuthCookie } from '@/lib/auth'
 import { CART_COOKIE, mergeGuestCart } from '@/lib/cart-server'
-import { rateLimit, clientIp, cleanString, cleanOptional, EMAIL_RE } from '@/lib/api-guards'
+import { clientIp, cleanString, cleanOptional, EMAIL_RE } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`register:${clientIp(req)}`, 5, 10 * 60_000)) {
+  const payload = await getPayload()
+  if (!(await durableRateLimit(payload, `register:${clientIp(req)}`, 5, 10 * 60_000))) {
     return NextResponse.json({ error: 'Too many attempts. Please wait a few minutes.' }, { status: 429 })
   }
 
@@ -29,7 +31,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 })
   }
 
-  const payload = await getPayload()
   const normalizedEmail = email.toLowerCase()
 
   try {

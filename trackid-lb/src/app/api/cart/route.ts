@@ -1,7 +1,8 @@
 import { getPayload } from '@/lib/payload'
 import { CART_COOKIE, CART_COOKIE_MAX_AGE, findCart, serializeCart, newSessionId } from '@/lib/cart-server'
 import { getSizes } from '@/lib/stock'
-import { rateLimit, clientIp } from '@/lib/api-guards'
+import { clientIp } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 import type { Payload } from 'payload'
 
@@ -46,11 +47,11 @@ async function pruneDeadLines(
 }
 
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`cart:${clientIp(req)}`, 60, 10 * 60_000)) {
+  const payload = await getPayload()
+  if (!(await durableRateLimit(payload, `cart:${clientIp(req)}`, 60, 10 * 60_000))) {
     return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 })
   }
 
-  const payload = await getPayload()
   const { customerId } = await currentOwner(payload, req)
   let sessionId = req.cookies.get(CART_COOKIE)?.value
 

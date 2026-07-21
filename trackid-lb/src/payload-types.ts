@@ -79,6 +79,9 @@ export interface Config {
     discounts: Discount;
     customers: Customer;
     carts: Cart;
+    'rate-limit-counters': RateLimitCounter;
+    'idempotency-keys': IdempotencyKey;
+    'audit-log': AuditLog;
     users: User;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -98,6 +101,9 @@ export interface Config {
     discounts: DiscountsSelect<false> | DiscountsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     carts: CartsSelect<false> | CartsSelect<true>;
+    'rate-limit-counters': RateLimitCountersSelect<false> | RateLimitCountersSelect<true>;
+    'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
+    'audit-log': AuditLogSelect<false> | AuditLogSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -767,6 +773,71 @@ export interface Cart {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "rate-limit-counters".
+ */
+export interface RateLimitCounter {
+  id: number;
+  key: string;
+  count: number;
+  windowStart: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "idempotency-keys".
+ */
+export interface IdempotencyKey {
+  id: number;
+  key: string;
+  responseStatus: number;
+  responseBody:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "audit-log".
+ */
+export interface AuditLog {
+  id: number;
+  collectionSlug: string;
+  /**
+   * Empty for globals (e.g. Site Settings).
+   */
+  documentId?: string | null;
+  action: 'create' | 'update' | 'delete';
+  /**
+   * Snapshot of the admin's email — survives if that user account is later deleted.
+   */
+  userEmail: string;
+  /**
+   * One-line human-readable description.
+   */
+  summary: string;
+  /**
+   * Field names that changed (update) or the full new state (create).
+   */
+  changedFields?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
@@ -858,6 +929,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'carts';
         value: number | Cart;
+      } | null)
+    | ({
+        relationTo: 'rate-limit-counters';
+        value: number | RateLimitCounter;
+      } | null)
+    | ({
+        relationTo: 'idempotency-keys';
+        value: number | IdempotencyKey;
+      } | null)
+    | ({
+        relationTo: 'audit-log';
+        value: number | AuditLog;
       } | null)
     | ({
         relationTo: 'users';
@@ -1284,6 +1367,40 @@ export interface CartsSelect<T extends boolean = true> {
         quantity?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "rate-limit-counters_select".
+ */
+export interface RateLimitCountersSelect<T extends boolean = true> {
+  key?: T;
+  count?: T;
+  windowStart?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "idempotency-keys_select".
+ */
+export interface IdempotencyKeysSelect<T extends boolean = true> {
+  key?: T;
+  responseStatus?: T;
+  responseBody?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "audit-log_select".
+ */
+export interface AuditLogSelect<T extends boolean = true> {
+  collectionSlug?: T;
+  documentId?: T;
+  action?: T;
+  userEmail?: T;
+  summary?: T;
+  changedFields?: T;
   updatedAt?: T;
   createdAt?: T;
 }
