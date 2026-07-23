@@ -72,26 +72,26 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 
 ---
 
-## 5a. GitHub Actions — automated tests (recommended, optional)
+## 5a. GitHub Actions — automated tests ✅ ACTIVE (Session 22)
 
-`.github/workflows/test.yml` (added Session 22) runs on every push/PR to `main`/`General-UI-Enhancements`:
+`.github/workflows/test.yml` runs on every push/PR to `main`/`General-UI-Enhancements`:
 - **Unit tests** (`npm test` — Vitest, money-math functions) + `tsc --noEmit` — no secrets needed, always runs.
-- **E2E smoke suite** (`npm run test:e2e` — Playwright: browse → add to cart → COD checkout → order confirmation, against a real `next build && next start`) — needs DB/storage secrets, see below. Automates the manual checklist in §7 below.
+- **E2E smoke suite** (`npm run test:e2e` — Playwright: browse → add to cart → COD checkout → order confirmation, against a real `next build && next start`) — needs DB/storage secrets. Automates the manual checklist in §7 below.
 
-To activate the E2E job, add these **repository secrets** (Settings → Secrets and variables → Actions):
+**Both jobs are green** — the required repository secrets (Settings → Secrets and variables → Actions) are set, all pointed at the **dev** Supabase project (`lsrmtpazcdksdllfrsqw`), never prod:
 
 | Secret | Value |
 |---|---|
 | `CI_PAYLOAD_SECRET` | any string (can differ from dev/prod) |
-| `CI_DATABASE_URI` | ⚠️ **the DEV Supabase project's pooler URL** (`lsrmtpazcdksdllfrsqw`) |
+| `CI_DATABASE_URI` | dev project's pooler URL |
 | `CI_SUPABASE_URL` | dev project's `NEXT_PUBLIC_SUPABASE_URL` |
 | `CI_SUPABASE_STORAGE_BUCKET` | dev project's storage bucket name |
 | `CI_SUPABASE_S3_ENDPOINT` / `CI_SUPABASE_S3_REGION` | dev project's S3 connection details |
 | `CI_S3_ACCESS_KEY_ID` / `CI_S3_SECRET_ACCESS_KEY` | dev project's S3 keys |
 
-⚠️ **These must point at the disposable dev project, never prod.** The E2E suite places real test orders through the real checkout API — exactly the reason the dev/prod split exists (MIGRATIONS.md). Until these secrets are added, the `e2e` job in CI will simply fail (missing env vars) without touching anything — it's safe to leave unconfigured, the `unit` job runs regardless.
+⚠️ **These must stay pointed at the disposable dev project, never prod** — the E2E suite places real test orders through the real checkout API, exactly the reason the dev/prod split exists (MIGRATIONS.md). If the dev Supabase project is ever recreated/rotated, update these 8 secret values to match.
 
-Without this workflow, run both suites locally before pushing: `npm test` (fast, seconds) and `npm run test:e2e` (slower — builds + starts the app, ~2–3 min).
+Rotate/update a secret anytime from the same Settings page, or locally with `gh secret set NAME` if the `gh` CLI is installed. Both suites can also be run locally before pushing: `npm test` (fast, seconds) and `npm run test:e2e` (slower — builds + starts the app, ~2–3 min).
 
 ## 6. Deploy
 
