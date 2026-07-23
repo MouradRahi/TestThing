@@ -1,7 +1,8 @@
 import { getPayload } from '@/lib/payload'
 import { getSiteSettings, resolveBrandCopy, resolveStoreName } from '@/lib/site-settings'
 import { sendPasswordResetEmail } from '@/lib/notifications'
-import { rateLimit, clientIp, cleanString, EMAIL_RE } from '@/lib/api-guards'
+import { clientIp, cleanString, EMAIL_RE } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { routing } from '@/i18n/routing'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -9,7 +10,8 @@ import { NextRequest, NextResponse } from 'next/server'
 // email is registered — revealing which emails have accounts is an
 // enumeration risk. Rate-limited by IP so it can't be used to spam an inbox.
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`forgot-password:${clientIp(req)}`, 5, 10 * 60_000)) {
+  const payload = await getPayload()
+  if (!(await durableRateLimit(payload, `forgot-password:${clientIp(req)}`, 5, 10 * 60_000))) {
     return NextResponse.json({ error: 'Too many attempts. Please wait a few minutes.' }, { status: 429 })
   }
 
@@ -21,7 +23,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 })
   }
 
-  const payload = await getPayload()
   const normalizedEmail = email.toLowerCase()
 
   try {

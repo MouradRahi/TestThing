@@ -1,5 +1,6 @@
 import { getPayload } from '@/lib/payload'
-import { rateLimit, clientIp } from '@/lib/api-guards'
+import { clientIp } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { safeRevalidatePath } from '@/lib/revalidate'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -20,11 +21,11 @@ export async function GET(req: NextRequest) {
 
 // Toggle a product in the logged-in customer's wishlist (server-backed — no localStorage).
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`wishlist:${clientIp(req)}`, 40, 10 * 60_000)) {
+  const payload = await getPayload()
+  if (!(await durableRateLimit(payload, `wishlist:${clientIp(req)}`, 40, 10 * 60_000))) {
     return NextResponse.json({ error: 'Too many requests.' }, { status: 429 })
   }
 
-  const payload = await getPayload()
   const { user } = await payload.auth({ headers: req.headers })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!user || (user as any).collection !== 'customers') {

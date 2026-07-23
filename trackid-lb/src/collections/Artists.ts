@@ -2,12 +2,20 @@ import type { CollectionConfig } from 'payload'
 import { formatSlug } from '../lib/slug'
 import { safeRevalidatePath } from '../lib/revalidate'
 import { mediaUrl } from '../lib/media-fill'
+import { isAdmin } from '../lib/access'
 
 export const Artists: CollectionConfig = {
   slug: 'artists',
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'genre', 'updatedAt'],
+  },
+  // Editors manage the catalog day-to-day; only admins can delete (ROADMAP F0 §1.6).
+  access: {
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => isAdmin(req.user),
   },
   hooks: {
     beforeValidate: [

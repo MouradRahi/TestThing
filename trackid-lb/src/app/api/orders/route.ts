@@ -1,11 +1,14 @@
 import { getPayload } from '@/lib/payload'
 import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
-import { rateLimit, clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
+import { clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
+import { getIdempotentResponse, saveIdempotentResponse } from '@/lib/idempotency'
 import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy } from '@/lib/site-settings'
 import { resolveDiscount, redeemDiscount, releaseDiscount } from '@/lib/discounts'
 import { reportServerError } from '@/lib/error-reporting'
 import { getSizes } from '@/lib/stock'
 import { safeRevalidatePath } from '@/lib/revalidate'
+import { getPool } from '@/lib/db-pool'
 import { NextRequest, NextResponse, after } from 'next/server'
 import type { Payload } from 'payload'
 
@@ -23,13 +26,6 @@ function generateOrderNumber(prefix?: unknown): string {
 }
 
 // ── Stock ────────────────────────────────────────────────────────────────────
-
-type PgPool = { query: (sql: string, params: unknown[]) => Promise<{ rowCount: number | null }> }
-
-function getPool(payload: Payload): PgPool | null {
-  const pool = (payload.db as unknown as { pool?: PgPool }).pool
-  return pool && typeof pool.query === 'function' ? pool : null
-}
 
 type StockLine = { productId: number; quantity: number; size?: string }
 
@@ -120,11 +116,23 @@ async function restoreStock(payload: Payload, lines: StockLine[]): Promise<void>
 
 export async function POST(req: NextRequest) {
   try {
-    if (!rateLimit(`orders:${clientIp(req)}`, 5, 10 * 60_000)) {
+    const payload = await getPayload() // cheap — memoized singleton, see lib/payload.ts
+
+    if (!(await durableRateLimit(payload, `orders:${clientIp(req)}`, 5, 10 * 60_000))) {
       return NextResponse.json(
         { error: 'Too many orders from this connection. Please wait a few minutes and try again.' },
         { status: 429 },
       )
+    }
+
+    // A client-generated key sent on retry (network timeout, double-tap
+    // before the button disables) — return the original response instead of
+    // creating a second order. No key = no idempotency (older clients, or
+    // callers that don't send one) — behaves exactly as before.
+    const idempotencyKey = req.headers.get('idempotency-key')?.trim().slice(0, 100) || null
+    if (idempotencyKey) {
+      const cached = await getIdempotentResponse(payload, idempotencyKey)
+      if (cached) return NextResponse.json(cached.body, { status: cached.status })
     }
 
     const body = await req.json().catch(() => null)
@@ -187,8 +195,6 @@ export async function POST(req: NextRequest) {
       const existing = qtyByLine.get(key)
       qtyByLine.set(key, { productId, size, quantity: (existing?.quantity ?? 0) + quantity })
     }
-
-    const payload = await getPayload()
 
     // Prices, titles, and images come from the database — never from the client.
     const productIds = [...new Set([...qtyByLine.values()].map((l) => l.productId))]
@@ -379,7 +385,9 @@ export async function POST(req: NextRequest) {
       ]),
     )
 
-    return NextResponse.json({ orderId: order.id, orderNumber: order.orderNumber }, { status: 201 })
+    const successBody = { orderId: order.id, orderNumber: order.orderNumber }
+    if (idempotencyKey) await saveIdempotentResponse(payload, idempotencyKey, 201, successBody)
+    return NextResponse.json(successBody, { status: 201 })
   } catch (err) {
     console.error('Order creation failed:', err)
     reportServerError(err, { route: 'orders' })

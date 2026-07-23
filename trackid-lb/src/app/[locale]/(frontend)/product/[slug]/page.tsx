@@ -14,9 +14,11 @@ import { formatPrice } from '@/lib/format'
 import {
   getSiteSettings,
   resolveStoreName,
+  resolveProductMetaDescription,
   DEFAULT_PRODUCT_BLURB,
   DEFAULT_PRODUCT_META_TAGLINE,
 } from '@/lib/site-settings'
+import { localizedAlternates } from '@/lib/seo'
 
 export const revalidate = 3600
 
@@ -54,12 +56,16 @@ export async function generateMetadata({
 
   const images = Array.isArray(product.images) ? product.images : []
   const ogImage = images[0]?.url
-  const description = `Hand-painted by ${storeName} — ${product.title}. ${metaTagline}`
+  const description = resolveProductMetaDescription(settings, {
+    store: storeName,
+    title: product.title,
+    tagline: metaTagline,
+  })
 
   return {
     title: product.title,
     description,
-    alternates: { canonical: `/product/${product.slug}` },
+    alternates: localizedAlternates(`/product/${product.slug}`, locale),
     openGraph: {
       title: product.title,
       description,
@@ -100,6 +106,7 @@ export default async function ProductPage({
   const t = await getTranslations('product')
   const storeName = resolveStoreName(settings)
   const productBlurb = (settings.productBlurb as string) || DEFAULT_PRODUCT_BLURB
+  const metaTagline = (settings.productMetaTagline as string) || DEFAULT_PRODUCT_META_TAGLINE
 
   const images = Array.isArray(product.images) ? product.images : []
   const galleryImages = images
@@ -121,7 +128,11 @@ export default async function ProductPage({
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: product.title,
-    description: `Hand-painted by ${storeName} — ${product.title}`,
+    description: resolveProductMetaDescription(settings, {
+      store: storeName,
+      title: product.title,
+      tagline: metaTagline,
+    }),
     brand: { '@type': 'Brand', name: storeName },
     image: images.map((img) => img.url).filter(Boolean),
     offers: {

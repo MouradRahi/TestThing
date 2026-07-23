@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { useLocale } from 'next-intl'
 import type { CartItem, CartNotice } from '@/lib/cart'
 import { cartLineKey } from '@/lib/cart'
@@ -71,10 +71,19 @@ export function CartProvider({
     refreshCart()
   }, [refreshCart])
 
+  // Rapid clicks (e.g. holding +) fire multiple mutations whose responses can
+  // arrive out of order over the network. Every response is a full snapshot
+  // of the cart, so it's enough to track *which mutation was issued last* and
+  // only ever apply the response matching it — a stale response (an earlier
+  // click's request resolving after a later one) is simply discarded rather
+  // than momentarily flashing an out-of-date quantity.
+  const latestRequestId = useRef(0)
+
   // Fire a mutation and reconcile with the server's authoritative cart
   const mutate = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async (body: Record<string, any>) => {
+      const requestId = ++latestRequestId.current
       try {
         const res = await fetch('/api/cart', {
           method: 'POST',
@@ -82,6 +91,7 @@ export function CartProvider({
           body: JSON.stringify({ ...body, locale }),
         })
         const d = await res.json().catch(() => null)
+        if (requestId !== latestRequestId.current) return // superseded by a newer mutation — stale, ignore
         if (res.ok) {
           if (Array.isArray(d?.items)) setItems(d.items)
           if (Array.isArray(d?.notices)) setNotices(d.notices)

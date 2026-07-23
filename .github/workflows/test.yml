@@ -1,0 +1,62 @@
+name: Test
+
+# ⚠️ E2E secrets below MUST point at the disposable DEV Supabase project
+# (lsrmtpazcdksdllfrsqw), never prod (bdbhygelwizizepxewxv). This suite
+# places real orders through the real checkout flow — see MIGRATIONS.md's
+# two-DB setup for why that's fine on dev and would not be on prod.
+on:
+  push:
+    branches: [main, General-UI-Enhancements]
+  pull_request:
+    branches: [main, General-UI-Enhancements]
+
+defaults:
+  run:
+    working-directory: trackid-lb
+
+jobs:
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trackid-lb/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+
+  e2e:
+    name: E2E smoke suite
+    runs-on: ubuntu-latest
+    # Skipped entirely on forked-repo PRs — secrets aren't available to them,
+    # and this suite is meaningless without a real dev DB to talk to.
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trackid-lb/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          PAYLOAD_SECRET: ${{ secrets.CI_PAYLOAD_SECRET }}
+          DATABASE_URI: ${{ secrets.CI_DATABASE_URI }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.CI_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET: ${{ secrets.CI_SUPABASE_STORAGE_BUCKET }}
+          SUPABASE_S3_ENDPOINT: ${{ secrets.CI_SUPABASE_S3_ENDPOINT }}
+          SUPABASE_S3_REGION: ${{ secrets.CI_SUPABASE_S3_REGION }}
+          ACCESS_KEY_ID_SUPABASE: ${{ secrets.CI_S3_ACCESS_KEY_ID }}
+          SECRET_ACCESS_KEY_SUPABASE: ${{ secrets.CI_S3_SECRET_ACCESS_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: trackid-lb/playwright-report/
+          retention-days: 7

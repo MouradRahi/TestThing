@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { isAdmin } from '../lib/access'
 import { sendOrderStatusEmail } from '../lib/notifications'
 import { resolveBrandCopy } from '../lib/site-settings'
+import { logAuditEvent } from '../lib/audit-log'
 
 export const Orders: CollectionConfig = {
   slug: 'orders',
@@ -87,6 +88,27 @@ export const Orders: CollectionConfig = {
             )
           }
         }
+      },
+      // Audit trail (ROADMAP F0 §1.5) — orders are only ever updated from
+      // admin (the storefront API creates but never updates), so this is
+      // exactly the "admin changed an order's status/payment" event the
+      // roadmap calls out. logAuditEvent itself no-ops without a staff user.
+      async ({ doc, previousDoc, operation, req }) => {
+        if (operation !== 'update' || !previousDoc) return
+        const changes: string[] = []
+        if (previousDoc.orderStatus !== doc.orderStatus) changes.push('orderStatus')
+        if (previousDoc.paymentStatus !== doc.paymentStatus) changes.push('paymentStatus')
+        if (changes.length === 0) return
+        await logAuditEvent(req.payload, {
+          collectionSlug: 'orders',
+          documentId: String(doc.id),
+          action: 'update',
+          req,
+          summary: `Order ${doc.orderNumber}: ${changes
+            .map((f) => `${f} ${previousDoc[f]} → ${doc[f]}`)
+            .join(', ')}`,
+          changedFields: changes.map((f) => ({ field: f, from: previousDoc[f], to: doc[f] })),
+        })
       },
     ],
   },

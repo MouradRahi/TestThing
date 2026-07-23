@@ -2,12 +2,22 @@ import type { CollectionConfig } from 'payload'
 import { formatSlug } from '../lib/slug'
 import { safeRevalidatePath } from '../lib/revalidate'
 import { mediaUrl } from '../lib/media-fill'
+import { isAdmin } from '../lib/access'
 
 export const Products: CollectionConfig = {
   slug: 'products',
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'artist', 'category', 'status', 'price', 'updatedAt'],
+  },
+  // Editors manage the catalog day-to-day (create/update); only admins can
+  // delete (ROADMAP F0 §1.6 — the same "no access block = any staff role can
+  // delete anything" gap already closed for Orders/Users in Session 9).
+  access: {
+    read: ({ req }) => !!req.user,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => isAdmin(req.user),
   },
   hooks: {
     // When an image is picked from the Media library, copy its public URL into the

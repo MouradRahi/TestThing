@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { getPool } from './db-pool'
 
 export type DiscountType = 'percentage' | 'fixed'
 
@@ -69,14 +70,6 @@ export async function resolveDiscount(
 // concurrent checkouts for a code's last remaining use could both pass it and
 // both place an order. Claiming the redemption atomically (mirrors the stock
 // conditional-decrement pattern in the orders route) closes that race.
-
-type PgPool = { query: (sql: string, params: unknown[]) => Promise<{ rowCount: number | null }> }
-
-function getPool(payload: Payload): PgPool | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pool = (payload.db as any).pool
-  return pool && typeof pool.query === 'function' ? (pool as PgPool) : null
-}
 
 /**
  * Atomically claims one use of a discount code — re-checks usageLimit at the

@@ -1,12 +1,21 @@
 import type { GlobalConfig } from 'payload'
 import { safeRevalidatePath, safeRevalidateTag } from '../lib/revalidate'
 import { mediaUrl } from '../lib/media-fill'
+import { logAuditEvent, changedTopLevelFields } from '../lib/audit-log'
+import { isAdmin } from '../lib/access'
 
 export const SiteSettings: GlobalConfig = {
   slug: 'site-settings',
   admin: {
     group: 'Site Configuration',
     description: 'Global brand settings — store name, colors, announcement bar, footer text.',
+  },
+  // Admin-only — this global governs money-relevant config (delivery zones,
+  // bank transfer instructions) and site-wide branding, not routine editorial
+  // work the way Products/Pages are (ROADMAP F0 §1.6, the "Settings" gate).
+  access: {
+    read: ({ req }) => !!req.user,
+    update: ({ req }) => isAdmin(req.user),
   },
   hooks: {
     // Picked Media → copy its public URL into the text field each component reads
@@ -33,6 +42,20 @@ export const SiteSettings: GlobalConfig = {
       () => {
         safeRevalidateTag('site-settings')
         safeRevalidatePath('/', 'layout')
+      },
+      // Audit trail (ROADMAP F0 §1.5) — globals have no create/update
+      // distinction the way collections do, so this only logs when
+      // something actually changed (skips the initial empty-install save).
+      async ({ doc, previousDoc, req }) => {
+        const changes = changedTopLevelFields(previousDoc, doc)
+        if (changes.length === 0) return
+        await logAuditEvent(req.payload, {
+          collectionSlug: 'site-settings',
+          action: 'update',
+          req,
+          summary: `Site Settings updated: ${changes.join(', ')}`,
+          changedFields: changes,
+        })
       },
     ],
   },
@@ -416,10 +439,20 @@ export const SiteSettings: GlobalConfig = {
             {
               name: 'productMetaTagline',
               type: 'text',
+              localized: true,
               defaultValue: 'One-of-a-kind piece, made in Lebanon.',
               admin: {
+                description: 'Filled into the {tagline} placeholder in the pattern below.',
+              },
+            },
+            {
+              name: 'productMetaPattern',
+              type: 'text',
+              localized: true,
+              defaultValue: 'Hand-painted by {store} — {title}. {tagline}',
+              admin: {
                 description:
-                  'Appended to each product’s SEO/social description: "Hand-painted by {store} — {product}. {this}".',
+                  'Product SEO/social description template. Placeholders: {store}, {title}, {tagline}. Translate the wording (not just the placeholders) for other locales — word order can differ.',
               },
             },
             {

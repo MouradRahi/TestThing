@@ -72,6 +72,27 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 
 ---
 
+## 5a. GitHub Actions — automated tests ✅ ACTIVE (Session 22)
+
+`.github/workflows/test.yml` runs on every push/PR to `main`/`General-UI-Enhancements`:
+- **Unit tests** (`npm test` — Vitest, money-math functions) + `tsc --noEmit` — no secrets needed, always runs.
+- **E2E smoke suite** (`npm run test:e2e` — Playwright: browse → add to cart → COD checkout → order confirmation, against a real `next build && next start`) — needs DB/storage secrets. Automates the manual checklist in §7 below.
+
+**Both jobs are green** — the required repository secrets (Settings → Secrets and variables → Actions) are set, all pointed at the **dev** Supabase project (`lsrmtpazcdksdllfrsqw`), never prod:
+
+| Secret | Value |
+|---|---|
+| `CI_PAYLOAD_SECRET` | any string (can differ from dev/prod) |
+| `CI_DATABASE_URI` | dev project's pooler URL |
+| `CI_SUPABASE_URL` | dev project's `NEXT_PUBLIC_SUPABASE_URL` |
+| `CI_SUPABASE_STORAGE_BUCKET` | dev project's storage bucket name |
+| `CI_SUPABASE_S3_ENDPOINT` / `CI_SUPABASE_S3_REGION` | dev project's S3 connection details |
+| `CI_S3_ACCESS_KEY_ID` / `CI_S3_SECRET_ACCESS_KEY` | dev project's S3 keys |
+
+⚠️ **These must stay pointed at the disposable dev project, never prod** — the E2E suite places real test orders through the real checkout API, exactly the reason the dev/prod split exists (MIGRATIONS.md). If the dev Supabase project is ever recreated/rotated, update these 8 secret values to match.
+
+Rotate/update a secret anytime from the same Settings page, or locally with `gh secret set NAME` if the `gh` CLI is installed. Both suites can also be run locally before pushing: `npm test` (fast, seconds) and `npm run test:e2e` (slower — builds + starts the app, ~2–3 min).
+
 ## 6. Deploy
 
 - ☐ Trigger the deploy (push to the connected branch, or Vercel "Deploy")
@@ -99,6 +120,7 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 - **Notifications are fire-and-forget** via `after()` — a Resend/WhatsApp failure never blocks an order, but it also means a misconfigured `RESEND_FROM` fails silently. Verify email actually arrives in the smoke test.
 - **`PAYLOAD_SECRET`**: the config throws on boot in production if it's unset — good. Just make sure you set a strong one (not the dev value).
 - **ISR/revalidate**: product/page edits in admin propagate via revalidate hooks; allow a few seconds. Pricing/stock revalidate immediately.
+- **Observed cold-start flake (Session 22, not yet root-caused)**: the very first request to a freshly-started `next start` process sometimes logs `TypeError: controller[kState].transformAlgorithm is not a function` server-side. Seen twice while building the Playwright E2E suite locally (Node 25) — both times the server recovered immediately and every subsequent request (including the one right after) succeeded normally; one of the two runs still passed the full checkout flow end to end. Looks like a Node/Next streams warm-up hiccup rather than a real bug, but hasn't been traced to a root cause. If it ever shows up as an actual user-facing failure (not just a log line) after a deploy or restart, that's the thread to pull.
 
 ---
 

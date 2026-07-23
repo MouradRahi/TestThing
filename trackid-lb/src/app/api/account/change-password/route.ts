@@ -1,17 +1,18 @@
 import { getPayload } from '@/lib/payload'
 import { setAuthCookie } from '@/lib/auth'
-import { rateLimit, clientIp } from '@/lib/api-guards'
+import { clientIp } from '@/lib/api-guards'
+import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
 // Changes the logged-in customer's password. Requires the current password
 // (re-verified via a real login attempt, not just trusting the session) so a
 // hijacked or shared session can't silently lock the real owner out.
 export async function POST(req: NextRequest) {
-  if (!rateLimit(`change-password:${clientIp(req)}`, 10, 10 * 60_000)) {
+  const payload = await getPayload()
+  if (!(await durableRateLimit(payload, `change-password:${clientIp(req)}`, 10, 10 * 60_000))) {
     return NextResponse.json({ error: 'Too many attempts. Please wait a few minutes.' }, { status: 429 })
   }
 
-  const payload = await getPayload()
   const { user } = await payload.auth({ headers: req.headers })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (!user || (user as any).collection !== 'customers') {

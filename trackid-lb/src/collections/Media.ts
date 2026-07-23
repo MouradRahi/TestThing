@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { isAdmin } from '../lib/access'
 
 // Uploaded images live in Supabase Storage (S3-compatible) via the s3Storage
 // plugin in payload.config.ts. Upload here once, then select the image on
@@ -7,6 +8,9 @@ export const Media: CollectionConfig = {
   slug: 'media',
   access: {
     read: () => true, // public — files are served from the public Supabase bucket
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => isAdmin(req.user), // ROADMAP F0 §1.6
   },
   admin: {
     group: 'Site Configuration',
