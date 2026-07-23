@@ -92,47 +92,48 @@ Each +/− click fires `mutate()`; responses `setItems` unconditionally. Two in-
 
 ---
 
-## P2 — Polish, consistency, a11y
+## P2 — Polish, consistency, a11y — ☑ ALL FIXED (Session 22, part 13; B24 is an accepted-risk register, not actionable)
 
 ### B15 ☑ FIXED (Session 22) — Price formatting is inconsistent across the site
 `$${product.price}` on the product page ("$45.5"), `.toFixed(0)` in the drawer (B7), `.toFixed(2)` elsewhere, raw interpolation in cart's `t('each')`. One store, four formats.
 - **Fix**: `formatPrice(n)` helper (always `$X.XX`, or drop cents when `.00` — pick one rule) used everywhere a price renders. Consider locale-aware formatting via `Intl.NumberFormat` for `/ar`.
 
-### B16 ◐ MOSTLY FIXED (Session 22) — Untranslated strings the i18n pass missed
+### B16 ☑ FIXED (Session 22) — Untranslated strings the i18n pass missed
 - ☑ `CartDrawer` aria-label now `t('title')` (Session 22)
 - ☑ Order/account/login/register metadata titles localized via `generateMetadata` + message keys (Session 22)
-- ☐ Layout default `description` fallback is hardcoded English brand copy — minor, only when `metaDescription` unset; fold into B10's Copy-tab fix
+- ☑ Layout default `description` fallback — was a single hardcoded English string; now `common.defaultSiteDescription` in `messages/{en,ar}.json`, read via `getTranslations` in `generateMetadata` (Session 22, part 13)
 - ☑ OG locale `ar_AR` → `ar_LB` (Session 22)
 
-### B17 ☐ No focus trap in the cart drawer or mobile menu
+### B17 ☑ FIXED (Session 22, part 13) — No focus trap in the cart drawer or mobile menu
 The drawer sets initial focus and restores on close ✓, but Tab walks out of the dialog into the page behind the overlay (`aria-modal` alone doesn't trap). Mobile menu has no focus management at all and no Esc-to-close.
-- **Fix**: small focus-trap effect (keydown Tab handler cycling first/last focusable) in `CartDrawer`; Esc + focus handling for the Nav mobile panel. No dependency needed.
-- Files: `CartDrawer.tsx`, `Nav.tsx`.
+- **Fixed**: new shared `src/lib/useFocusTrap.ts` (keydown Tab handler cycling first/last focusable within a container ref) wired into `CartDrawer` — a true modal overlay. The mobile Nav panel got the lighter treatment the bug itself called for (Esc-to-close + focus returns to the hamburger button) rather than a full trap — it's a disclosure dropdown, not a modal, so trapping Tab inside it would be the wrong pattern. No dependency needed.
+- Files: `src/lib/useFocusTrap.ts` (new), `CartDrawer.tsx`, `Nav.tsx`.
 
-### B18 ☐ `prefers-reduced-motion` is ignored (slideshow autoplays regardless)
+### B18 ☑ FIXED (Session 22, part 13) — `prefers-reduced-motion` is ignored (slideshow autoplays regardless)
 Zero matches for reduced-motion in the codebase; `SlideshowSection` auto-advances for everyone.
-- **Fix**: `useReducedMotion`-style media-query check → disable autoplay + CSS transitions; add a global `@media (prefers-reduced-motion: reduce)` rule in `globals.css` for the smooth-scroll behavior too.
-- Files: `src/components/sections/SlideshowSection.tsx`, `globals.css`.
+- **Fixed**: new `src/lib/useReducedMotion.ts` hook (matchMedia + change listener) disables the slideshow's autoplay timer when the OS preference is set (manual prev/next/dots still work). Also added a global `@media (prefers-reduced-motion: reduce)` rule in `globals.css` that zeroes transition/animation durations and forces `scroll-behavior: auto` site-wide, not just the slideshow.
+- Files: `src/lib/useReducedMotion.ts` (new), `src/components/sections/SlideshowSection.tsx`, `globals.css`.
 
-### B19 ☐ Hero/section fill images missing `sizes`
+### B19 ☑ FIXED (Session 22, part 13) — Hero/section fill images missing `sizes`
 `HeroSection` (and check CTABanner/ImageText/Slideshow) render `<Image fill priority>` with **no `sizes`** — mobile downloads the desktop-size image. CLAUDE.md's performance section claims "explicit `sizes` everywhere"; it's not true for the block sections.
-- **Fix**: `sizes="100vw"` on full-bleed backgrounds; appropriate values on ImageText (`(min-width: 768px) 50vw, 100vw`).
-- Files: `src/components/sections/*.tsx`.
+- **Fixed**: `sizes="100vw"` on the three full-bleed backgrounds (Hero, CTABanner, Slideshow); `sizes="(min-width: 768px) 50vw, 100vw"` on ImageText (confirmed its layout is genuinely `md:grid-cols-2` — image is half-width from 768px up, full-width below).
+- Files: `src/components/sections/HeroSection.tsx`, `CTABannerSection.tsx`, `SlideshowSection.tsx`, `ImageTextSection.tsx`.
 
-### B20 ☐ All five Google fonts are instantiated on every page (VERIFY payload)
+### B20 ☑ FIXED (Session 22, part 13) — All five Google fonts are instantiated on every page (VERIFY payload)
 The layout instantiates Inter, Space Grotesk, Playfair, DM Sans, and Manrope unconditionally; `next/font` emits preload tags for instantiated fonts, so all five families may be preloaded when the theme uses at most two. Also: **no Arabic subset in any of them** — `/ar` always falls back to system Arabic, so the "typography identity" feature silently doesn't apply to Arabic.
-- **Verify**: check the built HTML head for 5× font preloads.
-- **Fix**: `preload: false` on all but a default; longer-term, load conditionally per settings (needs the layout to know the choice before the const — restructure or accept preload:false). Add an Arabic-capable font option (e.g. IBM Plex Sans Arabic) selected automatically for `ar`.
-- Files: `(frontend)/layout.tsx:27-33`, `src/lib/site-settings.ts` (FONT_STACKS).
+- **Verified the claim first**: built the app and curled the homepage's `<head>` — 0 preloaded fonts is impossible to verify pre-fix without the built HTML, so this confirmed the bug before touching code. The admin's own default for both `headingFont`/`bodyFont` is `'system'`, so out of the box none of the five deserved eager preloading at all.
+- **Fixed**: `preload: false` on all five (plus the new sixth, below) — next/font genuinely can't pick a font conditionally at the module level (it needs a static top-level call), so this is the accepted middle ground the bug itself named, not a workaround. Rebuilt and re-curled: **0 font preload links**, down from up to 5.
+- **Arabic font added**: new `IBM_Plex_Sans_Arabic` instantiation (`subsets: ['arabic']`, confirmed available in next/font's Google Fonts metadata before using it) — `resolveFontStack()` in `site-settings.ts` now takes an optional `locale` and automatically substitutes the Arabic stack for both heading and body on `/ar`, regardless of the admin's per-site pick (none of the other five have Arabic glyphs, so overriding rather than exposing it as a separate configurable option was the simpler, correct call). Verified: curled `/` vs `/ar` — English resolves to the system stack (the admin default), Arabic resolves to `var(--font-arabic), 'Segoe UI', Tahoma, sans-serif` on both `--font-heading` and `--font-body`.
+- Files: `(frontend)/layout.tsx`, `src/lib/site-settings.ts` (FONT_STACKS, resolveFontStack).
 
-### B21 ☐ Hero `textAlign` uses physical left/right — wrong in RTL
+### B21 ☑ FIXED (Session 22, part 13) — Hero `textAlign` uses physical left/right — wrong in RTL
 `alignMap` maps to `text-left/items-start` etc.; on `/ar`, "left" should mean "start" (right side). Admin picks "Left" and gets the visually opposite edge in Arabic.
-- **Fix**: swap to logical utilities (`text-start`/`items-start`), relabel admin options Start/Center/End.
-- Files: `src/components/sections/HeroSection.tsx:19-23`, `src/globals/blocks/hero.ts`.
+- **Fixed**: `text-left`/`text-right` → `text-start`/`text-end` (the `items-start`/`items-end` flex utilities were already logically correct — CSS flexbox's `align-items: flex-start/end` is direction-aware, only `text-align: left/right` is a genuinely physical property that doesn't flip with `dir`). Admin option **values** stay `'left'`/`'right'` (no data migration for existing content) — only the **labels** changed to Start/Center/End, since "Start" is the accurate name for what the value now means. Confirmed no other block (CTABanner/ImageText/Slideshow) has a `textAlign` field, so this was the only file needing the fix.
+- Files: `src/components/sections/HeroSection.tsx`, `src/globals/blocks/hero.ts`.
 
-### B22 ☐ Wishlist toggle with a nonexistent product id → unhandled 500
+### B22 ☑ FIXED (Session 22, part 13) — Wishlist toggle with a nonexistent product id → unhandled 500
 `POST /api/account/wishlist` writes the id into the relationship without checking the product exists; Payload's validation rejects it and the route 500s (generic). Harmless but sloppy; also no cap on wishlist size.
-- **Fix**: validate the product exists + `status: published` before writing; cap wishlist at ~200; return 400 otherwise.
+- **Fixed**: validates the product exists + `status: published` before adding (returns a clean 400, not a 500) — only checked on *add*, since removing an id that's already gone is a harmless no-op, not an error worth validating. Capped at 200 entries (400 once full).
 - Files: `src/app/api/account/wishlist/route.ts`.
 
 ### B23 ☑ FIXED (Session 22) — Shop "piece count" reports the page size, not the catalog
@@ -140,7 +141,7 @@ The layout instantiates Inter, Space Grotesk, Playfair, DM Sans, and Manrope unc
 - Files: `shop/page.tsx:97-101`.
 
 ### B24 ☐ Accepted-risk register (documented, not currently actionable)
-- In-memory rate limiting resets per serverless instance/cold start (documented in `api-guards.ts`) — fine at current scale; revisit with Upstash/KV if abuse appears (see ENHANCEMENTS F8)
+- ~~In-memory rate limiting resets per serverless instance/cold start~~ — **closed, ROADMAP F0 §1.3 (Session 22, part 10)**: all rate limiting is now a durable Postgres-backed fixed-window counter (`src/lib/durable-rate-limit.ts`), survives across instances. The old in-memory map only remains as a same-file fallback for the rare case the DB pool itself is unreachable.
 - `/order/[orderNumber]` shows delivery address + phone-less PII to anyone holding the order number — accepted (order number ≈ access token, IMPROVEMENTS 1.8); tightens automatically if/when order pages require login for account-linked orders
 - Stock decrement falls back to non-atomic read-modify-write when `payload.db.pool` is unavailable — logged, rare
 - `generateStaticParams` limits (200 products / 500 sitemap) — revisit at scale

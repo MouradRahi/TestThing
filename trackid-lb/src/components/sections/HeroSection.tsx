@@ -16,10 +16,14 @@ type Props = {
   minHeight?: string
 }
 
+// Logical (start/end), not physical (left/right) — items-start/items-end are
+// already direction-aware in CSS flexbox, but text-align: left/right is not;
+// text-start/text-end are, so "Left" no longer renders on the visual right in
+// Arabic (BUGS.md B21).
 const alignMap = {
-  left:   'text-left items-start',
+  left:   'text-start items-start',
   center: 'text-center items-center',
-  right:  'text-right items-end',
+  right:  'text-end items-end',
 }
 
 export function HeroSection({
@@ -39,7 +43,7 @@ export function HeroSection({
       style={{ minHeight, backgroundColor: bgColor || undefined }}
     >
       {bgImage && (
-        <Image src={bgImage} alt="" fill className="object-cover" priority />
+        <Image src={bgImage} alt="" fill className="object-cover" priority sizes="100vw" />
       )}
       {(bgImage && overlayOpacity > 0) && (
         <div

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { useCart } from '@/components/cart/CartContext'
@@ -23,6 +23,23 @@ export function Nav({ storeName, links, logoUrl }: Props) {
   const [menuOpen, setMenuOpen] = useState(false)
   const t = useTranslations('nav')
   const ta = useTranslations('account')
+  const menuToggleRef = useRef<HTMLButtonElement>(null)
+
+  // Esc closes the mobile menu and returns focus to the hamburger button —
+  // it had neither before (BUGS.md B17). Not a full Tab-trap: this is a
+  // disclosure dropdown, not a modal overlay, so trapping Tab inside it
+  // would be the wrong pattern (contrast CartDrawer, a true modal).
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false)
+        menuToggleRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen])
 
   const accountLink = (
     <Link
@@ -96,6 +113,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
       <div className="flex md:hidden items-center gap-7 text-xs uppercase tracking-widest text-muted">
         {cartLink}
         <button
+          ref={menuToggleRef}
           onClick={() => setMenuOpen((open) => !open)}
           aria-label={menuOpen ? t('closeMenu') : t('openMenu')}
           aria-expanded={menuOpen}

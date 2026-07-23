@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { Inter, Space_Grotesk, Playfair_Display, DM_Sans, Manrope } from 'next/font/google'
+import { Inter, Space_Grotesk, Playfair_Display, DM_Sans, Manrope, IBM_Plex_Sans_Arabic } from 'next/font/google'
 import { NextIntlClientProvider, hasLocale } from 'next-intl'
 import { setRequestLocale, getTranslations } from 'next-intl/server'
 import { routing, isRtl } from '@/i18n/routing'
@@ -23,15 +23,30 @@ import './globals.css'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
-// Curated font set, self-hosted by next/font. All variables are attached to the
-// body; only the fonts referenced by the chosen stacks are actually downloaded.
-const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter' })
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], display: 'swap', variable: '--font-space-grotesk' })
-const playfair = Playfair_Display({ subsets: ['latin'], display: 'swap', variable: '--font-playfair' })
-const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-dm-sans' })
-const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font-manrope' })
+// Curated font set, self-hosted by next/font. All variables are attached to
+// the body; the CSS var each stack actually references is the only one the
+// browser fetches. `preload: false` on all six — the admin default is
+// 'system' (no custom font at all), so none of these deserves an unconditional
+// eager preload; next/font can't pick a font conditionally at the module
+// level (BUGS.md B20), so this is the accepted middle ground.
+const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-inter', preload: false })
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], display: 'swap', variable: '--font-space-grotesk', preload: false })
+const playfair = Playfair_Display({ subsets: ['latin'], display: 'swap', variable: '--font-playfair', preload: false })
+const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--font-dm-sans', preload: false })
+const manrope = Manrope({ subsets: ['latin'], display: 'swap', variable: '--font-manrope', preload: false })
+// None of the above has Arabic glyphs — automatically substituted on /ar
+// instead of a separate admin choice (see resolveFontStack in site-settings.ts).
+const ibmPlexArabic = IBM_Plex_Sans_Arabic({
+  subsets: ['arabic'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-arabic',
+  preload: false,
+})
 
-const fontVariables = [inter, spaceGrotesk, playfair, dmSans, manrope].map((f) => f.variable).join(' ')
+const fontVariables = [inter, spaceGrotesk, playfair, dmSans, manrope, ibmPlexArabic]
+  .map((f) => f.variable)
+  .join(' ')
 
 const OG_LOCALE: Record<string, string> = { en: 'en_US', ar: 'ar_LB' }
 
@@ -50,9 +65,10 @@ export async function generateMetadata({
   const tagline = (settings.tagline as string) || ''
   // The tagline rides along on the default (homepage) title; inner pages use the template
   const defaultTitle = tagline ? `${storeName} — ${tagline}` : storeName
-  const description =
-    (settings.metaDescription as string) ||
-    'Hand-painted clothing for the artists you love. Made in Lebanon, one piece at a time.'
+  // Fallback is translated (not a single hardcoded English string) so an /ar
+  // install with metaDescription unset doesn't get English meta copy (BUGS.md B16).
+  const tCommon = await getTranslations({ locale, namespace: 'common' })
+  const description = (settings.metaDescription as string) || tCommon('defaultSiteDescription')
   const ogImage = (settings.ogImage as string) || ''
   const faviconUrl = (settings.faviconUrl as string) || ''
 
@@ -97,8 +113,8 @@ export default async function FrontendLayout({
   const [settings, tCommon] = await Promise.all([getSiteSettings(locale), getTranslations('common')])
   const cssVars = buildThemeCssVars(settings)
   const fontVars = {
-    '--font-heading': resolveFontStack(settings.headingFont),
-    '--font-body': resolveFontStack(settings.bodyFont),
+    '--font-heading': resolveFontStack(settings.headingFont, locale),
+    '--font-body': resolveFontStack(settings.bodyFont, locale),
   } as React.CSSProperties
 
   return (

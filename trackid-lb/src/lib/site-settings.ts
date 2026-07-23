@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getPayload } from './payload'
+import { RTL_LOCALES } from '../i18n/routing'
 
 // ── Color scheme presets ─────────────────────────────────────────────────────
 
@@ -188,7 +189,15 @@ export const FONT_OPTIONS = [
   { label: 'Manrope', value: 'manrope' },
 ]
 
-export function resolveFontStack(key: unknown): string {
+// None of the six curated latin fonts have Arabic glyphs — on /ar they'd
+// silently fall back to the OS's default Arabic font regardless of what the
+// admin picked, so the "typography identity" feature just didn't apply
+// (BUGS.md B20). Automatically substituted for RTL locales instead of
+// exposing it as a separate admin choice — see layout.tsx for the font itself.
+export const ARABIC_FONT_STACK = "var(--font-arabic), 'Segoe UI', Tahoma, sans-serif"
+
+export function resolveFontStack(key: unknown, locale?: string): string {
+  if (locale && RTL_LOCALES.includes(locale)) return ARABIC_FONT_STACK
   return (typeof key === 'string' && FONT_STACKS[key]) || SYSTEM_STACK
 }
 

@@ -93,16 +93,16 @@ The order page prints the status as a word. Render the pipeline (Pending → Con
 ### E13 ◐ 🟡 SEO/i18n correctness batch (companions to bugs B9/B10/B16)
 - ☑ hreflang `alternates.languages` + locale-aware canonicals everywhere (B9) — Session 22, part 11
 - ☑ Localized product meta pattern via Copy tab (B10) — Session 22, part 11
-- ☐ Arabic-capable font option + `preload: false` on unused fonts (B20)
+- ☑ Arabic-capable font option + `preload: false` on unused fonts (B20) — Session 22, part 13
 - ☐ Homepage-block text + product-image alt localization (Session 18 deferred)
 - Files: all `generateMetadata` sites, `site-settings.ts`, `SiteSettings.ts`, block configs (`localized: true` on text fields — ⚠️ localize-migration rules apply, see MIGRATIONS.md).
 
-### E14 ☐ 🟢 A11y batch (companions to bugs B17/B18)
-- Focus trap in drawer + mobile menu, Esc closes menu
-- `prefers-reduced-motion` respected (slideshow, smooth scroll)
-- Form errors get `role="alert"`/`aria-live`
-- Announcement-bar contrast: compute contrast of admin-picked colors in the AnnouncementBar RSC; below 4.5:1 → auto-flip text to black/white (kills the long-deferred "owner might pick unreadable colors" risk in code, not process)
-- Files: `CartDrawer.tsx`, `Nav.tsx`, `SlideshowSection.tsx`, `globals.css`, `FormField.tsx`, `AnnouncementBar.tsx`.
+### E14 ◐ 🟢 A11y batch (companions to bugs B17/B18)
+- ☑ Focus trap in drawer (new `useFocusTrap` hook) + mobile menu Esc-to-close with focus return (B17) — Session 22, part 13
+- ☑ `prefers-reduced-motion` respected — slideshow autoplay (new `useReducedMotion` hook) + a global CSS rule killing transitions/animations/smooth-scroll site-wide (B18) — Session 22, part 13
+- ☐ Form errors get `role="alert"`/`aria-live`
+- ☐ Announcement-bar contrast: compute contrast of admin-picked colors in the AnnouncementBar RSC; below 4.5:1 → auto-flip text to black/white (kills the long-deferred "owner might pick unreadable colors" risk in code, not process)
+- Files: `src/lib/useFocusTrap.ts` (new), `src/lib/useReducedMotion.ts` (new), `CartDrawer.tsx`, `Nav.tsx`, `SlideshowSection.tsx`, `globals.css`, `FormField.tsx`, `AnnouncementBar.tsx`.
 
 ---
 
@@ -144,12 +144,12 @@ Upstash Redis / Vercel KV behind the existing `rateLimit()` signature (in-memory
 | # | Session theme | Contents | Why this order |
 |---|---|---|---|
 | 1 | **Correctness sweep** ☑ DONE (Session 22) | BUGS B2, B3, B5, B6, B7, B8, B11, B13, B15, B16 (◐), B23 | All small, all user-visible wrongness on the live site; zero schema changes |
-| 2 | **Account rescue** ◐ (B1 done, Session 22 part 4) | ☑ B1 forgot/reset/change password · remaining: B22, `?next=` redirect (E10 phase 2) | P0 — real customers are creating accounts on the live site *now*; every day without reset = support debt |
+| 2 | **Account rescue** ◐ (B1 done, Session 22 part 4) | ☑ B1 forgot/reset/change password · ☑ B22 done (part 13) · remaining: `?next=` redirect (E10 phase 2) | P0 — real customers are creating accounts on the live site *now*; every day without reset = support debt |
 | 3 | **Cart/checkout conversion** | E1, E2, E4, E3; F3 hardening (☑ B4 done Session 22 part 5, ☑ B12 done Session 22 part 11, ☑ B14 done Session 22 part 6) | The money path; toast (E4) unblocks proper B6 fix |
 | 4 | **Discovery** | E5 (description first), E6, E7, E8 | Catalog is growing; product storytelling is the brand |
 | 5 | **Order experience** | E11, B3 verify, E12 (adds `locale` field — migration) | Post-purchase trust; groundwork for repeat customers |
-| 6 | **SEO/i18n batch** | E13 ◐ (☑ B9, ☑ B10 done Session 22 part 11; B20 still open), sitemap sanity pass | Arabic side is currently invisible to Google — fix before content marketing starts |
-| 7 | **A11y batch** | E14 (B17, B18, B19, B21) | Bundled — cheap together, disruptive apart |
+| 6 | **SEO/i18n batch** | E13 ◐ (☑ B9, ☑ B10, ☑ B20 done — parts 11 + 13; homepage-block/alt localization still open), sitemap sanity pass | Arabic side is currently invisible to Google — fix before content marketing starts |
+| 7 | **A11y batch** | E14 ◐ (☑ B17, B18, B19, B21 done part 13; form-error `role="alert"` + announcement-bar contrast still open) | Bundled — cheap together, disruptive apart |
 | 8 | **Growth & admin** | F1 newsletter, F2 admin ergonomics, F4 weekly summary, E9 recently-viewed | Post-stabilization leverage |
 | — | *Parked* | F5 versions/preview, F7 KV rate-limit, F6 keys | Trigger-based, not scheduled |
 

@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 import { CartNotices } from '@/components/cart/CartNotices'
 import { formatPrice } from '@/lib/format'
+import { useFocusTrap } from '@/lib/useFocusTrap'
 
 // Slide-over mini-cart. Opens on add-to-cart (and from the nav cart button) so
 // customers get immediate confirmation without a full-page navigation. The
@@ -17,6 +18,8 @@ export function CartDrawer() {
   const tp = useTranslations('product')
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+
+  useFocusTrap(isOpen, panelRef)
 
   // Esc to close; lock body scroll and move focus into the panel while open
   useEffect(() => {

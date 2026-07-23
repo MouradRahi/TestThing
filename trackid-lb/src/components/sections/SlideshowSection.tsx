@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
+import { useReducedMotion } from '@/lib/useReducedMotion'
 
 type Slide = {
   bgImage?: string
@@ -24,15 +25,19 @@ type Props = {
 export function SlideshowSection({ slides, height = '80vh', autoplayInterval = 5000 }: Props) {
   const [current, setCurrent] = useState(0)
   const [paused, setPaused] = useState(false)
+  const reducedMotion = useReducedMotion()
 
   const next = useCallback(() => setCurrent(i => (i + 1) % slides.length), [slides.length])
   const prev = useCallback(() => setCurrent(i => (i - 1 + slides.length) % slides.length), [slides.length])
 
   useEffect(() => {
-    if (paused || slides.length <= 1 || !autoplayInterval) return
+    // Respect the OS-level "reduce motion" preference — don't auto-advance
+    // for visitors who've asked for that (BUGS.md B18); manual prev/next
+    // arrows and dots still work regardless.
+    if (paused || reducedMotion || slides.length <= 1 || !autoplayInterval) return
     const id = setInterval(next, autoplayInterval)
     return () => clearInterval(id)
-  }, [paused, next, autoplayInterval, slides.length])
+  }, [paused, reducedMotion, next, autoplayInterval, slides.length])
 
   if (!slides.length) return null
 
@@ -54,7 +59,7 @@ export function SlideshowSection({ slides, height = '80vh', autoplayInterval = 5
             style={{ backgroundColor: slide.bgColor || '#0a0a0a' }}
           >
             {slide.bgImage && (
-              <Image src={slide.bgImage} alt="" fill className="object-cover" priority={i === 0} />
+              <Image src={slide.bgImage} alt="" fill className="object-cover" priority={i === 0} sizes="100vw" />
             )}
             <div className="absolute inset-0" style={{ backgroundColor: `rgba(0,0,0,${alpha})` }} />
 
