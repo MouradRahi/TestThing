@@ -77,6 +77,7 @@ export interface Config {
     media: Media;
     'garment-types': GarmentType;
     discounts: Discount;
+    payments: Payment;
     customers: Customer;
     carts: Cart;
     'rate-limit-counters': RateLimitCounter;
@@ -99,6 +100,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     'garment-types': GarmentTypesSelect<false> | GarmentTypesSelect<true>;
     discounts: DiscountsSelect<false> | DiscountsSelect<true>;
+    payments: PaymentsSelect<false> | PaymentsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     carts: CartsSelect<false> | CartsSelect<true>;
     'rate-limit-counters': RateLimitCountersSelect<false> | RateLimitCountersSelect<true>;
@@ -402,8 +404,17 @@ export interface Order {
    */
   discountAmount?: number | null;
   total: number;
-  paymentMethod: 'cod' | 'bank_transfer';
-  paymentStatus?: ('pending' | 'paid') | null;
+  paymentMethod: 'cod' | 'bank_transfer' | 'card';
+  paymentStatus?:
+    ('pending' | 'awaiting_payment' | 'paid' | 'failed' | 'expired' | 'refunded' | 'partially_refunded') | null;
+  /**
+   * Online-payment orders only. Stock is released and the order cancelled if payment isn't confirmed by this time (ROADMAP F1 §2.1).
+   */
+  paymentExpiresAt?: string | null;
+  /**
+   * LBP-per-USD rate at the moment of purchase, snapshotted from Site Settings — USD stays the money of record.
+   */
+  exchangeRateAtPurchase?: number | null;
   orderStatus: 'pending' | 'confirmed' | 'in_production' | 'shipped' | 'delivered' | 'cancelled';
   /**
    * Customer notes
@@ -750,6 +761,41 @@ export interface Discount {
   createdAt: string;
 }
 /**
+ * Payment attempts against orders. Created and updated only by the checkout/webhook flow.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payments".
+ */
+export interface Payment {
+  id: number;
+  order: number | Order;
+  /**
+   * New vendors (Areeba, NetCommerce, …) get added here as their adapters ship.
+   */
+  provider: 'mock';
+  /**
+   * The provider's own reference for this attempt.
+   */
+  providerRef: string;
+  amount: number;
+  currency: string;
+  status: 'initiated' | 'pending' | 'paid' | 'failed' | 'expired' | 'refunded' | 'partially_refunded';
+  /**
+   * Raw webhook payloads received for this payment (audit trail).
+   */
+  rawEvents?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "carts".
  */
@@ -923,6 +969,10 @@ export interface PayloadLockedDocument {
         value: number | Discount;
       } | null)
     | ({
+        relationTo: 'payments';
+        value: number | Payment;
+      } | null)
+    | ({
         relationTo: 'customers';
         value: number | Customer;
       } | null)
@@ -1091,6 +1141,8 @@ export interface OrdersSelect<T extends boolean = true> {
   total?: T;
   paymentMethod?: T;
   paymentStatus?: T;
+  paymentExpiresAt?: T;
+  exchangeRateAtPurchase?: T;
   orderStatus?: T;
   notes?: T;
   updatedAt?: T;
@@ -1321,6 +1373,21 @@ export interface DiscountsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payments_select".
+ */
+export interface PaymentsSelect<T extends boolean = true> {
+  order?: T;
+  provider?: T;
+  providerRef?: T;
+  amount?: T;
+  currency?: T;
+  status?: T;
+  rawEvents?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "customers_select".
  */
 export interface CustomersSelect<T extends boolean = true> {
@@ -1524,6 +1591,22 @@ export interface SiteSetting {
    */
   bankTransferInstructions?: string | null;
   /**
+   * Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded.
+   */
+  cardPaymentsEnabled?: boolean | null;
+  /**
+   * The Mock provider simulates a payment session for local testing — it is disabled automatically in production unless ALLOW_MOCK_PAYMENTS=true is set.
+   */
+  cardPaymentProvider?: 'mock' | null;
+  /**
+   * USD stays the money of record everywhere (payments, discounts, reports). "Both" adds an LBP equivalent next to prices using the exchange rate below.
+   */
+  currencyDisplayMode?: ('usd_only' | 'both') | null;
+  /**
+   * LBP per 1 USD, e.g. 89000. Update this as the rate moves — each order snapshots the rate at purchase time, so past orders keep the rate they were placed under.
+   */
+  exchangeRate?: number | null;
+  /**
    * Toggle the bar on/off without losing the text.
    */
   announcementEnabled?: boolean | null;
@@ -1648,9 +1731,13 @@ export interface SiteSetting {
    */
   productBlurb?: string | null;
   /**
-   * Appended to each product’s SEO/social description: "Hand-painted by {store} — {product}. {this}".
+   * Filled into the {tagline} placeholder in the pattern below.
    */
   productMetaTagline?: string | null;
+  /**
+   * Product SEO/social description template. Placeholders: {store}, {title}, {tagline}. Translate the wording (not just the placeholders) for other locales — word order can differ.
+   */
+  productMetaPattern?: string | null;
   /**
    * Shown on the cart page when the cart is empty.
    */
@@ -1934,6 +2021,10 @@ export interface SiteSettingsSelect<T extends boolean = true> {
       };
   freeDeliveryThreshold?: T;
   bankTransferInstructions?: T;
+  cardPaymentsEnabled?: T;
+  cardPaymentProvider?: T;
+  currencyDisplayMode?: T;
+  exchangeRate?: T;
   announcementEnabled?: T;
   announcementText?: T;
   announcementBgColor?: T;
@@ -1974,6 +2065,7 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   metaPixelId?: T;
   productBlurb?: T;
   productMetaTagline?: T;
+  productMetaPattern?: T;
   emptyCartMessage?: T;
   orderThankYouNote?: T;
   emailGreeting?: T;

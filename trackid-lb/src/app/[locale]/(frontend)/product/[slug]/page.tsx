@@ -10,11 +10,12 @@ import { WishlistButton } from '@/components/account/WishlistButton'
 import { RichTextRenderer } from '@/components/RichTextRenderer'
 import { getSizes, totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatLBP } from '@/lib/format'
 import {
   getSiteSettings,
   resolveStoreName,
   resolveProductMetaDescription,
+  resolveCurrencyDisplay,
   DEFAULT_PRODUCT_BLURB,
   DEFAULT_PRODUCT_META_TAGLINE,
 } from '@/lib/site-settings'
@@ -104,6 +105,7 @@ export default async function ProductPage({
   if (!product) notFound()
 
   const t = await getTranslations('product')
+  const currency = resolveCurrencyDisplay(settings)
   const storeName = resolveStoreName(settings)
   const productBlurb = (settings.productBlurb as string) || DEFAULT_PRODUCT_BLURB
   const metaTagline = (settings.productMetaTagline as string) || DEFAULT_PRODUCT_META_TAGLINE
@@ -205,6 +207,7 @@ export default async function ProductPage({
             imageAlt={resolveAlt(relImages[0]) || undefined}
             artistName={relArtist?.name}
             soldOut={totalStock(rel) === 0}
+            currency={currency}
           />
         )
       })}
@@ -241,7 +244,12 @@ export default async function ProductPage({
 
           <h1 className="text-3xl font-bold text-foreground leading-tight">{product.title}</h1>
 
-          <p className="text-xl text-foreground">{formatPrice(product.price)}</p>
+          <p className="text-xl text-foreground">
+            {formatPrice(product.price)}
+            {currency.mode === 'both' && currency.exchangeRate && (
+              <span className="block text-sm text-muted mt-0.5">{formatLBP(product.price, currency.exchangeRate)}</span>
+            )}
+          </p>
 
           {product.isOneOfAKind && (
             <span className="inline-block text-[10px] uppercase tracking-[0.2em] text-accent border border-accent/40 px-2.5 py-1">

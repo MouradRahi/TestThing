@@ -164,6 +164,22 @@ export function resolveDeliveryFee(settings: AnyRecord, area: string, subtotal: 
   return zone.fee
 }
 
+// ── Currency (ROADMAP F1 §2.5) ──────────────────────────────────────────────
+// USD stays the money of record everywhere (payments, discounts, order
+// totals) — this only controls a display-side LBP equivalent. "both" mode
+// only ever actually applies when a valid positive rate is configured; a
+// fresh install or an unset rate silently falls back to usd_only rather than
+// showing "LBP undefined" anywhere.
+
+export type CurrencyDisplay = { mode: 'usd_only' | 'both'; exchangeRate: number | null }
+
+export function resolveCurrencyDisplay(settings: AnyRecord): CurrencyDisplay {
+  const rate =
+    typeof settings.exchangeRate === 'number' && settings.exchangeRate > 0 ? settings.exchangeRate : null
+  const wantsBoth = settings.currencyDisplayMode === 'both'
+  return wantsBoth && rate ? { mode: 'both', exchangeRate: rate } : { mode: 'usd_only', exchangeRate: null }
+}
+
 // ── Typography ───────────────────────────────────────────────────────────────
 
 const SYSTEM_STACK = "system-ui, -apple-system, 'Segoe UI', sans-serif"

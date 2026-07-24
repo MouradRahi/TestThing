@@ -893,3 +893,98 @@ Focus: **P2 polish batch** — closed all 8 remaining P2 bugs (B16 leftover, B17
 - **BUGS.md P2 section marked ☑ ALL FIXED.** Also fixed a stale accepted-risk note in B24 that still described rate limiting as in-memory — that was already closed in ROADMAP F0 §1.3 (Session 22, part 10) and the note hadn't been updated since. ENHANCEMENTS.md E13/E14 marked ◐ (both batches' bug-companion items done; a few ENHANCEMENTS-only extras — homepage-block localization, form-error `aria-live`, announcement-bar contrast — remain, since those were never part of BUGS.md's actual list).
 - **Every bug ever filed in BUGS.md across P0/P1/P2 is now fixed** except B24 (accepted-risk register, not meant to be actionable) and the handful of ENHANCEMENTS-only extras noted above.
 - Next: user's call — those last few ENHANCEMENTS-only a11y/i18n extras, ROADMAP Part 4 (reports/PDF), or F1 payments groundwork.
+
+### Session 23 — 2026-07-24
+Focus: **F1 — Payments core** (ROADMAP Part 2). Scoped up front with the user: build the
+full provider-agnostic abstraction now, but stand it up against a **mock testing adapter**
+rather than a real gateway — no Areeba/NetCommerce merchant account exists yet (external
+blocker, unchanged since Session 21) — so a real vendor adapter later is one file, not a
+rewrite. Currency (2.5, USD/LBP display) bundled in at the user's request.
+- **2.1 Payment abstraction** — `src/lib/payments/{types,registry,service}.ts`: `PaymentProvider`
+  interface (`initiate`/`handleWebhook`/`verify`), a provider registry, and `service.ts`
+  (`initiatePayment`, `applyPaymentEvent` — idempotent, amount-rechecked, terminal-state-aware).
+  New `Payments` collection (`src/collections/Payments.ts`, Commerce admin group, admin-only
+  read, no public create/update — written only via the Local API from the service). `Orders`
+  gained `paymentMethod: 'card'`, `paymentStatus` extended to
+  `awaiting_payment|failed|expired|refunded|partially_refunded`, `paymentExpiresAt`, and
+  `exchangeRateAtPurchase`; a new `afterChange` hook fires the same confirmation
+  email/WhatsApp COD/bank-transfer already send, but on the `awaiting_payment → paid`
+  transition instead of at creation.
+- **Mock adapter** (`src/lib/payments/mock.ts`) — HMAC-SHA256-signed webhook (`MOCK_PAYMENT_SECRET`),
+  a simulated hosted-checkout page (`/pay/mock/[paymentId]` → `MockPayForm.tsx`, "simulate
+  success/failure" buttons), and `POST /api/payments/mock/simulate` which deliberately
+  round-trips through the real `POST /api/payments/webhook/[provider]` route (real
+  signature, real idempotency/amount checks) rather than shortcutting past it — the mock
+  exists to prove the abstraction, not to skip testing it. Hard-gated off in production
+  unless `ALLOW_MOCK_PAYMENTS=true` (`mockPaymentsAllowed()`), same pattern as every other
+  optional integration in this codebase.
+- **Order flow**: `POST /api/orders` now branches on `paymentMethod === 'card'` — validates
+  `SiteSettings.cardPaymentsEnabled` + `isProviderAvailable()` before touching stock,
+  decrements stock exactly like COD/bank-transfer (no new "reservation" mechanism needed —
+  the existing atomic decrement already *is* the reservation), creates the order
+  `awaiting_payment` with a `paymentExpiresAt`, then calls `initiatePayment()`; a provider
+  failure at that point rolls back stock, the discount redemption, and deletes the
+  just-created order (mirrors the existing rollback-on-stock-conflict pattern). Confirmation
+  email/WhatsApp are skipped at creation for online payments — they fire later from the Orders
+  hook. `PaymentConfirmingBanner.tsx` on `/order/[orderNumber]` polls a new
+  `GET /api/orders/[orderNumber]/status` and `router.refresh()`s on change — the return
+  redirect is never trusted, only a verified webhook flips `paid`.
+- **Expiry cron** (`src/app/api/cron/expire-payments/route.ts`, added to `vercel.json`) finds
+  `awaiting_payment` orders past `paymentExpiresAt` and marks them `orderStatus: cancelled` /
+  `paymentStatus: expired` via `payload.update` — deliberately reuses the *existing* Orders
+  restock-on-cancel + status-email hooks rather than duplicating that logic. ⚠️ Same caveat
+  as `cleanup-carts`: Vercel Hobby's daily-cron ceiling means the nominal 45-min
+  (`PAYMENT_RESERVATION_MINUTES`) TTL is really "released within a day" until this runs on
+  Pro or an external scheduler — acceptable while the only live provider is the mock adapter,
+  documented in the route.
+- **2.5 Currency (USD/LBP)**: SiteSettings Commerce gained `currencyDisplayMode`
+  (`usd_only`/`both`) + `exchangeRate`; `resolveCurrencyDisplay()` (site-settings.ts) only
+  ever returns "both" when a positive rate is actually configured, so an unset rate can't
+  render "LBP undefined" anywhere. `formatLBP()` (`src/lib/format.ts`) is display-only, never
+  fed back into a calculation. Wired into: shop grid + product detail + related-product
+  cards (`ProductCard` gained an optional `currency` prop), cart page, cart drawer, checkout
+  summary, order confirmation, and the confirmation email's total row.
+  `Orders.exchangeRateAtPurchase` snapshots the rate at purchase time (via `CartProvider`'s
+  new `currency` prop, mirroring how `emptyCartMessage` was already threaded from
+  SiteSettings) so a later admin rate change never rewrites what a past order "was worth."
+- **Migration hand-written, not generated**: `npm run migrate:create` invokes drizzle-kit's
+  interactive rename-detection wizard (an arrow-key TUI, not the simple y/N prompt the
+  Session 22 notes covered) — it hung indefinitely with zero output under this non-TTY
+  runner, and worse, misread the new `site_settings.card_payments_enabled` column as a
+  *rename* of the unrelated existing `product_meta_tagline` column on one attempt. Killed
+  the hung Node processes (`taskkill`, matched via `ps -W`'s WINPID column since `ps aux`
+  doesn't expose one) and hand-wrote
+  `src/migrations/20260724_094930_add_payments_and_currency.ts` instead — every statement
+  purely additive (new `payments` table, new enum values, new nullable columns), checked
+  field-by-field against the baseline migration's equivalent shapes for other
+  collections/enums before writing. Applied cleanly to dev (`npm run migrate`, confirming
+  the known "you've run Payload in dev mode" y/N prompt via `echo "y" |`).
+- **Verified against the real dev DB and a live dev server, not just scripts**: placed a
+  real `card` order via `POST /api/orders` (stock 35→34, `awaiting_payment`), simulated a
+  successful payment via `/api/payments/mock/simulate` → confirmed `paymentStatus: paid` via
+  the status endpoint, confirmed the Payment doc's `rawEvents` recorded the webhook payload,
+  confirmed a **replayed** webhook returns `alreadyProcessed: true` without reprocessing.
+  Separately verified: a missing webhook signature → 400, an unknown provider slug → 404, an
+  unknown `providerRef` → 400, a **failed**-outcome payment correctly sets `paymentStatus:
+  failed` while leaving stock reserved (a deliberate v1 choice — no retry-payment UX yet, so
+  cancelling is the release valve), and cancelling an `awaiting_payment` order **restocks
+  correctly** via the existing hook (stock 33→34) with no double-restock. Left
+  `SiteSettings.cardPaymentsEnabled=true` / `cardPaymentProvider=mock` **on** in the dev DB
+  afterward (not disposable test data — a real feature the admin can now click through in
+  the UI) — flagging this explicitly since it changes checkout's visible behavior on the
+  dev site starting now.
+- ✅ `npx tsc --noEmit` clean (0 errors, after `npm run generate:types` picked up the new
+  `Payments` collection + extended Orders/SiteSettings fields); `npm test` 25/25; `npm run
+  test:e2e` 1/1 (existing COD flow unaffected); `npm run build` succeeded (59 routes,
+  including the 5 new payment routes/pages) — first attempt hit a build-worker OOM during
+  type-checking, which cleared on retry with `NODE_OPTIONS=--max-old-space-size=6144` (not
+  chased further; looked like transient memory contention from the earlier stuck migration
+  processes, not a regression from this session's code).
+- **Not done this session** (by design, per user scoping): 2.3's real card-gateway decision
+  (Areeba vs. NetCommerce — still blocked on merchant onboarding), 2.2 Whish (skipped,
+  Session 22), 2.4 OMT / 2.6 refunds / 2.7 reconciliation (F2). ROADMAP.md updated throughout
+  (Part 2 header, 2.1/2.3/2.5 sections, F1 execution-order row).
+- Next: kick off Areeba/NetCommerce merchant-account conversations (external clock, unchanged
+  advice since Session 21) to unblock 2.3; otherwise F2 (OMT + refunds + reconciliation) once
+  a real gateway lands, or a pivot to ROADMAP Part 4 (reports/PDF) or the remaining
+  ENHANCEMENTS-only a11y/i18n extras in the meantime.

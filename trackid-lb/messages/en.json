@@ -84,6 +84,8 @@
     "payment": "Payment",
     "cod": "Cash on Delivery",
     "bankTransfer": "Bank Transfer",
+    "card": "Card",
+    "cardTestNote": "Test payment — you'll be sent to a test payment page. No real money moves.",
     "notes": "Notes (optional)",
     "notesPlaceholder": "Any special instructions…",
     "placeOrder": "Place Order",
@@ -119,6 +121,7 @@
     "payment": "Payment",
     "cod": "Cash on Delivery",
     "bankTransfer": "Bank Transfer",
+    "card": "Card",
     "howToPay": "How to pay",
     "continueShopping": "Continue Shopping",
     "statuses": {
@@ -135,6 +138,17 @@
     "shop": "Shop",
     "customRequest": "Custom Request",
     "trackOrder": "Track Order"
+  },
+  "payment": {
+    "testBadge": "Test payment — no real money moves",
+    "payAmount": "Pay {amount}",
+    "processing": "Processing…",
+    "simulateSuccess": "Simulate successful payment",
+    "simulateFailure": "Simulate failed payment",
+    "simulateError": "Something went wrong simulating the payment. Please try again.",
+    "confirming": "Confirming your payment…",
+    "failedBody": "Your payment didn't go through. Please place a new order or choose another payment method.",
+    "expiredBody": "This order was cancelled because payment wasn't completed in time. Please place a new order."
   },
   "account": {
     "account": "Account",

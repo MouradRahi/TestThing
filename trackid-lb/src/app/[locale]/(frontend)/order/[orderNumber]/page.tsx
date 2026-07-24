@@ -4,8 +4,9 @@ import { notFound } from 'next/navigation'
 import { getTranslations, getLocale } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
 import { getSiteSettings, getDeliveryZones, DEFAULT_ORDER_THANKYOU_NOTE } from '@/lib/site-settings'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatLBP } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
+import { PaymentConfirmingBanner } from '@/components/payments/PaymentConfirmingBanner'
 
 // Always render fresh: customers revisit this page (and arrive via /track) to
 // see their live order status — a cached copy would freeze it at first view.
@@ -42,6 +43,8 @@ export default async function OrderConfirmationPage({ params }: Props) {
   }> = Array.isArray(order.items) ? order.items : []
 
   const isBankTransfer = order.paymentMethod === 'bank_transfer'
+  const isCardPayment = order.paymentMethod === 'card'
+  const paymentLabel = isCardPayment ? t('card') : isBankTransfer ? t('bankTransfer') : t('cod')
   const settings = await getSiteSettings(await getLocale())
   const bankInstructions = (settings.bankTransferInstructions as string) || ''
   const thankYouNote = (settings.orderThankYouNote as string) || DEFAULT_ORDER_THANKYOU_NOTE
@@ -51,6 +54,9 @@ export default async function OrderConfirmationPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-20">
+      {isCardPayment && (
+        <PaymentConfirmingBanner orderNumber={order.orderNumber as string} initialStatus={String(order.paymentStatus)} />
+      )}
       {/* Header */}
       <div className="text-center mb-14">
         <div className="w-12 h-12 border border-accent/50 rounded-full flex items-center justify-center mx-auto mb-8 text-accent text-xl">
@@ -108,9 +114,18 @@ export default async function OrderConfirmationPage({ params }: Props) {
                   : t('deliveryByPhone')}
             </span>
           </div>
-          <div className="flex justify-between text-foreground font-semibold pt-2 border-t border-border text-sm">
+          <div className="flex justify-between items-baseline text-foreground font-semibold pt-2 border-t border-border text-sm">
             <span>{t('total')}</span>
-            <span className="tabular-nums">{formatPrice(Number(order.total))}</span>
+            <span className="text-end">
+              <span className="tabular-nums">{formatPrice(Number(order.total))}</span>
+              {/* Snapshotted at purchase time — a later admin rate change never
+                  retroactively changes what a past order "was worth" (F1 §2.5). */}
+              {typeof order.exchangeRateAtPurchase === 'number' && (
+                <span className="block text-[10px] font-normal text-muted tabular-nums">
+                  {formatLBP(Number(order.total), order.exchangeRateAtPurchase)}
+                </span>
+              )}
+            </span>
           </div>
         </div>
       </div>
@@ -128,7 +143,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
         </div>
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('payment')}</p>
-          <p className="text-foreground">{isBankTransfer ? t('bankTransfer') : t('cod')}</p>
+          <p className="text-foreground">{paymentLabel}</p>
         </div>
       </div>
 

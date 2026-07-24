@@ -7,7 +7,7 @@ import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 import { Button } from '@/components/ui/Button'
 import { Field, TextareaField, SelectField, SectionLabel } from '@/components/ui/FormField'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatLBP } from '@/lib/format'
 import type { DeliveryZone } from '@/lib/site-settings'
 
 type FormState = {
@@ -17,7 +17,7 @@ type FormState = {
   deliveryAddress: string
   area: string
   notes: string
-  paymentMethod: 'cod' | 'bank_transfer'
+  paymentMethod: 'cod' | 'bank_transfer' | 'card'
   website: string // honeypot — must stay empty; bots that fill it are silently dropped
 }
 
@@ -27,13 +27,15 @@ type Props = {
   zones: DeliveryZone[]
   freeDeliveryThreshold: number | null
   bankTransferInstructions: string
+  /** Card option only shown when a provider is actually enabled + usable (ROADMAP F1). */
+  cardPaymentsEnabled?: boolean
   prefill?: { name?: string; phone?: string; email?: string; addresses?: SavedAddress[] }
 }
 
-export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstructions, prefill }: Props) {
+export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstructions, cardPaymentsEnabled, prefill }: Props) {
   const router = useRouter()
   const t = useTranslations('checkout')
-  const { items, isLoading: cartLoading, total, clearCart } = useCart()
+  const { items, isLoading: cartLoading, total, clearCart, currency } = useCart()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   // Stable for this checkout attempt (component lifetime) — a retried
@@ -140,13 +142,20 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           })),
         }),
       })
+      const data = await res.json()
       if (!res.ok) {
-        const data = await res.json()
         throw new Error(data.error || 'Order failed')
       }
-      const { orderNumber } = await res.json()
       clearCart()
-      router.push(`/order/${orderNumber}`)
+      // Online payment (card) — the order is created and stock reserved, but
+      // not confirmed yet. Send the customer to the provider session instead
+      // of the confirmation page; paymentStatus only becomes `paid` via a
+      // verified webhook, never trusted from this response.
+      if (data.payment?.kind === 'redirect' && data.payment.url) {
+        router.push(data.payment.url)
+      } else {
+        router.push(`/order/${data.orderNumber}`)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('orderFailed'))
       setLoading(false)
@@ -259,6 +268,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
             {[
               { value: 'cod', label: t('cod') },
               { value: 'bank_transfer', label: t('bankTransfer') },
+              ...(cardPaymentsEnabled ? [{ value: 'card', label: t('card') }] : []),
             ].map((opt) => (
               <label
                 key={opt.value}
@@ -284,6 +294,12 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           {form.paymentMethod === 'bank_transfer' && bankTransferInstructions && (
             <div className="border border-accent/30 bg-surface px-4 py-3.5 text-xs text-muted leading-relaxed whitespace-pre-line">
               {bankTransferInstructions}
+            </div>
+          )}
+
+          {form.paymentMethod === 'card' && (
+            <div className="border border-accent/30 bg-surface px-4 py-3.5 text-xs text-muted leading-relaxed">
+              {t('cardTestNote')}
             </div>
           )}
 
@@ -403,9 +419,16 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
                       : formatPrice(deliveryFee)}
               </span>
             </div>
-            <div className="flex justify-between text-foreground font-semibold pt-2 border-t border-border text-sm">
+            <div className="flex justify-between items-baseline text-foreground font-semibold pt-2 border-t border-border text-sm">
               <span>{t('total')}</span>
-              <span className="tabular-nums">{formatPrice(grandTotal)}</span>
+              <span className="text-end">
+                <span className="tabular-nums">{formatPrice(grandTotal)}</span>
+                {currency.mode === 'both' && currency.exchangeRate && (
+                  <span className="block text-[10px] font-normal text-muted tabular-nums">
+                    {formatLBP(grandTotal, currency.exchangeRate)}
+                  </span>
+                )}
+              </span>
             </div>
           </div>
         </div>

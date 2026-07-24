@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { getLocale } from 'next-intl/server'
 import { getSiteSettings, getDeliveryZones } from '@/lib/site-settings'
 import { getCustomer } from '@/lib/auth'
+import { isProviderAvailable } from '@/lib/payments/registry'
 import { CheckoutForm } from '@/components/checkout/CheckoutForm'
 
 export const metadata: Metadata = { title: 'Checkout' }
@@ -21,6 +22,10 @@ export default async function CheckoutPage() {
       }
     : undefined
 
+  const cardProviderKey =
+    typeof settings.cardPaymentProvider === 'string' ? settings.cardPaymentProvider : 'mock'
+  const cardPaymentsEnabled = Boolean(settings.cardPaymentsEnabled) && isProviderAvailable(cardProviderKey)
+
   return (
     <CheckoutForm
       zones={getDeliveryZones(settings)}
@@ -28,6 +33,7 @@ export default async function CheckoutPage() {
         typeof settings.freeDeliveryThreshold === 'number' ? settings.freeDeliveryThreshold : null
       }
       bankTransferInstructions={(settings.bankTransferInstructions as string) || ''}
+      cardPaymentsEnabled={cardPaymentsEnabled}
       prefill={prefill}
     />
   )

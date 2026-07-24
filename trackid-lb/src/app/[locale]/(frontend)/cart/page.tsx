@@ -6,10 +6,10 @@ import { useTranslations } from 'next-intl'
 import { useCart } from '@/components/cart/CartContext'
 import { CartNotices } from '@/components/cart/CartNotices'
 import { Button } from '@/components/ui/Button'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatLBP } from '@/lib/format'
 
 export default function CartPage() {
-  const { items, isLoading, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
+  const { items, isLoading, removeItem, updateQuantity, total, itemCount, emptyCartMessage, currency } = useCart()
   const t = useTranslations('cart')
   const tp = useTranslations('product')
 
@@ -109,9 +109,14 @@ export default function CartPage() {
 
       {/* Totals */}
       <div className="pt-8 space-y-3">
-        <div className="flex justify-between text-sm text-muted">
+        <div className="flex justify-between items-baseline text-sm text-muted">
           <span>{t('subtotal')}</span>
-          <span className="tabular-nums">{formatPrice(total)}</span>
+          <span className="text-end">
+            <span className="tabular-nums">{formatPrice(total)}</span>
+            {currency.mode === 'both' && currency.exchangeRate && (
+              <span className="block text-[10px] tabular-nums">{formatLBP(total, currency.exchangeRate)}</span>
+            )}
+          </span>
         </div>
         <div className="flex justify-between text-xs text-muted">
           <span>{t('delivery')}</span>

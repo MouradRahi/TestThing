@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/cleanup-carts",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/expire-payments",
+      "schedule": "30 3 * * *"
     }
   ]
 }

@@ -16,6 +16,7 @@ import {
   getSiteSettings,
   buildThemeCssVars,
   resolveFontStack,
+  resolveCurrencyDisplay,
   DEFAULT_EMPTY_CART_MESSAGE,
 } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
@@ -126,6 +127,7 @@ export default async function FrontendLayout({
         <NextIntlClientProvider>
           <CartProvider
             emptyCartMessage={(settings.emptyCartMessage as string) || DEFAULT_EMPTY_CART_MESSAGE}
+            currency={resolveCurrencyDisplay(settings)}
           >
             <a
               href="#main-content"

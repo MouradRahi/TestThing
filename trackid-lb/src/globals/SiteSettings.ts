@@ -158,6 +158,49 @@ export const SiteSettings: GlobalConfig = {
                   'Shown at checkout, on the order confirmation page, and in the confirmation email when the customer picks Bank Transfer — bank name, account/IBAN, and what to put as the transfer reference.',
               },
             },
+            {
+              name: 'cardPaymentsEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded.',
+              },
+            },
+            {
+              name: 'cardPaymentProvider',
+              type: 'select',
+              defaultValue: 'mock',
+              options: [{ label: 'Mock (testing only)', value: 'mock' }],
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.cardPaymentsEnabled),
+                description:
+                  'The Mock provider simulates a payment session for local testing — it is disabled automatically in production unless ALLOW_MOCK_PAYMENTS=true is set.',
+              },
+            },
+            {
+              name: 'currencyDisplayMode',
+              type: 'select',
+              defaultValue: 'usd_only',
+              options: [
+                { label: 'USD only', value: 'usd_only' },
+                { label: 'USD + LBP equivalent', value: 'both' },
+              ],
+              admin: {
+                description:
+                  'USD stays the money of record everywhere (payments, discounts, reports). "Both" adds an LBP equivalent next to prices using the exchange rate below.',
+              },
+            },
+            {
+              name: 'exchangeRate',
+              type: 'number',
+              min: 0,
+              admin: {
+                condition: (_, siblingData) => siblingData?.currencyDisplayMode === 'both',
+                description:
+                  'LBP per 1 USD, e.g. 89000. Update this as the rate moves — each order snapshots the rate at purchase time, so past orders keep the rate they were placed under.',
+              },
+            },
           ],
         },
 

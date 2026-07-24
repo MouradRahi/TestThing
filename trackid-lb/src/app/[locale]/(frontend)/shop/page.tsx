@@ -6,6 +6,7 @@ import { ProductCard } from '@/components/product/ProductCard'
 import { Button } from '@/components/ui/Button'
 import { totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
+import { getSiteSettings, resolveCurrencyDisplay } from '@/lib/site-settings'
 import { routing } from '@/i18n/routing'
 import { localizedAlternates } from '@/lib/seo'
 import type { Where } from 'payload'
@@ -66,7 +67,7 @@ export default async function ShopPage({
   if (q) where.or = [{ title: { like: q } }, { 'tags.tag': { like: q } }]
   if (cursorable && cursor) where['createdAt'] = { less_than: cursor }
 
-  const [{ docs: products, totalDocs }, { docs: artists }, { docs: categories }] = await Promise.all([
+  const [{ docs: products, totalDocs }, { docs: artists }, { docs: categories }, settings] = await Promise.all([
     payload.find({
       collection: 'products',
       where,
@@ -77,7 +78,9 @@ export default async function ShopPage({
     }),
     payload.find({ collection: 'artists', limit: 50, sort: 'name', locale }),
     payload.find({ collection: 'categories', limit: 50, sort: 'name', locale }),
+    getSiteSettings(locale),
   ])
+  const currency = resolveCurrencyDisplay(settings)
 
   const last = products[products.length - 1] as (typeof products)[number] & { createdAt?: string }
   const nextCursor =
@@ -221,6 +224,7 @@ export default async function ShopPage({
                 imageAlt={resolveAlt(images[0]) || undefined}
                 artistName={artistObj?.name}
                 soldOut={totalStock(product) === 0}
+                currency={currency}
               />
             )
           })}

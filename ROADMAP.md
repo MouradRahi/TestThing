@@ -104,7 +104,15 @@ create them for real, same as any normal migration.
 
 ---
 
-## Part 2 — Payments (Lebanon) 🇱🇧 ⚠️ the centerpiece
+## Part 2 — Payments (Lebanon) 🇱🇧 ⚠️ the centerpiece — ◐ F1 IN PROGRESS (Session 23)
+
+**Session 23 status**: 2.1 (abstraction) and 2.5 (currency) are code-complete
+and verified against the dev DB. 2.3 (real card gateway) is deliberately
+**not** started — no Areeba/NetCommerce merchant account exists yet (see
+"External blockers" below) — but the abstraction was built and proven
+end-to-end with a `mock` testing provider, so wiring in a real adapter later
+is one new file (+ a Payments.provider select option), not a rewrite. 2.2
+stays skipped; 2.4/2.6/2.7 are F2.
 
 COD + bank transfer stay. We add: **Visa/Mastercard** (card gateway) and **OMT**
 (wallet + pay-cash-at-branch). All behind one abstraction so a brand can toggle
@@ -115,38 +123,61 @@ an adapter each, not a rewrite.
 > is out of scope for now; the card rail goes through a dedicated acquirer (2.3).
 > The abstraction keeps Whish addable later as just another adapter.
 
-### 2.1 Payment abstraction layer (build first, provider-agnostic)
-- ☐ `src/lib/payments/types.ts` — `PaymentProvider` interface:
-  - `initiate(order, opts) → { kind: 'redirect', url } | { kind: 'voucher', code, instructions }`
-  - `handleWebhook(req) → PaymentEvent` (signature-verified)
-  - `verify(providerRef) → PaymentStatus` (server-to-server poll — never trust the browser redirect)
-  - `refund(payment, amount) → RefundResult` (where supported)
-- ☐ `Payments` collection: order relation, provider, providerRef, amount, currency,
+### 2.1 Payment abstraction layer (build first, provider-agnostic) — ☑ DONE (Session 23)
+- ☑ `src/lib/payments/types.ts` — `PaymentProvider` interface: `initiate(payload, order)`,
+  `handleWebhook(req, rawBody)`, `verify(payload, providerRef)`. (`refund()` deferred to
+  F2 — no provider needs it yet.)
+- ☑ `src/collections/Payments.ts` — order relation, provider, providerRef, amount, currency,
   status (`initiated | pending | paid | failed | expired | refunded | partially_refunded`),
-  idempotencyKey, raw webhook payloads (audit), timestamps. Indexed on order + providerRef + status.
-- ☐ Order flow changes:
-  - Online-payment orders are created as `awaiting_payment`; **stock is reserved**
-    (decremented) at creation with a TTL
-  - A Vercel Cron sweep releases stock from expired unpaid orders (30–60 min TTL) and marks them `payment_expired`
-  - `paid` transition happens **only** from a verified webhook or server-side `verify()` —
-    the customer's return-redirect just shows "confirming…" and polls order status
-  - Confirmation email/WhatsApp fire on `paid` (COD keeps current behavior)
-- ☐ Security invariants: webhook signature verification per provider, replay protection
-  (processed event IDs), amount+currency re-checked against the order, idempotent
-  processing (a webhook delivered twice must be harmless)
-- ☐ Checkout UI: payment-method selection driven by SiteSettings Commerce tab toggles
-  (each provider off until its keys are configured); per-method instructions text
+  rawEvents (json, audit trail), timestamps. Indexed on order + provider + providerRef + status.
+  Admin-only read; create/update blocked at the collection level (written only via
+  `src/lib/payments/service.ts` through the Local API). (`idempotencyKey` field dropped —
+  the existing `idempotency-keys` collection + `Idempotency-Key` header on `POST /api/orders`
+  already covers retry-safety for order+payment creation as one unit.)
+- ☑ Order flow changes:
+  - Online-payment orders are created `awaiting_payment` with a `paymentExpiresAt` timestamp;
+    **stock is reserved** (decremented) at creation exactly like COD/bank-transfer orders
+  - `src/app/api/cron/expire-payments/route.ts` (new, scheduled in `vercel.json`) finds
+    expired unpaid orders and marks them `orderStatus: cancelled` / `paymentStatus: expired`
+    — reuses the existing Orders restock-on-cancel + status-email hooks rather than
+    duplicating that logic. ⚠️ Vercel Hobby's daily-cron limit (the same constraint that
+    made `cleanup-carts` daily) means the nominal 45-min TTL is actually "released within
+    a day" until this runs on Pro or an external scheduler — documented in the route,
+    acceptable while the only live provider is the mock adapter.
+  - `paid` transition happens **only** via a verified webhook (`applyPaymentEvent` in
+    `service.ts`) — the customer's return-redirect (`/order/[orderNumber]`) shows a
+    `PaymentConfirmingBanner` that polls `GET /api/orders/[orderNumber]/status` and
+    `router.refresh()`s on change, never trusting the redirect itself
+  - Confirmation email/WhatsApp fire on the `awaiting_payment → paid` transition via an
+    Orders `afterChange` hook (COD/bank-transfer keep firing immediately at creation, unchanged)
+- ☑ Security invariants: HMAC signature verification (mock adapter — real adapters bring
+  their own scheme), idempotent processing (`applyPaymentEvent` no-ops on an
+  already-terminal payment status), amount re-checked against the stored Payment record
+  when a webhook supplies one
+- ☑ Checkout UI: "Card" only appears when SiteSettings Commerce → `cardPaymentsEnabled`
+  is on **and** the configured provider passes `isProviderAvailable()` (mock is
+  auto-disabled in production unless `ALLOW_MOCK_PAYMENTS=true`); test-payment note shown
+  inline when selected
 
 ### 2.2 Whish Money adapter — ⏭ SKIPPED (Session 22, user decision)
 Kept here for reference; revisit only if a client brand signs with Whish. It would be
 one adapter against the 2.1 interface — nothing else in the plan depends on it.
 
-### 2.3 Card gateway (Visa/Mastercard) — decision + adapter
-- ☐ **Decision** (during vendor onboarding): a dedicated acquirer — Areeba (MPGS hosted
-  checkout) or NetCommerce are the established Lebanese options. The abstraction makes
-  this swappable per client brand.
-- ☐ Hosted-checkout integration only (customer enters card on the gateway's PCI-compliant
-  page) — we never touch PANs, keeping us out of PCI-DSS scope beyond SAQ-A
+### 2.3 Card gateway (Visa/Mastercard) — decision + adapter — ◐ MOCK ADAPTER ONLY (Session 23)
+- ☑ `src/lib/payments/mock.ts` + `registry.ts` — a testing adapter (HMAC-signed webhook,
+  `/pay/mock/[paymentId]` simulated hosted-checkout page, `/api/payments/mock/simulate` +
+  `/api/payments/webhook/mock`) proves the 2.1 abstraction end-to-end without a real
+  merchant account: initiate → redirect → webhook → `paid` → confirmation email, all
+  verified against the dev DB. Auto-disabled in production unless `ALLOW_MOCK_PAYMENTS=true`.
+- ☐ **Decision** (still pending — needs vendor onboarding): a dedicated acquirer — Areeba
+  (MPGS hosted checkout) or NetCommerce are the established Lebanese options. The
+  abstraction makes this swappable per client brand.
+- ☐ Real hosted-checkout integration (customer enters card on the gateway's PCI-compliant
+  page) — we never touch PANs, keeping us out of PCI-DSS scope beyond SAQ-A. Adding it is:
+  one adapter file implementing `PaymentProvider`, one line in `registry.ts`, one option
+  added to `Payments.provider`'s select (+ a migration for that enum) and
+  `SiteSettings.cardPaymentProvider`'s select — checkout/orders/webhook-route/cron all
+  already generic over the provider key.
 
 ### 2.4 OMT adapter
 - ☐ **Pay at OMT branch (cash voucher)** — the high-value flow for unbanked customers:
@@ -157,12 +188,19 @@ one adapter against the 2.1 interface — nothing else in the plan depends on it
 - ⚠️ OMT e-commerce APIs are B2B-agreement-gated; v1 can ship as "voucher + manual
   confirm" and upgrade to API confirmation when the agreement lands
 
-### 2.5 Currency (USD/LBP dual display)
-- ☐ SiteSettings Commerce: `secondaryCurrency` toggle + admin-set `exchangeRate`
-  (LBP per USD) + display mode (USD only / both)
-- ☐ Storefront shows LBP equivalents where enabled (catalog, cart, checkout, emails);
-  **USD stays the money of record** — LBP is display + the amount sent to LBP-native
-  providers, snapshotted per order (`exchangeRateAtPurchase`)
+### 2.5 Currency (USD/LBP dual display) — ☑ DONE (Session 23)
+- ☑ SiteSettings Commerce: `currencyDisplayMode` (`usd_only` | `both`) + admin-set
+  `exchangeRate` (LBP per USD). `resolveCurrencyDisplay()` (site-settings.ts) only ever
+  actually returns "both" when a valid positive rate is configured — a fresh install or
+  an unset rate silently reads as USD-only rather than showing "LBP undefined" anywhere.
+- ☑ Storefront shows LBP equivalents where enabled — shop grid, product detail + related
+  cards, cart page, cart drawer, checkout summary, order confirmation, and the
+  confirmation email's total row. **USD stays the money of record**; LBP is
+  `formatLBP()` (`src/lib/format.ts`) display only, never fed back into a calculation.
+  Snapshotted per order (`Orders.exchangeRateAtPurchase`) so a later admin rate change
+  never retroactively changes what a past order "was worth."
+- Deferred (not requested this session): showing LBP as the amount actually sent to an
+  LBP-native provider (OMT, F2) — today's mock adapter only ever speaks USD.
 
 ### 2.6 Refunds & disputes
 - ☐ Admin refund action on paid orders (full/partial) → provider `refund()` where
@@ -402,7 +440,7 @@ The features "any business could possibly require" that aren't payments/reports/
 | Phase | Contents | Size | Depends on |
 |---|---|---|---|
 | **F0 — Foundation** ☑ DONE (Session 22) | Part 1 (DB split ☑, migrations ☑, durable rate-limit+idempotency ☑, Sentry ◐, audit log ☑, admin security ☑, Playwright+unit tests ☑) + Part 0 quick items | M | — |
-| **F1 — Payments core + cards** | 2.1 abstraction, 2.3 card gateway (Areeba MPGS / NetCommerce), 2.5 currency, stock reservation + expiry cron *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
+| **F1 — Payments core + cards** ◐ Session 23 | 2.1 abstraction ☑, 2.5 currency ☑, stock reservation + expiry cron ☑ — 2.3 real card gateway (Areeba MPGS / NetCommerce) still ☐, blocked on vendor onboarding *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
 | **F2 — OMT + refunds + reconciliation** | 2.4, 2.6, 2.7 | M | F1 |
 | **F3 — Invoicing & fulfillment** | Part 3 (invoices/VAT, courier, inventory ops) | M | F0; invoices richer after F1 |
 | **F4 — Reports** | Part 4 (engine, exports, scheduled, dashboard v3) | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
