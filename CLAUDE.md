@@ -1271,3 +1271,42 @@ follow-up), with all three export formats (CSV + XLSX + PDF).
 - Next: user's call — 4.2 (scheduled email reports) / 4.3 (dashboard v3), remaining small F2
   pieces, F1-to-prod deploy timing, Areeba/NetCommerce/OMT/Whish merchant conversations, or
   ENHANCEMENTS-only a11y/i18n extras.
+
+### Session 26 — 2026-07-31
+Focus: **incident response — a live Vercel deploy hung for 40+ minutes**, discovered from a
+build-log screenshot the user shared. Two unrelated fixes landed same-session: the CI
+lockfile drift from Session 25 (already pushed and confirmed green via a background
+Monitor poll of the GitHub Actions API), and this new build-hang issue.
+- **Root cause**: `@payloadcms/drizzle`'s `migrate()` shows an interactive `prompts`
+  confirm() — "It looks like you've run Payload in dev mode... proceed?" — whenever a
+  `batch = -1` sentinel row exists in `payload_migrations` (leftover from any database with
+  pre-migrations push history, which both this project's original prod *and*, it turned out,
+  the disposable dev DB both still carried). Vercel's build machine has no TTY to answer
+  that prompt, so the build doesn't fail — it just hangs until Vercel's own ceiling kills it,
+  burning real build minutes the whole time. Confirmed by grepping
+  `node_modules/@payloadcms/drizzle/dist/migrate.js` for the exact prompt text.
+- **Fixed at the source, not just for this one incident**: `scripts/migrate.mjs`'s `up`
+  command now unconditionally deletes any `batch = -1` rows before calling
+  `payload.db.migrate()`. The row isn't a real migration record — removing it only disarms
+  the confirmation gate and has zero effect on which migrations are considered applied.
+  This self-heals for any future client database with the same push-era history too
+  (relevant given the Part 8 productization plans), not just a one-off prod cleanup.
+  Verified against the **dev** DB: `npm run migrate` actually found and cleared a stale
+  `batch = -1` row there too (dev apparently carried the same leftover), ran straight
+  through with no prompt, and `migrate:status` afterward showed all 5 migrations still
+  correctly applied at their original batch numbers — nothing else was disturbed.
+- **Also cleaned up `src/migrations/index.ts`** while in the area: confirmed via grep it's
+  never imported anywhere (Payload's drizzle adapter scans `migrationDir` directly off disk
+  at runtime) and was stale, missing the two most recent migrations — regenerated to match
+  disk and commented as vestigial/non-authoritative so a future session doesn't trust it.
+- **Prod-side action left to the user** (no prod DB access in this session, by design —
+  same boundary as every other prod-touching session): cancel the currently-stuck Vercel
+  deployment (it will never complete on its own), then run
+  `delete from payload_migrations where batch = -1;` in prod's Supabase SQL editor before
+  redeploying. Documented in MIGRATIONS.md's Baselining section alongside the existing
+  `product_meta_tagline` incident writeup, including the read-only check-first query.
+- ✅ `npx tsc --noEmit` clean; `npm test` 25/25; `npm run migrate` + `migrate:status`
+  verified end-to-end against the real dev DB (not just reasoned about).
+- Next: user's call, once prod is unstuck — same backlog as Session 25 (4.2/4.3 reports
+  follow-up, remaining F2 pieces, F1-to-prod deploy timing, merchant conversations,
+  ENHANCEMENTS extras).
