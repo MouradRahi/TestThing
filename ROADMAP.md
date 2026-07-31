@@ -44,7 +44,7 @@ adjacent phases as we go.
 - ☑ **4.2 `payload-types.ts` generation** — DONE (Session 22): `npm run generate:types` (programmatic runner sidesteps the broken CLI); generated types adopted, all strict-type errors fixed, tsc clean
 - ☐ **i18n leftovers** — homepage-block text localization, product image `alt` localization, decorative shop strings, localized order emails
 - ☐ **4.3 deferred** — Payload versions/rollback + live-preview iframe for Pages/Homepage
-- ☐ **Weekly email summary** for the sales dashboard (needs Vercel Cron — lands naturally with Part 4 reports)
+- ☑ **Weekly email summary** for the sales dashboard — DONE (Session 26), see Part 4 §4.2
 - ☐ **Recently-viewed strip** — server-backed design (no localStorage per mandate); fold into customer-account phase polish
 - ☐ **2.7 artist filter chips → dropdown/combobox** at scale (~15+ artists)
 - ☐ **Announcement-bar contrast check** on admin-set colors
@@ -329,16 +329,53 @@ the dashboard's "JS aggregation at scale" deferred item.
   reports needed only F0 + the F1 mock provider (already done) — no payments work was
   blocking, only VAT is (and only VAT, deliberately deferred)
 
-### 4.2 Scheduled reports
-- ☐ Vercel Cron → `/api/reports/scheduled`: weekly/monthly summary emailed to
-  `contactEmail` (retires the deferred "weekly email summary")
-- ☐ Admin-configurable: which reports, what cadence, recipients
+### 4.2 Scheduled reports — ☑ DONE (Session 26)
+- ☑ Vercel Cron (`vercel.json`, daily at 06:00) → `GET /api/cron/scheduled-reports`: builds
+  the admin-selected report types and emails a digest with a CSV attached per report,
+  via `src/lib/reports/scheduled-email.ts` (same Resend pattern as `notifications.ts`,
+  skips gracefully without `RESEND_API_KEY`). Runs daily but only actually sends on the
+  configured cadence's due day (weekly → Monday, monthly → the 1st), and only once per
+  period (`reportsEmailLastSentAt` dedupe guard) — same "daily cron, computed due-day"
+  shape as `expire-payments`/`cleanup-carts`.
+- ☑ Admin-configurable via a new SiteSettings **Reports** tab: on/off, cadence
+  (weekly/monthly), recipients (comma-separated, falls back to Brand → Contact Email),
+  and a checkbox per report type (Sales/Inventory on by default; Customers/Discounts/
+  Payments off by default, opt-in).
+- Retires the deferred "weekly email summary" item.
+- **Verified with a real send**, not just review: ran the actual `sendScheduledReportEmail()`
+  against the real dev DB and the real Resend API (via the bundled-config loader + `tsx`,
+  same technique as the migration scripts) — first attempt used a guessed recipient email
+  and correctly got rejected by Resend's sandbox restriction (`You can only send testing
+  emails to your own email address`), which is exactly why this was tested for real rather
+  than assumed; retried with the account's actual verified address and got `{ sent: true }`
+  with real CSV attachments delivered.
 
-### 4.3 Dashboard v3
-- ☐ Conversion funnel (sessions → carts → checkouts → orders; carts data already exists,
-  sessions from Vercel Analytics API or a lightweight own counter)
-- ☐ Cohort/repeat-purchase view (accounts exist, so this is now computable)
-- ☐ Payment-method mix and payment-failure rate (new, from Part 2 data)
+### 4.3 Dashboard v3 — ☑ DONE (Session 26)
+- ☑ Conversion funnel: **Sessions → Carts → Checkouts → Completed orders**. Sessions comes
+  from a **lightweight own counter** (user's explicit choice over the Vercel Analytics API,
+  which needs a paid plan + token neither exists nor was wanted as a new dependency) —
+  `AnalyticsCounters` collection (one row per UTC day, atomic upsert via
+  `src/lib/analytics.ts`), pinged fire-and-forget from `src/middleware.ts` via
+  `event.waitUntil()` on real navigations only (`sec-fetch-mode: navigate`, so Next.js
+  prefetches and client-side RSC fetches don't inflate the count). "Carts" = distinct carts
+  with ≥1 item in range; "Checkouts" = every order created in range (an Order row only
+  exists once checkout was actually submitted — no separate "started checkout" signal
+  without more instrumentation than was scoped); "Completed" = orders not cancelled.
+- ☑ Cohort/repeat-purchase view: customers grouped by the calendar month of their first
+  (non-cancelled) order, with repeat-customer count/rate and avg orders — identity =
+  account id else lower-cased guest email, same convention as the Customers report.
+- ☑ Payment-method mix + failure rate: per `orders.payment_method` attempted/succeeded/
+  failed counts; failure rate is null for COD/bank-transfer (no such concept for them) and
+  computed only over *concluded* card/omt attempts (excludes still-`awaiting_payment` ones).
+- All three built in `src/lib/reports/dashboard-v3.ts`, rendered by a new
+  `AnalyticsDashboardPanel.tsx` admin panel (own `?v3range=` query param so it doesn't
+  collide with SalesDashboard's `?range=` on the same /admin page).
+- **Verified against real dev data**: funnel/cohort/payment-mix queries run via a throwaway
+  script against the real dev DB — results matched known test scenarios from prior sessions
+  (e.g. the payment-mix numbers lined up exactly with the F1/F2 verification's known
+  card-failed / omt-paid / cod-refunded test orders), and the page-view upsert was verified
+  to actually increment (1→2) before the test rows were reverted to avoid leaving fake data
+  in the real counters.
 
 ---
 
@@ -502,7 +539,7 @@ The features "any business could possibly require" that aren't payments/reports/
 | **F1 — Payments core + cards** ◐ Session 23 | 2.1 abstraction ☑, 2.5 currency ☑, stock reservation + expiry cron ☑ — 2.3 real card gateway (Areeba MPGS / NetCommerce) still ☐, blocked on vendor onboarding *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
 | **F2 — OMT + refunds + reconciliation** ☑ v1 Session 24 | 2.4 ☑ (voucher + manual confirm), 2.6 ☑ (any payment method), 2.7 ☑ (dashboard + CSV) — order-timeline UI + real OMT API confirmation remain, both small/unblocked | M | F1 |
 | **F3 — Invoicing & fulfillment** | Part 3 (invoices/VAT, courier, inventory ops) | M | F0; invoices richer after F1 |
-| **F4 — Reports** | Part 4 (engine, exports, scheduled, dashboard v3) | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
+| **F4 — Reports** ☑ DONE (Session 25–26), VAT excepted | Part 4 (engine ☑, exports ☑, scheduled ☑, dashboard v3 ☑) — only the VAT/tax report type remains, blocked on Part 3.1 | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
 | **F5 — AI assistants** | ⏭ SKIPPED (Session 22) | — | — |
 | **F6 — Commerce depth** | Part 6 (returns, reviews, gift cards, back-in-stock, abandoned cart) | L (parallelizable chunks) | F0; returns-refunds need F1 |
 | **F7 — Growth** | Part 7 | S–M | independent |

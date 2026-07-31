@@ -83,6 +83,7 @@ export interface Config {
     'rate-limit-counters': RateLimitCounter;
     'idempotency-keys': IdempotencyKey;
     'audit-log': AuditLog;
+    'analytics-counters': AnalyticsCounter;
     users: User;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -106,6 +107,7 @@ export interface Config {
     'rate-limit-counters': RateLimitCountersSelect<false> | RateLimitCountersSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'audit-log': AuditLogSelect<false> | AuditLogSelect<true>;
+    'analytics-counters': AnalyticsCountersSelect<false> | AnalyticsCountersSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -888,6 +890,18 @@ export interface AuditLog {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "analytics-counters".
+ */
+export interface AnalyticsCounter {
+  id: number;
+  /**
+   * YYYY-MM-DD (UTC)
+   */
+  date: string;
+  pageViews: number;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
@@ -995,6 +1009,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'audit-log';
         value: number | AuditLog;
+      } | null)
+    | ({
+        relationTo: 'analytics-counters';
+        value: number | AnalyticsCounter;
       } | null)
     | ({
         relationTo: 'users';
@@ -1478,6 +1496,14 @@ export interface AuditLogSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "analytics-counters_select".
+ */
+export interface AnalyticsCountersSelect<T extends boolean = true> {
+  date?: T;
+  pageViews?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
@@ -1596,7 +1622,7 @@ export interface SiteSetting {
    */
   bankTransferInstructions?: string | null;
   /**
-   * Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded.
+   * Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).
    */
   cardPaymentsEnabled?: boolean | null;
   /**
@@ -1604,7 +1630,7 @@ export interface SiteSetting {
    */
   cardPaymentProvider?: 'mock' | null;
   /**
-   * Show "OMT (pay at branch)" as a checkout payment option (ROADMAP F2). v1 is voucher + manual confirm — no OMT merchant agreement exists yet, so staff confirm payments by hand from the admin dashboard's "OMT Payments" panel.
+   * Show "OMT (pay at branch)" as a checkout payment option (ROADMAP F2). v1 is voucher + manual confirm — no OMT merchant agreement exists yet, so staff confirm payments by hand from the admin dashboard's "OMT Payments" panel. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).
    */
   omtPaymentEnabled?: boolean | null;
   /**
@@ -1771,6 +1797,24 @@ export interface SiteSetting {
    * Prefix for generated order numbers, e.g. "TRK" → TRK-123456-AB12. Letters/numbers only; changing it does not rename existing orders.
    */
   orderNumberPrefix?: string | null;
+  /**
+   * Send a scheduled email digest of the reports below.
+   */
+  reportsEmailEnabled?: boolean | null;
+  reportsEmailCadence?: ('weekly' | 'monthly') | null;
+  /**
+   * Comma-separated email addresses. Leave empty to use Contact Email (Brand tab).
+   */
+  reportsEmailRecipients?: string | null;
+  sendSalesReport?: boolean | null;
+  sendInventoryReport?: boolean | null;
+  sendCustomersReport?: boolean | null;
+  sendDiscountsReport?: boolean | null;
+  sendPaymentsReport?: boolean | null;
+  /**
+   * Set automatically — prevents sending twice in the same period.
+   */
+  reportsEmailLastSentAt?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2086,6 +2130,15 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   emailGreeting?: T;
   emailFooterNote?: T;
   orderNumberPrefix?: T;
+  reportsEmailEnabled?: T;
+  reportsEmailCadence?: T;
+  reportsEmailRecipients?: T;
+  sendSalesReport?: T;
+  sendInventoryReport?: T;
+  sendCustomersReport?: T;
+  sendDiscountsReport?: T;
+  sendPaymentsReport?: T;
+  reportsEmailLastSentAt?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

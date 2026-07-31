@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/expire-payments",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/scheduled-reports",
+      "schedule": "0 6 * * *"
     }
   ]
 }

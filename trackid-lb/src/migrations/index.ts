@@ -10,6 +10,7 @@ import * as migration_20260720_131107_add_rate_limit_and_idempotency from './202
 import * as migration_20260721_071235_add_audit_log from './20260721_071235_add_audit_log';
 import * as migration_20260724_094930_add_payments_and_currency from './20260724_094930_add_payments_and_currency';
 import * as migration_20260731_074810_add_omt_and_refunds from './20260731_074810_add_omt_and_refunds';
+import * as migration_20260731_150000_add_analytics_and_scheduled_reports from './20260731_150000_add_analytics_and_scheduled_reports';
 
 export const migrations = [
   {
@@ -36,5 +37,10 @@ export const migrations = [
     up: migration_20260731_074810_add_omt_and_refunds.up,
     down: migration_20260731_074810_add_omt_and_refunds.down,
     name: '20260731_074810_add_omt_and_refunds',
+  },
+  {
+    up: migration_20260731_150000_add_analytics_and_scheduled_reports.up,
+    down: migration_20260731_150000_add_analytics_and_scheduled_reports.down,
+    name: '20260731_150000_add_analytics_and_scheduled_reports',
   },
 ];

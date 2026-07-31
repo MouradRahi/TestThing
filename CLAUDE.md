@@ -1307,6 +1307,84 @@ Monitor poll of the GitHub Actions API), and this new build-hang issue.
   `product_meta_tagline` incident writeup, including the read-only check-first query.
 - ✅ `npx tsc --noEmit` clean; `npm test` 25/25; `npm run migrate` + `migrate:status`
   verified end-to-end against the real dev DB (not just reasoned about).
-- Next: user's call, once prod is unstuck — same backlog as Session 25 (4.2/4.3 reports
-  follow-up, remaining F2 pieces, F1-to-prod deploy timing, merchant conversations,
-  ENHANCEMENTS extras).
+- ✅ **Prod deploy succeeded** (user cancelled the stuck deployment, ran the
+  `payload_migrations` cleanup, redeployed) — the F1/F2 payments work (Sessions 23–24) and
+  the Session 25 report engine are now both live in production, not just on the branch.
+- Next: user's call — same backlog as Session 25 (4.2/4.3 reports follow-up, remaining F2
+  pieces, Areeba/NetCommerce/OMT/Whish merchant conversations, ENHANCEMENTS extras).
+
+### Session 26 (part 2) — 2026-07-31
+Focus: **ROADMAP Part 4 §4.2 (scheduled reports) + §4.3 (dashboard v3)** — the two pieces
+deliberately deferred from the Session 25 report-engine build. Both are now ☑ DONE.
+- **Scoping question asked first**: the funnel's "sessions" stage has no existing data
+  source — Vercel's own Analytics API needs a paid plan + API token neither exists nor was
+  wanted as a new external dependency. User picked **building a lightweight own counter**
+  over skipping sessions entirely or wiring up Vercel Analytics.
+- **§4.3 — lightweight page-view counter + dashboard v3**:
+  - `AnalyticsCounters` collection (one row per UTC day, hidden/schema-managed like
+    RateLimitCounters) + `src/lib/analytics.ts → recordPageView()` (single atomic UPSERT,
+    same pattern as durable-rate-limit.ts). New `POST /api/analytics/pageview` (public,
+    durable-rate-limited at 300/10min/IP to blunt trivial abuse — this only inflates an
+    internal dashboard number, not a security boundary).
+  - `src/middleware.ts` now fire-and-forgets a ping to that route via `event.waitUntil()`
+    on real navigations only (`sec-fetch-mode: navigate` — excludes Next.js prefetches and
+    client-side RSC segment fetches, which don't carry that header, so hovering a link or
+    client-side routing doesn't inflate the count). No cookies, no per-user tracking.
+  - `src/lib/reports/dashboard-v3.ts` — `buildFunnel` (Sessions → Carts → Checkouts →
+    Completed orders; Carts = distinct carts with ≥1 item in range; Checkouts = every order
+    created in range, since an Order row only exists once checkout was actually submitted —
+    no separate "started checkout" signal was in scope; Completed = orders not cancelled),
+    `buildCohorts` (customers grouped by calendar month of first non-cancelled order, with
+    repeat-customer count/rate — same identity convention as the Customers report:
+    account id, else lower-cased guest email), `buildPaymentMix` (per payment_method
+    attempted/succeeded/failed; failure rate null for COD/bank-transfer, computed only over
+    concluded card/omt attempts).
+  - New `AnalyticsDashboardPanel.tsx` admin panel (own `?v3range=` query param so it doesn't
+    collide with SalesDashboard's `?range=` on the same /admin page) — funnel with
+    stage-to-stage %, payment mix cards, a 12-month cohort table. Registered in
+    `payload.config.ts` beforeDashboard, alongside the other four panels.
+- **§4.2 — scheduled email digest**: new SiteSettings **Reports** tab (enable toggle,
+  weekly/monthly cadence, comma-separated recipients falling back to Brand → Contact Email,
+  a checkbox per report type — Sales/Inventory default on, Customers/Discounts/Payments
+  default off). `src/lib/reports/scheduled-email.ts → sendScheduledReportEmail()` builds
+  each selected report and emails an HTML summary with **a CSV attached per report type**
+  (deliberately CSV-only, not XLSX/PDF, to keep the automated email itself light — the admin
+  Reports panel covers the other formats on demand). New `GET /api/cron/scheduled-reports`
+  (same dev-open/prod-`CRON_SECRET`-gated pattern as the other two crons) runs daily
+  (`vercel.json`) but only actually sends on the cadence's due day (weekly → Monday,
+  monthly → the 1st) and only once per period (`reportsEmailLastSentAt` dedupe guard) —
+  same "daily cron computes its own due day" shape `expire-payments`/`cleanup-carts`
+  already established, needed because Vercel Hobby only allows daily cron granularity.
+- **Migration**: hand-written again (`20260731_150000_add_analytics_and_scheduled_reports.ts`)
+  — same interactive-wizard-hangs-under-this-runner reasoning as the three prior hand-written
+  migrations; purely additive (new table, new enum, new nullable/defaulted columns on
+  site_settings). Applied cleanly to dev, no new stale sentinel this time (already cleared
+  by the Session 26 part 1 fix). Also **fixed `src/migrations/index.ts` for real this time**
+  — added this 6th migration, keeping the file (unused by the runtime, but worth not leaving
+  misleading) in sync.
+- **Verified for real, not just reviewed**:
+  - Ran every new SQL query (page-view upsert, funnel stages, cohorts, payment mix) directly
+    against the real dev DB via a throwaway script. Results lined up with known test data
+    from prior sessions (e.g. payment-mix numbers matched the exact card-failed/omt-paid/
+    cod-refunded test orders created during F1/F2 verification) — confirmed the atomic
+    upsert actually increments (1→2), then reverted the two test page-view rows so no fake
+    data was left in the real counters.
+  - **Sent a real scheduled-report email** through the actual Resend API (via the
+    bundled-config loader + `tsx`, same technique the migration scripts use, since Node's
+    native TS stripping can't resolve this project's extensionless relative imports).
+    First attempt used a guessed recipient and was correctly rejected by Resend's sandbox
+    restriction ("you can only send testing emails to your own email address") — exactly
+    why this was tested for real instead of assumed working; retried with the account's
+    actual verified address and got a real send with CSV attachments delivered.
+  - Full `npm run build` verified (safe — confirmed no dev server was running first): both
+    new routes registered, middleware bundle size essentially unchanged (53.8→53.9KB) despite
+    the new Edge-side fetch call.
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types` picked up the new SiteSettings
+  fields); `npm test` 25/25; `npm run migrate:status` shows all 6 migrations applied on dev.
+- ROADMAP.md Part 4 §4.2/§4.3 marked ☑ DONE; F4 row in the execution-order table updated
+  (only the VAT/tax report type remains open, blocked on Part 3.1, not this work).
+- **ROADMAP Part 4 (Reports & analytics) is now fully done** except VAT, which has an
+  external-in-the-sense-of-scope blocker (Part 3.1 doesn't exist yet), not a skipped item.
+- Next: user's call — remaining small F2 pieces, Part 3 (invoicing/VAT — would also unblock
+  the VAT report), Areeba/NetCommerce/OMT/Whish merchant conversations, or ENHANCEMENTS
+  a11y/i18n extras. Not yet deployed to prod — same deploy-timing decision as always.

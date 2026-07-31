@@ -171,3 +171,7 @@ The prod/dev DBs already have the full schema (built up via pushes). Before swit
 > ```sql
 > delete from payload_migrations where batch = -1;
 > ```
+>
+> ✅ **Resolved on prod (2026-07-31, Session 26)** — user cancelled the stuck deployment, ran
+> the cleanup above, redeployed successfully. Prod is now current through the Session 25
+> report engine and the Session 23–24 payments work.

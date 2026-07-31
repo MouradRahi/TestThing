@@ -21,6 +21,7 @@ import { Carts } from './collections/Carts'
 import { RateLimitCounters } from './collections/RateLimitCounters'
 import { IdempotencyKeys } from './collections/IdempotencyKeys'
 import { AuditLog } from './collections/AuditLog'
+import { AnalyticsCounters } from './collections/AnalyticsCounters'
 import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
@@ -56,10 +57,11 @@ export default buildConfig({
         '/components/admin/OmtPaymentsPanel#OmtPaymentsPanel',
         '/components/admin/PaymentsOpsPanel#PaymentsOpsPanel',
         '/components/admin/ReportsPanel#ReportsPanel',
+        '/components/admin/AnalyticsDashboardPanel#AnalyticsDashboardPanel',
       ],
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, RateLimitCounters, IdempotencyKeys, AuditLog, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],
   // Content localization — mirrors the storefront locales (src/i18n/routing.ts).
   // Fields marked `localized: true` store a value per locale; everything else is
   // shared. Add a locale here + in routing.ts + a messages/<locale>.json to grow.
