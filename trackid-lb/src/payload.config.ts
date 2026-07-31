@@ -50,11 +50,12 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
     components: {
-      // Sales analytics + payments ops (F2) above the default admin dashboard
+      // Sales analytics + payments ops (F2) + reports (Part 4) above the default admin dashboard
       beforeDashboard: [
         '/components/admin/SalesDashboard#SalesDashboard',
         '/components/admin/OmtPaymentsPanel#OmtPaymentsPanel',
         '/components/admin/PaymentsOpsPanel#PaymentsOpsPanel',
+        '/components/admin/ReportsPanel#ReportsPanel',
       ],
     },
   },

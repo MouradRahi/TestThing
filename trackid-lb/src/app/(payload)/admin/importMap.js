@@ -25,6 +25,7 @@ import { MediaGridView as MediaGridView_6a8df64b003ed81959eb0071deb6b2e8 } from 
 import { SalesDashboard as SalesDashboard_3df38286d47bdcfcbe576c08ff7bbba2 } from '../../../components/admin/SalesDashboard'
 import { OmtPaymentsPanel as OmtPaymentsPanel_b11b11f8ac3519d73796b999ff1bba9c } from '../../../components/admin/OmtPaymentsPanel'
 import { PaymentsOpsPanel as PaymentsOpsPanel_ae02e43353f0a7bb619602d12d077546 } from '../../../components/admin/PaymentsOpsPanel'
+import { ReportsPanel as ReportsPanel_7c1e2f6a4d3b8e91a0c5f2d7b6e94a31 } from '../../../components/admin/ReportsPanel'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -57,6 +58,7 @@ export const importMap = {
   "/components/admin/SalesDashboard#SalesDashboard": SalesDashboard_3df38286d47bdcfcbe576c08ff7bbba2,
   "/components/admin/OmtPaymentsPanel#OmtPaymentsPanel": OmtPaymentsPanel_b11b11f8ac3519d73796b999ff1bba9c,
   "/components/admin/PaymentsOpsPanel#PaymentsOpsPanel": PaymentsOpsPanel_ae02e43353f0a7bb619602d12d077546,
+  "/components/admin/ReportsPanel#ReportsPanel": ReportsPanel_7c1e2f6a4d3b8e91a0c5f2d7b6e94a31,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

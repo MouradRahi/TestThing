@@ -290,26 +290,44 @@ Turns the existing dashboard into accounting-grade output. All reads go through
 SQL aggregation (`payload.db.pool`) so it stays fast at volume — this also retires
 the dashboard's "JS aggregation at scale" deferred item.
 
-### 4.1 Report engine
-- ☐ `src/lib/reports/` — parameterized report definitions (date range, filters) →
-  tabular result. Types:
-  - **Sales**: revenue/orders/AOV by day/week/month; by product, artist, category, area/zone, payment method
-  - **Payments**: per-provider totals, fees, refunds (reconciliation-ready)
-  - **Inventory**: current stock value, low stock, sell-through rate, dead stock
-  - **Customers**: new vs returning, top customers, repeat rate, order frequency
-  - **VAT/tax**: taxable revenue per period (when VAT enabled)
-  - **Discounts**: usage + revenue impact per code
-- ☐ Export: CSV always; XLSX (via a light lib) and print-friendly PDF for invoices/summaries
-  — **PDF via `@react-pdf/renderer`** (pure JS, serverless-safe on Vercel, no headless
-  browser); brand logo/name/colors pulled from SiteSettings so every client's PDFs come
-  out branded. Same renderer serves Part 3.1 invoices.
-- ☐ Admin UI: Reports section — pick report, set params, preview table, download
+### 4.1 Report engine — ☑ DONE (Session 25), minus VAT (blocked on Part 3.1)
+- ☑ `src/lib/reports/` — parameterized report definitions (date range, filters, dimension) →
+  tabular result, one SQL round trip per breakdown via `payload.db.pool` (`src/lib/db-pool.ts`).
+  Types built:
+  - **Sales** (`sales.ts`): revenue/orders/AOV by day/week/month (`?dimension=period`), or a
+    single-dimension breakdown across the whole range (`?dimension=product|artist|category|
+    area|payment_method`)
+  - **Payments** (`payments.ts`): per-`orders.payment_method` totals/refunds/net — grouped by
+    what the business sold through, not the Payments collection's adapter-internal `provider`
+    field, so COD/bank-transfer (which have no Payment record) still appear
+  - **Inventory** (`inventory.ts`): current stock value, low stock (≤3), dead stock (0 sold,
+    in stock), sell-through rate — two queries (current stock; units sold in range) merged in
+    JS, mirroring `src/lib/stock.ts`'s sized-vs-flat semantics
+  - **Customers** (`customers.ts`): new vs. returning (identity = `customer_id`, else
+    `lower(customer_email)` for attributable guest checkouts), repeat rate, avg orders/customer,
+    top customers by spend in range
+  - **Discounts** (`discounts.ts`): usage + revenue impact per code in range, joined against
+    the code's all-time `usageCount`/`usageLimit`
+  - **VAT/tax**: not built — genuinely blocked on Part 3.1 (no VAT fields exist yet), not a
+    scoping choice
+- ☑ Export: `export-csv.ts` (same escaping convention as the existing payments CSV route),
+  `export-xlsx.ts` via **`write-excel-file`** (not exceljs — exceljs pulls in an outdated
+  archiver/archiver-utils chain with a high-severity `brace-expansion` DoS advisory and no
+  clean fix; `write-excel-file` has zero dependencies), `export-pdf.tsx` via
+  **`@react-pdf/renderer`** (brand name from SiteSettings, generic columns/rows/summary
+  renderer — same component will serve Part 3.1 invoices later)
+- ☑ Admin UI: `ReportsPanel.tsx` (server, admin-gated) + `ReportsExplorer.tsx` (client) —
+  report-type select, date range, sales-only dimension/group-by selects, preview table with
+  summary KPIs, CSV/XLSX/PDF download links. Registered in `payload.config.ts` beforeDashboard,
+  alongside SalesDashboard/OmtPaymentsPanel/PaymentsOpsPanel.
+- API: `GET /api/admin/reports/[type]` (JSON preview) + `GET /api/admin/reports/[type]/export?
+  format=csv|xlsx|pdf` — both admin-gated via the existing `requireAdminUser` guard.
 - Audience note: reports serve three parties — **owner** (sales/AOV by period, product,
-  category, area; discount performance; top customers), **accountant** (payments/VAT
-  summaries, CSV/XLSX), **operations** (inventory value, low stock, sell-through)
-- Sequencing note: sales/inventory/customer/discount reports are buildable **before**
-  payments (read-only over existing data; only F0 needed) — payments/VAT reports are
-  the only F1-dependent ones
+  category, area; discount performance; top customers), **accountant** (payments summaries,
+  CSV/XLSX — VAT still pending 3.1), **operations** (inventory value, low stock, sell-through)
+- Sequencing note confirmed correct in practice: sales/inventory/customer/discount/payments
+  reports needed only F0 + the F1 mock provider (already done) — no payments work was
+  blocking, only VAT is (and only VAT, deliberately deferred)
 
 ### 4.2 Scheduled reports
 - ☐ Vercel Cron → `/api/reports/scheduled`: weekly/monthly summary emailed to

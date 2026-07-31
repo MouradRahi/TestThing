@@ -140,6 +140,16 @@ The prod/dev DBs already have the full schema (built up via pushes). Before swit
 > assume the mark is correct just because most of the app works — any collection with a
 > `localized` field that changed locality at some point (moved into/out of a `_locales`
 > table) is a specific risk pattern worth spot-checking with an `information_schema` diff
-> against the baseline migration file, especially Products/Pages/Navigation/Homepage,
-> which have the same localization history as SiteSettings and haven't been individually
-> verified against prod yet.
+> against the baseline migration file.
+>
+> ✅ **Audited 2026-07-31 (Session 25)**: ran the same `information_schema.columns` diff
+> against prod for every other collection/global with this localization history —
+> `products_locales`, `artists_locales`, `categories_locales`, `pages_locales`,
+> `garment_types_locales`, `navigation_header_links_locales`,
+> `navigation_footer_columns_locales`, `navigation_footer_columns_links_locales`. All 8
+> tables exist on prod with every column the baseline migration expects — no gaps, no
+> `ADD COLUMN` needed. (Homepage was never actually at risk — its blocks have zero
+> `localized` fields, so it was mistakenly swept into this checklist; confirmed by
+> grepping `src/globals/Homepage.ts` and `src/globals/blocks/*` for `localized: true` and
+> finding none.) This risk pattern is now fully closed — `product_meta_tagline` was an
+> isolated SiteSettings issue, not a systemic one.

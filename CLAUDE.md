@@ -1177,3 +1177,97 @@ an eye toward eventually selling this software to other brands (ROADMAP Part 8).
 - Next: same open items as Session 24 part 1/2 — remaining small F2 pieces, F1-to-prod
   deploy timing, Areeba/NetCommerce/OMT/Whish merchant conversations, ROADMAP Part 4, or
   ENHANCEMENTS-only extras.
+
+### Session 25 — 2026-07-31
+Focus: **closed the localization-drift audit** flagged in MIGRATIONS.md since the Session 23
+production incident (SiteSettings' `product_meta_tagline` column missing on prod after a
+field's `localized` status changed post-baseline). That incident's writeup named
+Products/Pages/Navigation/Homepage as sharing the same risk, unverified.
+- **Narrowed the list before auditing**: grepped `Homepage.ts` + every file in
+  `src/globals/blocks/` for `localized: true` — zero matches. Homepage-block text
+  localization was deferred back in Session 10 and never implemented, so Homepage was never
+  in a `_locales` table on any environment; it had been swept into the checklist by
+  resemblance to SiteSettings, not by an actual shared history. Dropped it.
+- **Sanity-checked dev first** (this session has dev-only DB credentials by design, per
+  [[dev-prod-share-one-database]]): queried `information_schema.columns` for the 8 real
+  `_locales` tables behind Products/Artists/Categories/Pages/GarmentTypes/Navigation
+  (header links, footer columns, footer column links) — dev matches
+  `src/migrations/20260720_055440_baseline.ts` exactly, confirming the baseline file is
+  trustworthy ground truth for "what prod should have."
+- **User ran the read-only diagnostic on prod** (same `information_schema.columns` query,
+  in Supabase's SQL Editor — I don't hold prod credentials and don't run mutating or even
+  read queries against prod directly, matching how the Session 23 incident was handled).
+  **Result: prod has all 8 tables with every expected column — zero gaps.** No `ADD COLUMN`
+  fix was needed; the prepared idempotent fix script was not run.
+- **Conclusion**: the `product_meta_tagline` gap was an isolated SiteSettings incident, not
+  a systemic pattern across the app's localized collections. MIGRATIONS.md's baselining
+  section updated to mark this audit ☑ done (2026-07-31) with the result, and to correct the
+  Homepage false-alarm.
+- No application code changed this session — audit + doc corrections only.
+- Next: user's call — ROADMAP Part 4 (Reports & analytics, confirmed unblocked: sales/
+  inventory/customer/discount reports need only F0, already done; F1 mock payments already
+  landed too), remaining small F2 pieces, F1-to-prod deploy timing, Areeba/NetCommerce/OMT/
+  Whish merchant conversations (external clock), or ENHANCEMENTS-only a11y/i18n extras.
+
+### Session 25 — 2026-07-31
+Focus: **ROADMAP Part 4 §4.1 — Report engine**, scoped up front with the user to just the
+engine itself this session (4.2 scheduled email reports and 4.3 dashboard v3 deferred to a
+follow-up), with all three export formats (CSV + XLSX + PDF).
+- **`src/lib/reports/`** — five SQL-aggregated report types (`payload.db.pool`, via the
+  existing `src/lib/db-pool.ts → getPool()`), a shared `ReportResult` shape
+  (`types.ts`/`params.ts`), and a `registry.ts` dispatcher: **Sales** (period buckets
+  day/week/month, or a breakdown by product/artist/category/area/payment method), **Payments**
+  (per `orders.payment_method`, so COD/bank-transfer without a Payments-collection row still
+  show up), **Inventory** (stock value, low/dead stock, sell-through — stock query + sold-in-
+  range query merged in JS, mirroring `src/lib/stock.ts`'s sized-vs-flat logic), **Customers**
+  (identity = account id else lower-cased guest email; new-vs-returning by comparing each
+  identity's all-time first order against the range start; repeat rate; top spenders),
+  **Discounts** (usage + revenue impact per code in range vs. all-time usageCount/usageLimit).
+  VAT/tax deliberately not built — genuinely blocked on Part 3.1 (no VAT fields exist), not a
+  scoping cut.
+- **Export formats**: `export-csv.ts` (same escaping convention as the existing payments CSV
+  route); `export-xlsx.ts` via **`write-excel-file`**, not exceljs — `npm install exceljs`
+  pulled in a high-severity `brace-expansion` DoS advisory through its bundled
+  archiver/archiver-utils/zip-stream chain with no fix short of a breaking downgrade;
+  swapped for `write-excel-file` (zero dependencies, confirmed via `npm audit` that the
+  vulnerability count returned to the project's pre-existing baseline after the swap);
+  `export-pdf.tsx` via **`@react-pdf/renderer`** (brand name from SiteSettings, a generic
+  columns/rows/summary table renderer — the same component ROADMAP Part 3.1 invoices will
+  reuse later).
+- **Admin UI**: `ReportsPanel.tsx` (server, `isAdmin`-gated) + `ReportsExplorer.tsx` (client:
+  report-type/date-range/dimension controls, a "Run report" preview table with summary KPI
+  cards, CSV/XLSX/PDF download links) — registered in `payload.config.ts`'s `beforeDashboard`
+  alongside SalesDashboard/OmtPaymentsPanel/PaymentsOpsPanel. New routes:
+  `GET /api/admin/reports/[type]` (JSON preview) and `GET /api/admin/reports/[type]/export?
+  format=csv|xlsx|pdf`, both gated through the existing `requireAdminUser` guard.
+- **Caught and fixed a real bug via verification, not just review**: ran every report's raw
+  SQL directly against the real dev DB (throwaway script, deleted after) before trusting any
+  of it, and the `sales` report's artist-breakdown query failed outright —
+  `column al.name does not exist`. Had wrongly assumed `Artists.name` was localized (like
+  `Categories.name` is); checking `src/collections/Artists.ts` showed only `bio`/`genre` are
+  `localized: true` — `name` is a plain column on the `artists` table itself, no `_locales`
+  join needed. Fixed the query, re-verified against real data, confirmed the "Unknown" artist
+  grouping it now returns is correct (the two products that sold in range genuinely have
+  `artist_id: null` — accessories aren't tied to an artist), not a join bug.
+  Also independently verified CSV escaping, and confirmed the XLSX/PDF buffers have valid
+  magic bytes (`PK`/`%PDF-`) by calling the exporters directly via `tsx` outside of Next.
+- **Self-inflicted `.next` conflict, disclosed rather than papered over**: ran `npm run build`
+  for verification without first checking whether the user's own `npm run dev` was still
+  running in another terminal on port 3000 — it was (same shared `.next` output directory
+  between dev and prod builds isn't supported by Next.js). This produced a transient
+  `Cannot find module vendor-chunks/@payloadcms.js` 500 on that dev server. No data or code
+  was lost — a dev-server restart regenerates `.next` cleanly — but flagged directly to the
+  user rather than silently restarting their process myself, since it wasn't mine to manage.
+  Switched all further server-required verification to a separate port (3100) and, once that
+  also revealed shared-`.next` corruption, to direct DB/script-level checks instead of another
+  Next process. **Lesson for future sessions**: check `netstat` for a running dev server
+  before any `npm run build`/`npm run start` in this project.
+- ✅ `npx tsc --noEmit` clean; `npm test` 25/25. Did **not** get a final `npm run build`
+  re-verification after the artist-query fix, deliberately, to avoid re-touching the shared
+  `.next` directory while the user's dev server is live — confidence instead comes from tsc +
+  unit tests + direct SQL/export verification against real data. Recommend a normal
+  `npm run dev` restart (whenever convenient) to pick up the new admin panel + routes.
+- ROADMAP.md Part 4 §4.1 marked ☑ (VAT sub-item explicitly left ☐, blocked not skipped).
+- Next: user's call — 4.2 (scheduled email reports) / 4.3 (dashboard v3), remaining small F2
+  pieces, F1-to-prod deploy timing, Areeba/NetCommerce/OMT/Whish merchant conversations, or
+  ENHANCEMENTS-only a11y/i18n extras.
