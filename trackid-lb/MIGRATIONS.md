@@ -118,3 +118,56 @@ The prod/dev DBs already have the full schema (built up via pushes). Before swit
 > INSERT INTO payload_migrations (name, batch, created_at, updated_at)
 > VALUES ('20260720_055440_baseline', 1, now(), now());
 > ```
+>
+> ✅ **Baseline marker + all 3 post-baseline migrations applied to prod (2026-07-30,
+> Session 23 incident response)**. Real production incident: Vercel's build command was
+> never actually updated to run `npm run migrate` (see the note below), so prod had been
+> silently stuck on a pre-Session-22 schema for multiple deploys — the admin panel was
+> completely inaccessible (`column ...rate_limit_counters_id does not exist`) until this
+> was caught and fixed by hand (SQL Editor for the baseline marker, a manual `npm run
+> migrate` run against prod's `DATABASE_URI` for the rest).
+>
+> ⚠️ **Lesson learned — "mark the baseline as applied" is an assumption, not a fact,
+> verify it**: even after marking baseline + running the 3 real migrations, Site Settings
+> still 500'd (`column site_settings__locales.product_meta_tagline does not exist`).
+> Baselining assumes the target DB's *actual* schema matches the baseline snapshot taken
+> from dev — that assumption was wrong here. `product_meta_tagline` started as a plain
+> `site_settings.product_meta_tagline` column (Session 11), then became `localized: true`
+> and moved to `site_settings_locales` (Session 18) — a schema change that reached dev but,
+> for whatever reason in this project's dev/prod-sharing history pre-Session-21, never
+> reached prod. Fixed with two `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements once
+> found via `information_schema.columns` diffing. **Takeaway**: after baselining, don't
+> assume the mark is correct just because most of the app works — any collection with a
+> `localized` field that changed locality at some point (moved into/out of a `_locales`
+> table) is a specific risk pattern worth spot-checking with an `information_schema` diff
+> against the baseline migration file.
+>
+> ✅ **Audited 2026-07-31 (Session 25)**: ran the same `information_schema.columns` diff
+> against prod for every other collection/global with this localization history —
+> `products_locales`, `artists_locales`, `categories_locales`, `pages_locales`,
+> `garment_types_locales`, `navigation_header_links_locales`,
+> `navigation_footer_columns_locales`, `navigation_footer_columns_links_locales`. All 8
+> tables exist on prod with every column the baseline migration expects — no gaps, no
+> `ADD COLUMN` needed. (Homepage was never actually at risk — its blocks have zero
+> `localized` fields, so it was mistakenly swept into this checklist; confirmed by
+> grepping `src/globals/Homepage.ts` and `src/globals/blocks/*` for `localized: true` and
+> finding none.) This risk pattern is now fully closed — `product_meta_tagline` was an
+> isolated SiteSettings issue, not a systemic one.
+>
+> ⚠️ **The "you've run Payload in dev mode" prompt can hang a Vercel build for 40+ minutes
+> (found 2026-07-31, Session 26)**: `@payloadcms/drizzle`'s `migrate()` shows an interactive
+> `prompts` confirm() whenever a `batch = -1` row exists in `payload_migrations` (a leftover
+> sentinel from any database with pre-migrations push history, like this project's original
+> prod). There is no TTY on Vercel's build machine to answer it, so the build hangs
+> indefinitely instead of failing — it does **not** time out quickly, and burns real build
+> minutes until Vercel's own ceiling kills it. **Fixed at the source**: `scripts/migrate.mjs`'s
+> `up` command now deletes any `batch = -1` rows before calling `payload.db.migrate()` —
+> the row is not a real migration record, so removing it only disarms the prompt and has no
+> effect on which migrations are considered applied. This is unconditional and runs on every
+> `npm run migrate`, so it self-heals for this project and for any future client database
+> with the same push-era history, not just a one-time prod cleanup.
+> If this ever recurs on a **currently stuck** deploy (before the fix has shipped there),
+> cancel the deployment and run this once against that database's SQL editor, then redeploy:
+> ```sql
+> delete from payload_migrations where batch = -1;
+> ```

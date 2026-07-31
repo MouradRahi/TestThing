@@ -104,7 +104,17 @@ create them for real, same as any normal migration.
 
 ---
 
-## Part 2 — Payments (Lebanon) 🇱🇧 ⚠️ the centerpiece
+## Part 2 — Payments (Lebanon) 🇱🇧 ⚠️ the centerpiece — ◐ F1+F2 GROUNDWORK DONE (Sessions 23–24)
+
+**Status**: 2.1 (abstraction), 2.5 (currency), 2.4 (OMT v1), 2.6 (refunds v1), and 2.7
+(reconciliation v1) are all code-complete and verified against the dev DB. 2.3 (real card
+gateway) is deliberately **not** started — no Areeba/NetCommerce merchant account exists
+yet (see "External blockers" below) — but the abstraction was built and proven end-to-end
+with a `mock` testing provider, so wiring in a real adapter later is one new file (+ a
+`Payments.provider` select option), not a rewrite. 2.2 stays skipped. What's left of F2 is
+genuinely F3+ territory (order-timeline UI, real OMT API confirmation once the B2B
+agreement lands, provider-side refund() once a real gateway supports it) — not blocked on
+anything, just smaller and lower-priority than what's already shipped.
 
 COD + bank transfer stay. We add: **Visa/Mastercard** (card gateway) and **OMT**
 (wallet + pay-cash-at-branch). All behind one abstraction so a brand can toggle
@@ -115,66 +125,135 @@ an adapter each, not a rewrite.
 > is out of scope for now; the card rail goes through a dedicated acquirer (2.3).
 > The abstraction keeps Whish addable later as just another adapter.
 
-### 2.1 Payment abstraction layer (build first, provider-agnostic)
-- ☐ `src/lib/payments/types.ts` — `PaymentProvider` interface:
-  - `initiate(order, opts) → { kind: 'redirect', url } | { kind: 'voucher', code, instructions }`
-  - `handleWebhook(req) → PaymentEvent` (signature-verified)
-  - `verify(providerRef) → PaymentStatus` (server-to-server poll — never trust the browser redirect)
-  - `refund(payment, amount) → RefundResult` (where supported)
-- ☐ `Payments` collection: order relation, provider, providerRef, amount, currency,
+### 2.1 Payment abstraction layer (build first, provider-agnostic) — ☑ DONE (Session 23)
+- ☑ `src/lib/payments/types.ts` — `PaymentProvider` interface: `initiate(payload, order)`,
+  `handleWebhook(req, rawBody)`, `verify(payload, providerRef)`. (`refund()` deferred to
+  F2 — no provider needs it yet.)
+- ☑ `src/collections/Payments.ts` — order relation, provider, providerRef, amount, currency,
   status (`initiated | pending | paid | failed | expired | refunded | partially_refunded`),
-  idempotencyKey, raw webhook payloads (audit), timestamps. Indexed on order + providerRef + status.
-- ☐ Order flow changes:
-  - Online-payment orders are created as `awaiting_payment`; **stock is reserved**
-    (decremented) at creation with a TTL
-  - A Vercel Cron sweep releases stock from expired unpaid orders (30–60 min TTL) and marks them `payment_expired`
-  - `paid` transition happens **only** from a verified webhook or server-side `verify()` —
-    the customer's return-redirect just shows "confirming…" and polls order status
-  - Confirmation email/WhatsApp fire on `paid` (COD keeps current behavior)
-- ☐ Security invariants: webhook signature verification per provider, replay protection
-  (processed event IDs), amount+currency re-checked against the order, idempotent
-  processing (a webhook delivered twice must be harmless)
-- ☐ Checkout UI: payment-method selection driven by SiteSettings Commerce tab toggles
-  (each provider off until its keys are configured); per-method instructions text
+  rawEvents (json, audit trail), timestamps. Indexed on order + provider + providerRef + status.
+  Admin-only read; create/update blocked at the collection level (written only via
+  `src/lib/payments/service.ts` through the Local API). (`idempotencyKey` field dropped —
+  the existing `idempotency-keys` collection + `Idempotency-Key` header on `POST /api/orders`
+  already covers retry-safety for order+payment creation as one unit.)
+- ☑ Order flow changes:
+  - Online-payment orders are created `awaiting_payment` with a `paymentExpiresAt` timestamp;
+    **stock is reserved** (decremented) at creation exactly like COD/bank-transfer orders
+  - `src/app/api/cron/expire-payments/route.ts` (new, scheduled in `vercel.json`) finds
+    expired unpaid orders and marks them `orderStatus: cancelled` / `paymentStatus: expired`
+    — reuses the existing Orders restock-on-cancel + status-email hooks rather than
+    duplicating that logic. ⚠️ Vercel Hobby's daily-cron limit (the same constraint that
+    made `cleanup-carts` daily) means the nominal 45-min TTL is actually "released within
+    a day" until this runs on Pro or an external scheduler — documented in the route,
+    acceptable while the only live provider is the mock adapter.
+  - `paid` transition happens **only** via a verified webhook (`applyPaymentEvent` in
+    `service.ts`) — the customer's return-redirect (`/order/[orderNumber]`) shows a
+    `PaymentConfirmingBanner` that polls `GET /api/orders/[orderNumber]/status` and
+    `router.refresh()`s on change, never trusting the redirect itself
+  - Confirmation email/WhatsApp fire on the `awaiting_payment → paid` transition via an
+    Orders `afterChange` hook (COD/bank-transfer keep firing immediately at creation, unchanged)
+- ☑ Security invariants: HMAC signature verification (mock adapter — real adapters bring
+  their own scheme), idempotent processing (`applyPaymentEvent` no-ops on an
+  already-terminal payment status), amount re-checked against the stored Payment record
+  when a webhook supplies one
+- ☑ Checkout UI: "Card" only appears when SiteSettings Commerce → `cardPaymentsEnabled`
+  is on **and** the configured provider passes `isProviderAvailable()` (mock is
+  auto-disabled in production unless `ALLOW_MOCK_PAYMENTS=true`); test-payment note shown
+  inline when selected
+- ☑ **`ONLINE_PAYMENTS_ENABLED` deploy-time master switch** (Session 24, user request) —
+  `isProviderAvailable()` now checks this env var first, before any per-provider logic;
+  same dev-open/prod-explicit shape as `ALLOW_MOCK_PAYMENTS`. Deliberately redundant with
+  the Site Settings checkboxes: guarantees Card/OMT can never appear or process in
+  production — regardless of what's toggled in the database/admin panel — until
+  explicitly turned on per environment once a provider (Areeba/OMT/Whish) is actually
+  confirmed. "Nothing clickable that leads nowhere" as a deploy-config guarantee, not just
+  a CMS default.
 
 ### 2.2 Whish Money adapter — ⏭ SKIPPED (Session 22, user decision)
 Kept here for reference; revisit only if a client brand signs with Whish. It would be
 one adapter against the 2.1 interface — nothing else in the plan depends on it.
 
-### 2.3 Card gateway (Visa/Mastercard) — decision + adapter
-- ☐ **Decision** (during vendor onboarding): a dedicated acquirer — Areeba (MPGS hosted
-  checkout) or NetCommerce are the established Lebanese options. The abstraction makes
-  this swappable per client brand.
-- ☐ Hosted-checkout integration only (customer enters card on the gateway's PCI-compliant
-  page) — we never touch PANs, keeping us out of PCI-DSS scope beyond SAQ-A
+### 2.3 Card gateway (Visa/Mastercard) — decision + adapter — ◐ MOCK ADAPTER ONLY (Session 23)
+- ☑ `src/lib/payments/mock.ts` + `registry.ts` — a testing adapter (HMAC-signed webhook,
+  `/pay/mock/[paymentId]` simulated hosted-checkout page, `/api/payments/mock/simulate` +
+  `/api/payments/webhook/mock`) proves the 2.1 abstraction end-to-end without a real
+  merchant account: initiate → redirect → webhook → `paid` → confirmation email, all
+  verified against the dev DB. Auto-disabled in production unless `ALLOW_MOCK_PAYMENTS=true`.
+- ☐ **Decision** (still pending — needs vendor onboarding): a dedicated acquirer — Areeba
+  (MPGS hosted checkout) or NetCommerce are the established Lebanese options. The
+  abstraction makes this swappable per client brand.
+- ☐ Real hosted-checkout integration (customer enters card on the gateway's PCI-compliant
+  page) — we never touch PANs, keeping us out of PCI-DSS scope beyond SAQ-A. Adding it is:
+  one adapter file implementing `PaymentProvider`, one line in `registry.ts`, one option
+  added to `Payments.provider`'s select (+ a migration for that enum) and
+  `SiteSettings.cardPaymentProvider`'s select — checkout/orders/webhook-route/cron all
+  already generic over the provider key.
 
-### 2.4 OMT adapter
-- ☐ **Pay at OMT branch (cash voucher)** — the high-value flow for unbanked customers:
-  checkout issues a payment code + instructions, customer pays cash at any of ~1,200 OMT
-  locations, confirmation arrives via API/webhook (or manual admin confirmation as the
-  v1 fallback with a "mark paid" button that's audit-logged)
+### 2.4 OMT adapter — ☑ v1 DONE (Session 24: voucher + manual confirm)
+- ☑ **Pay at OMT branch (cash voucher)** — `src/lib/payments/omt.ts`: `initiate()` mints
+  an 8-digit voucher code (no external API call — none exists yet), checkout shows it +
+  admin-set instructions on the order confirmation page (no live polling like card's
+  `PaymentConfirmingBanner` — a branch visit can take hours/days, so the page just shows a
+  static state and updates on next revisit). Stock reserved exactly like card, but with a
+  much longer window (`OMT_RESERVATION_HOURS`, default 48h, vs. card's 45 min).
+  Confirmation arrives via the admin dashboard's **"OMT Payments Awaiting Confirmation"**
+  panel (`OmtPaymentsPanel.tsx`, `beforeDashboard`) — a "Mark as Paid" button
+  (`POST /api/admin/payments/mark-paid`) that calls `markPaymentPaidManually()`, which
+  routes through the exact same `applyPaymentEvent()` a real webhook would use (idempotent,
+  terminal-state-safe) and is audit-logged.
 - ☐ OMT Pay wallet flow if/when the merchant agreement covers it
-- ⚠️ OMT e-commerce APIs are B2B-agreement-gated; v1 can ship as "voucher + manual
-  confirm" and upgrade to API confirmation when the agreement lands
+- ⚠️ OMT e-commerce APIs are B2B-agreement-gated; v1 ships as "voucher + manual confirm";
+  upgrading to real API confirmation later is one adapter file (`handleWebhook`/`verify`
+  implementations) — nothing about the order flow, checkout UI, or admin panel changes.
+- Verified against the real dev DB via real HTTP + a throwaway admin JWT session (not just
+  Local API scripts): voucher order creation, confirmation-page voucher display, mark-paid
+  (+ idempotent replay + 403 when unauthenticated).
 
-### 2.5 Currency (USD/LBP dual display)
-- ☐ SiteSettings Commerce: `secondaryCurrency` toggle + admin-set `exchangeRate`
-  (LBP per USD) + display mode (USD only / both)
-- ☐ Storefront shows LBP equivalents where enabled (catalog, cart, checkout, emails);
-  **USD stays the money of record** — LBP is display + the amount sent to LBP-native
-  providers, snapshotted per order (`exchangeRateAtPurchase`)
+### 2.5 Currency (USD/LBP dual display) — ☑ DONE (Session 23)
+- ☑ SiteSettings Commerce: `currencyDisplayMode` (`usd_only` | `both`) + admin-set
+  `exchangeRate` (LBP per USD). `resolveCurrencyDisplay()` (site-settings.ts) only ever
+  actually returns "both" when a valid positive rate is configured — a fresh install or
+  an unset rate silently reads as USD-only rather than showing "LBP undefined" anywhere.
+- ☑ Storefront shows LBP equivalents where enabled — shop grid, product detail + related
+  cards, cart page, cart drawer, checkout summary, order confirmation, and the
+  confirmation email's total row. **USD stays the money of record**; LBP is
+  `formatLBP()` (`src/lib/format.ts`) display only, never fed back into a calculation.
+  Snapshotted per order (`Orders.exchangeRateAtPurchase`) so a later admin rate change
+  never retroactively changes what a past order "was worth."
+- Deferred (not requested this session): showing LBP as the amount actually sent to an
+  LBP-native provider (OMT, F2) — today's mock adapter only ever speaks USD.
 
-### 2.6 Refunds & disputes
-- ☐ Admin refund action on paid orders (full/partial) → provider `refund()` where
-  supported, else records a manual refund; restocks items optionally; audit-logged
+### 2.6 Refunds & disputes — ☑ v1 DONE (Session 24)
+- ☑ Admin refund action on **any** paid order, not just online ones — `processRefund()`
+  (`src/lib/payments/service.ts`) via `POST /api/admin/payments/refund`
+  (`RefundButton.tsx` in the new "Payments Reconciliation" dashboard panel — inline
+  amount + restock-checkbox form, no modal needed). Full or partial (clamped to the
+  remaining refundable balance, tracked on `Orders.refundedAmount` — the single source of
+  truth regardless of provider), optional restock (whole-order only; per-item partial
+  restock on a partial refund is deferred to Part 6 returns/RMA, which needs item-level
+  selection anyway), audit-logged. Provider-side `refund()` is an optional interface method
+  for when a real gateway supports it — mock/OMT both fall back to recording the refund
+  without sending it anywhere, which is the honest state today.
 - ☐ Order timeline UI in admin: every payment event on the order (initiated, webhook
-  received, paid, refunded) with timestamps and provider refs
+  received, paid, refunded) with timestamps and provider refs — the Payments collection's
+  own `rawEvents` field is a de facto per-payment audit trail already viewable in admin;
+  a dedicated on-order timeline view is deferred.
+- Verified: partial refund → `partially_refunded`, remaining-amount refund → `refunded`,
+  over-refund correctly rejected, refund on a non-paid order correctly rejected, refund +
+  restock on a **COD** order (no Payment record at all) correctly updates the order alone.
 
-### 2.7 Reconciliation
-- ☐ Admin payments view: filter by provider/status/date; daily totals per provider vs
-  orders marked paid; flag mismatches (webhook received but order missing, order paid
-  with no payment row)
-- ☐ Payments export (CSV) for the accountant — feeds into Part 4
+### 2.7 Reconciliation — ☑ v1 DONE (Session 24)
+- ☑ Admin payments view — `PaymentsOpsPanel.tsx` (`beforeDashboard`): per-provider
+  paid-order totals, a mismatch check between Orders and Payments (should always be empty
+  — `applyPaymentEvent()`/`processRefund()` update both atomically; a non-empty list means
+  something bypassed that path), and a "Recent paid orders" list with the refund action.
+  Provider/status/date filtering is Payload's own built-in list-view filtering on the
+  Payments collection (free — no custom UI needed for that part).
+- ☑ Payments export (CSV) for the accountant — `GET /api/admin/payments/export`
+  (admin-only, cookie/JWT-authenticated): every order's money fields
+  (method/status/subtotal/fee/discount/total/refunded), newest first. Exports Orders
+  rather than just the Payments collection so COD/bank-transfer are included too — feeds
+  into Part 4's report engine.
 
 ---
 
@@ -211,26 +290,44 @@ Turns the existing dashboard into accounting-grade output. All reads go through
 SQL aggregation (`payload.db.pool`) so it stays fast at volume — this also retires
 the dashboard's "JS aggregation at scale" deferred item.
 
-### 4.1 Report engine
-- ☐ `src/lib/reports/` — parameterized report definitions (date range, filters) →
-  tabular result. Types:
-  - **Sales**: revenue/orders/AOV by day/week/month; by product, artist, category, area/zone, payment method
-  - **Payments**: per-provider totals, fees, refunds (reconciliation-ready)
-  - **Inventory**: current stock value, low stock, sell-through rate, dead stock
-  - **Customers**: new vs returning, top customers, repeat rate, order frequency
-  - **VAT/tax**: taxable revenue per period (when VAT enabled)
-  - **Discounts**: usage + revenue impact per code
-- ☐ Export: CSV always; XLSX (via a light lib) and print-friendly PDF for invoices/summaries
-  — **PDF via `@react-pdf/renderer`** (pure JS, serverless-safe on Vercel, no headless
-  browser); brand logo/name/colors pulled from SiteSettings so every client's PDFs come
-  out branded. Same renderer serves Part 3.1 invoices.
-- ☐ Admin UI: Reports section — pick report, set params, preview table, download
+### 4.1 Report engine — ☑ DONE (Session 25), minus VAT (blocked on Part 3.1)
+- ☑ `src/lib/reports/` — parameterized report definitions (date range, filters, dimension) →
+  tabular result, one SQL round trip per breakdown via `payload.db.pool` (`src/lib/db-pool.ts`).
+  Types built:
+  - **Sales** (`sales.ts`): revenue/orders/AOV by day/week/month (`?dimension=period`), or a
+    single-dimension breakdown across the whole range (`?dimension=product|artist|category|
+    area|payment_method`)
+  - **Payments** (`payments.ts`): per-`orders.payment_method` totals/refunds/net — grouped by
+    what the business sold through, not the Payments collection's adapter-internal `provider`
+    field, so COD/bank-transfer (which have no Payment record) still appear
+  - **Inventory** (`inventory.ts`): current stock value, low stock (≤3), dead stock (0 sold,
+    in stock), sell-through rate — two queries (current stock; units sold in range) merged in
+    JS, mirroring `src/lib/stock.ts`'s sized-vs-flat semantics
+  - **Customers** (`customers.ts`): new vs. returning (identity = `customer_id`, else
+    `lower(customer_email)` for attributable guest checkouts), repeat rate, avg orders/customer,
+    top customers by spend in range
+  - **Discounts** (`discounts.ts`): usage + revenue impact per code in range, joined against
+    the code's all-time `usageCount`/`usageLimit`
+  - **VAT/tax**: not built — genuinely blocked on Part 3.1 (no VAT fields exist yet), not a
+    scoping choice
+- ☑ Export: `export-csv.ts` (same escaping convention as the existing payments CSV route),
+  `export-xlsx.ts` via **`write-excel-file`** (not exceljs — exceljs pulls in an outdated
+  archiver/archiver-utils chain with a high-severity `brace-expansion` DoS advisory and no
+  clean fix; `write-excel-file` has zero dependencies), `export-pdf.tsx` via
+  **`@react-pdf/renderer`** (brand name from SiteSettings, generic columns/rows/summary
+  renderer — same component will serve Part 3.1 invoices later)
+- ☑ Admin UI: `ReportsPanel.tsx` (server, admin-gated) + `ReportsExplorer.tsx` (client) —
+  report-type select, date range, sales-only dimension/group-by selects, preview table with
+  summary KPIs, CSV/XLSX/PDF download links. Registered in `payload.config.ts` beforeDashboard,
+  alongside SalesDashboard/OmtPaymentsPanel/PaymentsOpsPanel.
+- API: `GET /api/admin/reports/[type]` (JSON preview) + `GET /api/admin/reports/[type]/export?
+  format=csv|xlsx|pdf` — both admin-gated via the existing `requireAdminUser` guard.
 - Audience note: reports serve three parties — **owner** (sales/AOV by period, product,
-  category, area; discount performance; top customers), **accountant** (payments/VAT
-  summaries, CSV/XLSX), **operations** (inventory value, low stock, sell-through)
-- Sequencing note: sales/inventory/customer/discount reports are buildable **before**
-  payments (read-only over existing data; only F0 needed) — payments/VAT reports are
-  the only F1-dependent ones
+  category, area; discount performance; top customers), **accountant** (payments summaries,
+  CSV/XLSX — VAT still pending 3.1), **operations** (inventory value, low stock, sell-through)
+- Sequencing note confirmed correct in practice: sales/inventory/customer/discount/payments
+  reports needed only F0 + the F1 mock provider (already done) — no payments work was
+  blocking, only VAT is (and only VAT, deliberately deferred)
 
 ### 4.2 Scheduled reports
 - ☐ Vercel Cron → `/api/reports/scheduled`: weekly/monthly summary emailed to
@@ -402,8 +499,8 @@ The features "any business could possibly require" that aren't payments/reports/
 | Phase | Contents | Size | Depends on |
 |---|---|---|---|
 | **F0 — Foundation** ☑ DONE (Session 22) | Part 1 (DB split ☑, migrations ☑, durable rate-limit+idempotency ☑, Sentry ◐, audit log ☑, admin security ☑, Playwright+unit tests ☑) + Part 0 quick items | M | — |
-| **F1 — Payments core + cards** | 2.1 abstraction, 2.3 card gateway (Areeba MPGS / NetCommerce), 2.5 currency, stock reservation + expiry cron *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
-| **F2 — OMT + refunds + reconciliation** | 2.4, 2.6, 2.7 | M | F1 |
+| **F1 — Payments core + cards** ◐ Session 23 | 2.1 abstraction ☑, 2.5 currency ☑, stock reservation + expiry cron ☑ — 2.3 real card gateway (Areeba MPGS / NetCommerce) still ☐, blocked on vendor onboarding *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
+| **F2 — OMT + refunds + reconciliation** ☑ v1 Session 24 | 2.4 ☑ (voucher + manual confirm), 2.6 ☑ (any payment method), 2.7 ☑ (dashboard + CSV) — order-timeline UI + real OMT API confirmation remain, both small/unblocked | M | F1 |
 | **F3 — Invoicing & fulfillment** | Part 3 (invoices/VAT, courier, inventory ops) | M | F0; invoices richer after F1 |
 | **F4 — Reports** | Part 4 (engine, exports, scheduled, dashboard v3) | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
 | **F5 — AI assistants** | ⏭ SKIPPED (Session 22) | — | — |

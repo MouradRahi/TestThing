@@ -22,6 +22,22 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Respect the OS-level "reduce motion" preference site-wide (BUGS.md B18) —
+   kills smooth-scroll plus every CSS transition/animation (hover states,
+   the slideshow's own crossfade, etc.), not just the slideshow's autoplay
+   timer (handled separately in SlideshowSection via useReducedMotion). */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Body/heading fonts are CMS-controlled (SiteSettings → Theme); the --font-*
    vars are set on <body> by the layout, falling back to the system stack. */
 body {

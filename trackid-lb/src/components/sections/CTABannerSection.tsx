@@ -24,7 +24,7 @@ export function CTABannerSection({
       style={{ backgroundColor: bgColor || 'var(--color-accent)' }}
     >
       {bgImage && (
-        <Image src={bgImage} alt="" fill className="object-cover" />
+        <Image src={bgImage} alt="" fill className="object-cover" sizes="100vw" />
       )}
       {(bgImage && overlayOpacity > 0) && (
         <div

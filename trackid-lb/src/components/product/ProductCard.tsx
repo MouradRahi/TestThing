@@ -1,7 +1,8 @@
 import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { getTranslations } from 'next-intl/server'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatLBP } from '@/lib/format'
+import type { CurrencyDisplay } from '@/lib/site-settings'
 
 type Props = {
   slug: string
@@ -11,9 +12,11 @@ type Props = {
   imageAlt?: string
   artistName?: string
   soldOut?: boolean
+  /** USD/LBP display mode (ROADMAP F1 §2.5) — omit for USD-only. */
+  currency?: CurrencyDisplay
 }
 
-export async function ProductCard({ slug, title, price, imageUrl, imageAlt, artistName, soldOut }: Props) {
+export async function ProductCard({ slug, title, price, imageUrl, imageAlt, artistName, soldOut, currency }: Props) {
   const t = await getTranslations('product')
   return (
     <Link href={`/product/${slug}`} className="group block">
@@ -42,7 +45,12 @@ export async function ProductCard({ slug, title, price, imageUrl, imageAlt, arti
           <p className="text-[10px] text-accent uppercase tracking-[0.2em]">{artistName}</p>
         )}
         <p className="text-sm text-foreground leading-snug">{title}</p>
-        <p className="text-sm text-muted">{formatPrice(price)}</p>
+        <p className="text-sm text-muted">
+          {formatPrice(price)}
+          {currency?.mode === 'both' && currency.exchangeRate && (
+            <span className="block text-[10px] text-muted/70">{formatLBP(price, currency.exchangeRate)}</span>
+          )}
+        </p>
       </div>
     </Link>
   )

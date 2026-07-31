@@ -15,6 +15,7 @@ import { Pages } from './collections/Pages'
 import { Media } from './collections/Media'
 import { GarmentTypes } from './collections/GarmentTypes'
 import { Discounts } from './collections/Discounts'
+import { Payments } from './collections/Payments'
 import { Customers } from './collections/Customers'
 import { Carts } from './collections/Carts'
 import { RateLimitCounters } from './collections/RateLimitCounters'
@@ -49,11 +50,16 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
     components: {
-      // Sales analytics above the default admin dashboard
-      beforeDashboard: ['/components/admin/SalesDashboard#SalesDashboard'],
+      // Sales analytics + payments ops (F2) + reports (Part 4) above the default admin dashboard
+      beforeDashboard: [
+        '/components/admin/SalesDashboard#SalesDashboard',
+        '/components/admin/OmtPaymentsPanel#OmtPaymentsPanel',
+        '/components/admin/PaymentsOpsPanel#PaymentsOpsPanel',
+        '/components/admin/ReportsPanel#ReportsPanel',
+      ],
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Customers, Carts, RateLimitCounters, IdempotencyKeys, AuditLog, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, RateLimitCounters, IdempotencyKeys, AuditLog, Users],
   // Content localization — mirrors the storefront locales (src/i18n/routing.ts).
   // Fields marked `localized: true` store a value per locale; everything else is
   // shared. Add a locale here + in routing.ts + a messages/<locale>.json to grow.

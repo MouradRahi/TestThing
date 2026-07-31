@@ -3,12 +3,15 @@ import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifi
 import { clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
 import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { getIdempotentResponse, saveIdempotentResponse } from '@/lib/idempotency'
-import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy } from '@/lib/site-settings'
+import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy, resolveCurrencyDisplay } from '@/lib/site-settings'
 import { resolveDiscount, redeemDiscount, releaseDiscount } from '@/lib/discounts'
 import { reportServerError } from '@/lib/error-reporting'
 import { getSizes } from '@/lib/stock'
 import { safeRevalidatePath } from '@/lib/revalidate'
 import { getPool } from '@/lib/db-pool'
+import { initiatePayment, paymentExpiryDate, PAYMENT_EXPIRY_MINUTES, OMT_RESERVATION_HOURS } from '@/lib/payments/service'
+import { isProviderAvailable } from '@/lib/payments/registry'
+import type { PaymentInitiateResult } from '@/lib/payments/types'
 import { NextRequest, NextResponse, after } from 'next/server'
 import type { Payload } from 'payload'
 
@@ -152,8 +155,18 @@ export async function POST(req: NextRequest) {
     const customerEmail = cleanOptional(body.customerEmail, 160)
     const notes = cleanOptional(body.notes, 1000)
     const discountCodeInput = cleanOptional(body.discountCode, 40)
-    const paymentMethod: 'cod' | 'bank_transfer' =
-      body.paymentMethod === 'bank_transfer' ? 'bank_transfer' : 'cod'
+    const paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt' =
+      body.paymentMethod === 'bank_transfer'
+        ? 'bank_transfer'
+        : body.paymentMethod === 'card'
+          ? 'card'
+          : body.paymentMethod === 'omt'
+            ? 'omt'
+            : 'cod'
+    // Both go through the same "reserve stock, open a provider session,
+    // await a confirmation event" flow — card via hosted-checkout redirect,
+    // OMT via a pay-at-branch voucher (ROADMAP F2 §2.4).
+    const needsPaymentSession = paymentMethod === 'card' || paymentMethod === 'omt'
 
     if (
       !customerName || !customerPhone || !deliveryAddress || !area ||
@@ -255,6 +268,26 @@ export async function POST(req: NextRequest) {
     } catch {
       // fresh install without the global — free-text area mode, fee 0
     }
+
+    // Each online payment method must be explicitly enabled AND its provider
+    // must actually be usable (env/config permitting) — never silently fall
+    // back to a different payment method the customer didn't pick.
+    const cardProviderKey =
+      typeof settings.cardPaymentProvider === 'string' ? settings.cardPaymentProvider : 'mock'
+    if (paymentMethod === 'card' && (!settings.cardPaymentsEnabled || !isProviderAvailable(cardProviderKey))) {
+      return NextResponse.json(
+        { error: 'Card payments aren’t available right now. Please choose another payment method.' },
+        { status: 400 },
+      )
+    }
+    if (paymentMethod === 'omt' && (!settings.omtPaymentEnabled || !isProviderAvailable('omt'))) {
+      return NextResponse.json(
+        { error: 'OMT payments aren’t available right now. Please choose another payment method.' },
+        { status: 400 },
+      )
+    }
+    const paymentProviderKey = paymentMethod === 'card' ? cardProviderKey : 'omt'
+
     const deliveryFee = resolveDeliveryFee(settings, area, subtotal)
     if (deliveryFee === null) {
       return NextResponse.json({ error: 'Please select a valid delivery area.' }, { status: 400 })
@@ -286,6 +319,13 @@ export async function POST(req: NextRequest) {
     }
 
     const total = Math.max(0, subtotal - discountAmount) + deliveryFee
+
+    // LBP is a snapshot at purchase time, not a live conversion — a later
+    // admin rate change must never retroactively change what an old order
+    // "was worth" (ROADMAP F1 §2.5). USD stays the money of record either way.
+    const currencyDisplay = resolveCurrencyDisplay(settings)
+    const exchangeRateAtPurchase =
+      currencyDisplay.mode === 'both' ? currencyDisplay.exchangeRate ?? undefined : undefined
 
     // Link the order to the logged-in customer account, if any (guest orders have none)
     let customerId: number | undefined
@@ -331,7 +371,11 @@ export async function POST(req: NextRequest) {
           discountAmount,
           total,
           paymentMethod,
-          paymentStatus: 'pending',
+          paymentStatus: needsPaymentSession ? 'awaiting_payment' : 'pending',
+          ...(needsPaymentSession
+            ? { paymentExpiresAt: paymentExpiryDate(paymentMethod === 'omt' ? OMT_RESERVATION_HOURS * 60 : PAYMENT_EXPIRY_MINUTES) }
+            : {}),
+          ...(exchangeRateAtPurchase != null ? { exchangeRateAtPurchase } : {}),
           orderStatus: 'pending',
           notes,
         },
@@ -340,6 +384,42 @@ export async function POST(req: NextRequest) {
       await restoreStock(payload, decremented)
       if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
       throw err
+    }
+
+    // Card/OMT: stock is already reserved (decremented above) — now open the
+    // provider session (a hosted-checkout redirect for card, a voucher code
+    // for OMT). paymentStatus only ever becomes `paid` via a verified webhook
+    // (src/app/api/payments/webhook/[provider]/route.ts) or, for OMT v1, the
+    // admin's manual "Mark as Paid" action — never trusted from this response.
+    let payment: PaymentInitiateResult | null = null
+    if (needsPaymentSession) {
+      try {
+        payment = await initiatePayment(payload, paymentProviderKey, {
+          orderId: order.id,
+          orderNumber: order.orderNumber as string,
+          amount: total,
+          currency: 'USD',
+          customerEmail,
+        })
+      } catch (err) {
+        console.error('[orders] Payment initiation failed, rolling back:', err)
+        await restoreStock(payload, decremented)
+        if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+        try {
+          await payload.delete({ collection: 'orders', id: order.id })
+        } catch (deleteErr) {
+          console.error('[orders] Failed to roll back order after payment-initiation failure:', deleteErr)
+        }
+        return NextResponse.json(
+          {
+            error:
+              paymentMethod === 'card'
+                ? 'Card payments are temporarily unavailable. Please choose another payment method.'
+                : 'OMT payments are temporarily unavailable. Please choose another payment method.',
+          },
+          { status: 502 },
+        )
+      }
     }
 
     // Stock changed via raw SQL (bypasses Payload hooks) — refresh the cached pages
@@ -373,19 +453,29 @@ export async function POST(req: NextRequest) {
         paymentMethod === 'bank_transfer' && typeof settings.bankTransferInstructions === 'string'
           ? settings.bankTransferInstructions
           : undefined,
+      exchangeRateAtPurchase,
       brand: resolveBrandCopy(settings),
     }
 
-    // after() keeps the serverless function alive past the response —
-    // a plain void'd promise can be frozen before it completes on Vercel.
-    after(() =>
-      Promise.allSettled([
-        sendOrderConfirmationEmail(notificationData),
-        sendOrderWhatsAppAlert(notificationData),
-      ]),
-    )
+    // Card/OMT orders aren't confirmed yet — the Orders afterChange hook
+    // sends this same notification once the order is marked paid (webhook or
+    // admin manual confirm), so it isn't sent twice.
+    if (!needsPaymentSession) {
+      // after() keeps the serverless function alive past the response —
+      // a plain void'd promise can be frozen before it completes on Vercel.
+      after(() =>
+        Promise.allSettled([
+          sendOrderConfirmationEmail(notificationData),
+          sendOrderWhatsAppAlert(notificationData),
+        ]),
+      )
+    }
 
-    const successBody = { orderId: order.id, orderNumber: order.orderNumber }
+    const successBody = {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      ...(payment ? { payment } : {}),
+    }
     if (idempotencyKey) await saveIdempotentResponse(payload, idempotencyKey, 201, successBody)
     return NextResponse.json(successBody, { status: 201 })
   } catch (err) {

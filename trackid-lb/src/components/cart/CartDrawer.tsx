@@ -6,17 +6,20 @@ import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 import { CartNotices } from '@/components/cart/CartNotices'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatLBP } from '@/lib/format'
+import { useFocusTrap } from '@/lib/useFocusTrap'
 
 // Slide-over mini-cart. Opens on add-to-cart (and from the nav cart button) so
 // customers get immediate confirmation without a full-page navigation. The
 // full /cart and /checkout pages remain the source of truth.
 export function CartDrawer() {
-  const { items, isLoading, isOpen, closeCart, removeItem, updateQuantity, total, itemCount, emptyCartMessage } = useCart()
+  const { items, isLoading, isOpen, closeCart, removeItem, updateQuantity, total, itemCount, emptyCartMessage, currency } = useCart()
   const t = useTranslations('cart')
   const tp = useTranslations('product')
   const panelRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+
+  useFocusTrap(isOpen, panelRef)
 
   // Esc to close; lock body scroll and move focus into the panel while open
   useEffect(() => {
@@ -152,9 +155,16 @@ export function CartDrawer() {
             </ul>
 
             <div className="border-t border-border p-5 space-y-4 shrink-0">
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between items-baseline text-sm">
                 <span className="text-muted uppercase tracking-widest text-xs">{t('subtotal')}</span>
-                <span className="text-foreground tabular-nums">{formatPrice(total)}</span>
+                <span className="text-end">
+                  <span className="text-foreground tabular-nums">{formatPrice(total)}</span>
+                  {currency.mode === 'both' && currency.exchangeRate && (
+                    <span className="block text-[10px] text-muted tabular-nums">
+                      {formatLBP(total, currency.exchangeRate)}
+                    </span>
+                  )}
+                </span>
               </div>
               <p className="text-[10px] text-muted/70">{t('deliveryNote')}</p>
               <Link

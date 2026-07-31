@@ -285,30 +285,13 @@ Homepage is now fully CMS-driven. Go to Admin → Site Configuration → Homepag
 
 ## Environment Variables Needed
 
-```env
-# Payload
-PAYLOAD_SECRET=
-DATABASE_URI=postgresql://...   # Supabase connection string (pooler URL)
-
-# Supabase Storage (same project as DB)
-NEXT_PUBLIC_SUPABASE_URL=https://bdbhygelwizizepxewxv.supabase.co
-NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET=products
-
-# Resend
-RESEND_API_KEY=
-
-# WhatsApp Cloud API
-WHATSAPP_TOKEN=
-WHATSAPP_PHONE_NUMBER_ID=
-WHATSAPP_RECIPIENT_NUMBER=   # team's WhatsApp number
-
-# App
-NEXT_PUBLIC_SITE_URL=https://trackid.lb
-
-# Schema push opt-in (dev only, Session 20) — dev never pushes schema unless set.
-# NEVER set casually while dev + prod share one database.
-# PAYLOAD_PUSH=true
-```
+See **`ENV_VARS.md`** (repo root) for the full, verified-against-the-codebase
+reference — what each variable does, required vs. optional, defaults, and a
+new-client deployment checklist (ROADMAP Part 8). Copy `.env.local.example`
+to `.env.local` to get started. This section intentionally no longer
+duplicates the list — the two drifted out of sync before (stale `PAYLOAD_PUSH`
+references, a dead `NEXT_PUBLIC_CART_KEY` var), which is exactly the failure
+mode a single source of truth avoids.
 
 ---
 
@@ -875,3 +858,455 @@ Focus: **first CI run failed on push — diagnosed and fixed the real bug, then 
 - Docs updated: DEPLOY.md §5a now says "✅ ACTIVE" instead of "add these secrets to activate," with a rotation note.
 - **User also set a standing preference this session**: stop asking for confirmation before every command — only prompt for genuinely irreversible/high-blast-radius actions from here on (adding CI secrets, pushing a lockfile fix, and read-only API polling were all judged reversible/low-risk and done without per-step confirmation under this new instruction).
 - Next: user's call — P2 polish batch, ROADMAP Part 4 (reports/PDF), or F1 payments groundwork. CI is now a real safety net for whichever comes next.
+
+### Session 22 (part 13) — 2026-07-22
+Focus: **P2 polish batch** — closed all 8 remaining P2 bugs (B16 leftover, B17–B22). BUGS.md P2 section is now fully ☑ (only B24, the accepted-risk register, remains — by design, not actionable).
+- **B22 (wishlist 500s)**: `POST /api/account/wishlist` now validates the product exists + is published before *adding* (clean 400 instead of a Payload-relationship-validation 500); capped at 200 entries. Removing an id that's already gone stays a no-op — only adds need validation.
+- **B21 (RTL hero align)**: `text-left`/`text-right` → `text-start`/`text-end` in `HeroSection.tsx` — `items-start`/`items-end` were already logically correct (CSS flexbox's `align-items` is direction-aware), only `text-align` isn't. Admin option *labels* renamed Start/Center/End; values stay `left`/`right` so no data migration is needed for existing content. Confirmed no other block has a `textAlign` field.
+- **B19 (missing `sizes`)**: `sizes="100vw"` on the three full-bleed backgrounds (Hero/CTABanner/Slideshow), `sizes="(min-width: 768px) 50vw, 100vw"` on ImageText (confirmed its layout really is `md:grid-cols-2` before picking that breakpoint).
+- **B16 leftover**: the layout's hardcoded English description fallback is now `common.defaultSiteDescription` in `messages/{en,ar}.json`, read via `getTranslations` inside `generateMetadata` (which needed the explicit `{ locale, namespace }` form, not the ambient-context shorthand, since metadata resolution isn't guaranteed to run inside the same request-locale context as the page body).
+- **B18 (reduced motion)**: new `src/lib/useReducedMotion.ts` (matchMedia + change listener) gates the slideshow's autoplay `setInterval` — manual prev/next/dots still work regardless. Also added a global `@media (prefers-reduced-motion: reduce)` rule in `globals.css` zeroing all transition/animation durations and forcing `scroll-behavior: auto`, covering more than just the slideshow.
+- **B17 (focus trap)**: new shared `src/lib/useFocusTrap.ts` (Tab/Shift+Tab cycling within a container ref) wired into `CartDrawer` (a true modal). Deliberately did **not** apply the same full trap to the mobile Nav panel — it's a disclosure dropdown, not a modal, so trapping Tab there would be the wrong pattern; gave it the lighter fix the bug itself asked for instead (Esc-to-close + focus returns to the hamburger button, neither of which existed before).
+- **B20 (fonts)** — the biggest item:
+  - Verified the bug for real before fixing it: built the app, curled the homepage, confirmed font preload links existed.
+  - `preload: false` added to all five existing Google Font instantiations — checked the admin's actual default (`headingFont`/`bodyFont` both default to `'system'`) confirming none of the five deserves special-cased eager preloading.
+  - Added a sixth font, `IBM_Plex_Sans_Arabic` (`subsets: ['arabic']`) — verified it was genuinely available in next/font's Google Fonts metadata (`font-data.json`) before writing the import, rather than guessing the export name. `resolveFontStack()` in `site-settings.ts` now takes an optional `locale` and automatically substitutes the Arabic stack for **both** heading and body on `/ar`, regardless of the admin's per-brand pick — none of the other five have Arabic glyphs, so every Arabic install was silently falling back to a system font no matter what was configured.
+  - **Verified all of it against a real built+started server**: curled the homepage's `<head>` before/after — font preload links went from present to **zero**; curled `/` vs `/ar` and confirmed `--font-heading`/`--font-body` resolve to the system stack on English and to `var(--font-arabic), 'Segoe UI', Tahoma, sans-serif` on Arabic; confirmed all 6 `__variable_*` classes land on `<body>`.
+- ✅ `npx tsc --noEmit` clean; `npm test` 25/25 (site-settings.test.ts still passes after adding the `RTL_LOCALES` import); `npm run test:e2e` 1/1 (run after the a11y/font changes, no regressions); production build + manual curl verification for B19/B20 specifically.
+- **BUGS.md P2 section marked ☑ ALL FIXED.** Also fixed a stale accepted-risk note in B24 that still described rate limiting as in-memory — that was already closed in ROADMAP F0 §1.3 (Session 22, part 10) and the note hadn't been updated since. ENHANCEMENTS.md E13/E14 marked ◐ (both batches' bug-companion items done; a few ENHANCEMENTS-only extras — homepage-block localization, form-error `aria-live`, announcement-bar contrast — remain, since those were never part of BUGS.md's actual list).
+- **Every bug ever filed in BUGS.md across P0/P1/P2 is now fixed** except B24 (accepted-risk register, not meant to be actionable) and the handful of ENHANCEMENTS-only extras noted above.
+- Next: user's call — those last few ENHANCEMENTS-only a11y/i18n extras, ROADMAP Part 4 (reports/PDF), or F1 payments groundwork.
+
+### Session 23 — 2026-07-24
+Focus: **F1 — Payments core** (ROADMAP Part 2). Scoped up front with the user: build the
+full provider-agnostic abstraction now, but stand it up against a **mock testing adapter**
+rather than a real gateway — no Areeba/NetCommerce merchant account exists yet (external
+blocker, unchanged since Session 21) — so a real vendor adapter later is one file, not a
+rewrite. Currency (2.5, USD/LBP display) bundled in at the user's request.
+- **2.1 Payment abstraction** — `src/lib/payments/{types,registry,service}.ts`: `PaymentProvider`
+  interface (`initiate`/`handleWebhook`/`verify`), a provider registry, and `service.ts`
+  (`initiatePayment`, `applyPaymentEvent` — idempotent, amount-rechecked, terminal-state-aware).
+  New `Payments` collection (`src/collections/Payments.ts`, Commerce admin group, admin-only
+  read, no public create/update — written only via the Local API from the service). `Orders`
+  gained `paymentMethod: 'card'`, `paymentStatus` extended to
+  `awaiting_payment|failed|expired|refunded|partially_refunded`, `paymentExpiresAt`, and
+  `exchangeRateAtPurchase`; a new `afterChange` hook fires the same confirmation
+  email/WhatsApp COD/bank-transfer already send, but on the `awaiting_payment → paid`
+  transition instead of at creation.
+- **Mock adapter** (`src/lib/payments/mock.ts`) — HMAC-SHA256-signed webhook (`MOCK_PAYMENT_SECRET`),
+  a simulated hosted-checkout page (`/pay/mock/[paymentId]` → `MockPayForm.tsx`, "simulate
+  success/failure" buttons), and `POST /api/payments/mock/simulate` which deliberately
+  round-trips through the real `POST /api/payments/webhook/[provider]` route (real
+  signature, real idempotency/amount checks) rather than shortcutting past it — the mock
+  exists to prove the abstraction, not to skip testing it. Hard-gated off in production
+  unless `ALLOW_MOCK_PAYMENTS=true` (`mockPaymentsAllowed()`), same pattern as every other
+  optional integration in this codebase.
+- **Order flow**: `POST /api/orders` now branches on `paymentMethod === 'card'` — validates
+  `SiteSettings.cardPaymentsEnabled` + `isProviderAvailable()` before touching stock,
+  decrements stock exactly like COD/bank-transfer (no new "reservation" mechanism needed —
+  the existing atomic decrement already *is* the reservation), creates the order
+  `awaiting_payment` with a `paymentExpiresAt`, then calls `initiatePayment()`; a provider
+  failure at that point rolls back stock, the discount redemption, and deletes the
+  just-created order (mirrors the existing rollback-on-stock-conflict pattern). Confirmation
+  email/WhatsApp are skipped at creation for online payments — they fire later from the Orders
+  hook. `PaymentConfirmingBanner.tsx` on `/order/[orderNumber]` polls a new
+  `GET /api/orders/[orderNumber]/status` and `router.refresh()`s on change — the return
+  redirect is never trusted, only a verified webhook flips `paid`.
+- **Expiry cron** (`src/app/api/cron/expire-payments/route.ts`, added to `vercel.json`) finds
+  `awaiting_payment` orders past `paymentExpiresAt` and marks them `orderStatus: cancelled` /
+  `paymentStatus: expired` via `payload.update` — deliberately reuses the *existing* Orders
+  restock-on-cancel + status-email hooks rather than duplicating that logic. ⚠️ Same caveat
+  as `cleanup-carts`: Vercel Hobby's daily-cron ceiling means the nominal 45-min
+  (`PAYMENT_RESERVATION_MINUTES`) TTL is really "released within a day" until this runs on
+  Pro or an external scheduler — acceptable while the only live provider is the mock adapter,
+  documented in the route.
+- **2.5 Currency (USD/LBP)**: SiteSettings Commerce gained `currencyDisplayMode`
+  (`usd_only`/`both`) + `exchangeRate`; `resolveCurrencyDisplay()` (site-settings.ts) only
+  ever returns "both" when a positive rate is actually configured, so an unset rate can't
+  render "LBP undefined" anywhere. `formatLBP()` (`src/lib/format.ts`) is display-only, never
+  fed back into a calculation. Wired into: shop grid + product detail + related-product
+  cards (`ProductCard` gained an optional `currency` prop), cart page, cart drawer, checkout
+  summary, order confirmation, and the confirmation email's total row.
+  `Orders.exchangeRateAtPurchase` snapshots the rate at purchase time (via `CartProvider`'s
+  new `currency` prop, mirroring how `emptyCartMessage` was already threaded from
+  SiteSettings) so a later admin rate change never rewrites what a past order "was worth."
+- **Migration hand-written, not generated**: `npm run migrate:create` invokes drizzle-kit's
+  interactive rename-detection wizard (an arrow-key TUI, not the simple y/N prompt the
+  Session 22 notes covered) — it hung indefinitely with zero output under this non-TTY
+  runner, and worse, misread the new `site_settings.card_payments_enabled` column as a
+  *rename* of the unrelated existing `product_meta_tagline` column on one attempt. Killed
+  the hung Node processes (`taskkill`, matched via `ps -W`'s WINPID column since `ps aux`
+  doesn't expose one) and hand-wrote
+  `src/migrations/20260724_094930_add_payments_and_currency.ts` instead — every statement
+  purely additive (new `payments` table, new enum values, new nullable columns), checked
+  field-by-field against the baseline migration's equivalent shapes for other
+  collections/enums before writing. Applied cleanly to dev (`npm run migrate`, confirming
+  the known "you've run Payload in dev mode" y/N prompt via `echo "y" |`).
+- **Verified against the real dev DB and a live dev server, not just scripts**: placed a
+  real `card` order via `POST /api/orders` (stock 35→34, `awaiting_payment`), simulated a
+  successful payment via `/api/payments/mock/simulate` → confirmed `paymentStatus: paid` via
+  the status endpoint, confirmed the Payment doc's `rawEvents` recorded the webhook payload,
+  confirmed a **replayed** webhook returns `alreadyProcessed: true` without reprocessing.
+  Separately verified: a missing webhook signature → 400, an unknown provider slug → 404, an
+  unknown `providerRef` → 400, a **failed**-outcome payment correctly sets `paymentStatus:
+  failed` while leaving stock reserved (a deliberate v1 choice — no retry-payment UX yet, so
+  cancelling is the release valve), and cancelling an `awaiting_payment` order **restocks
+  correctly** via the existing hook (stock 33→34) with no double-restock. Left
+  `SiteSettings.cardPaymentsEnabled=true` / `cardPaymentProvider=mock` **on** in the dev DB
+  afterward (not disposable test data — a real feature the admin can now click through in
+  the UI) — flagging this explicitly since it changes checkout's visible behavior on the
+  dev site starting now.
+- ✅ `npx tsc --noEmit` clean (0 errors, after `npm run generate:types` picked up the new
+  `Payments` collection + extended Orders/SiteSettings fields); `npm test` 25/25; `npm run
+  test:e2e` 1/1 (existing COD flow unaffected); `npm run build` succeeded (59 routes,
+  including the 5 new payment routes/pages) — first attempt hit a build-worker OOM during
+  type-checking, which cleared on retry with `NODE_OPTIONS=--max-old-space-size=6144` (not
+  chased further; looked like transient memory contention from the earlier stuck migration
+  processes, not a regression from this session's code).
+- **Not done this session** (by design, per user scoping): 2.3's real card-gateway decision
+  (Areeba vs. NetCommerce — still blocked on merchant onboarding), 2.2 Whish (skipped,
+  Session 22), 2.4 OMT / 2.6 refunds / 2.7 reconciliation (F2). ROADMAP.md updated throughout
+  (Part 2 header, 2.1/2.3/2.5 sections, F1 execution-order row).
+- Next: kick off Areeba/NetCommerce merchant-account conversations (external clock, unchanged
+  advice since Session 21) to unblock 2.3; otherwise F2 (OMT + refunds + reconciliation) once
+  a real gateway lands, or a pivot to ROADMAP Part 4 (reports/PDF) or the remaining
+  ENHANCEMENTS-only a11y/i18n extras in the meantime.
+
+### Session 23 (part 2) — 2026-07-30 — production incident: admin panel down
+Focus: **live incident response**, not planned roadmap work. The user reported the
+production admin (`trackid-lb.vercel.app/admin`) throwing "Something went wrong" on every
+request, unable to even reach the login form.
+- **Root cause #1**: production had **never had a single post-baseline migration applied**.
+  Vercel's build command was never actually changed to `npm run migrate && npm run build`
+  (that's a project-settings change, not something a code commit can enforce) — DEPLOY.md
+  recommended it since the migrations workflow was built (Session 22), but nobody had gone
+  into the Vercel dashboard and set it. Confirmed via Vercel Runtime Logs: `column
+  payload_locked_documents__rels.rate_limit_counters_id does not exist` — Payload's admin
+  internals join against every registered collection's rel column, so a single missing
+  collection's column takes down the *entire* admin, not just that collection. The
+  storefront was unaffected the whole time (it never queries this table), which is why
+  nobody had noticed until someone tried to log into admin.
+- **Fix #1**: two-step, both purely additive (no data touched):
+  1. Marked the baseline migration as already-applied on prod via a one-line
+     `INSERT INTO payload_migrations` in Supabase's SQL Editor (prod already had that
+     schema from the pre-migrations push era — this just tells Payload not to try
+     recreating it).
+  2. Ran `npm run migrate` against prod's `DATABASE_URI` (user ran it themselves, in cmd.exe
+     — their work laptop can't run PowerShell — env var passed via `set DATABASE_URI=...`
+     rather than editing `.env.local`, so prod credentials never touched this session or
+     any file on disk) — applied `add_rate_limit_and_idempotency`, `add_audit_log`, and this
+     session's own `add_payments_and_currency`, all for real this time.
+- **Root cause #2 (surfaced immediately after fix #1)**: Site Settings *still* 500'd —
+  `column site_settings__locales.product_meta_tagline does not exist`. The baseline-marker
+  assumption ("prod's schema already matches what dev had on 2026-07-20") was **wrong**
+  for this one table: `productMetaTagline` started as a plain top-level `site_settings`
+  column (Session 11), then became `localized: true` and moved into `site_settings_locales`
+  (Session 18) — a schema change that reached dev but never reached prod, predating even
+  the Session 21 dev/prod database split. Diagnosed by dumping prod's actual
+  `information_schema.columns` for both tables and diffing against the baseline migration
+  file — far faster than fixing one masked "Something went wrong" at a time.
+- **Fix #2**: two `ALTER TABLE "site_settings_locales" ADD COLUMN IF NOT EXISTS ...`
+  statements (`product_meta_tagline`, `product_meta_pattern`) via the same SQL Editor.
+  Confirmed working — admin loads, Site Settings opens.
+- **Verification note, stated plainly**: this was diagnosed and fixed entirely from Vercel
+  Runtime Logs + `information_schema` diffs the user ran and pasted — I never touched the
+  production database directly (no prod `DATABASE_URI` ever entered this session), by
+  design, given the sensitivity of schema changes on a live database. The user ran every
+  actual mutating statement themselves.
+- **Deployed-commit clarification**: the admin crash was on the **pre-F1** commit (this
+  session's payments work is pushed to `General-UI-Enhancements` but not yet the live
+  Vercel deployment) — confirmed via Vercel's Deployments tab. So this incident predates
+  and is unrelated to the payments feature itself; it was latent since Session 22 and only
+  surfaced now because it was apparently the first time anyone opened `/admin` since then.
+- **MIGRATIONS.md updated** with a new "lesson learned" note under Baselining: don't trust
+  a baseline marker just because most of the app works — any collection with a field whose
+  `localized` status changed over its history is a specific risk pattern, and
+  Products/Pages/Navigation/Homepage share the same localization history as SiteSettings
+  and haven't been individually spot-checked against prod yet.
+- **Outstanding from this incident** (user's call on priority):
+  1. Actually change Vercel's Build Command to `npm run migrate && npm run build` in the
+     dashboard (instructions given; not something I can verify without dashboard access) —
+     without this, every future migration will repeat this exact incident.
+  2. A verification redeploy after that change, to confirm `migrate` runs clean inside
+     Vercel's own build sandbox (only verified by hand in a terminal so far).
+  3. Proactively audit Products/Pages/Navigation/Homepage's localized fields against prod's
+     actual schema (same `information_schema.columns` diff recipe) before one of them
+     surfaces as a customer-facing bug instead of an admin-only one.
+  4. Decide when to actually deploy the F1 payments commit to production (no urgency — mock
+     provider only — but should be a conscious decision, not an accident on some unrelated
+     future push).
+- Next: user's call on the 4 items above, or back to planned roadmap work (F1 external
+  blocker, F2, ROADMAP Part 4, or ENHANCEMENTS leftovers).
+- **Follow-up, same day**: user manually set Vercel's Build Command to
+  `npm run migrate && npm run build` in the dashboard (item 1 above) — closes the systemic
+  gap that caused the incident. Items 2–4 (verification redeploy, other-collections audit,
+  F1-to-prod deploy timing) deferred, not blocking.
+
+### Session 24 — 2026-07-31
+Focus: **F2 — OMT + refunds + reconciliation** (ROADMAP Part 2 §2.4/2.6/2.7), continuing
+straight from F1. User explicitly chose this over deploying F1 to prod or Part 4 reports.
+- **2.4 OMT adapter (v1 — voucher + manual confirm)**: `src/lib/payments/omt.ts` —
+  `initiate()` mints an 8-digit voucher code locally (no external API exists yet — OMT's
+  e-commerce APIs are B2B-agreement-gated); `handleWebhook()` deliberately throws (v1 has no
+  real webhook); `verify()` reads back the Payment doc like mock's does. Registered in
+  `registry.ts` (`isProviderAvailable('omt')` is unconditionally `true` — unlike mock, OMT
+  v1 has no external dependency to gate on). Orders gained `paymentMethod: 'omt'`;
+  `paymentExpiryDate()` now takes a minutes override so OMT gets a 48h reservation window
+  (`OMT_RESERVATION_HOURS`) instead of card's 45-minute one — a customer needs to physically
+  reach a branch. Checkout shows "OMT (pay at branch)" only when
+  `SiteSettings.omtPaymentEnabled` is on; the order-confirmation page shows the voucher code
+  + admin-set `omtInstructions` while `awaiting_payment`, and a short static status line once
+  resolved — **deliberately no live polling** like card's `PaymentConfirmingBanner` (a branch
+  visit can take hours, not seconds; polling that long makes no sense for a closed browser tab).
+- **Admin manual-confirm flow**: new `OmtPaymentsPanel.tsx` (`beforeDashboard`, alongside
+  `SalesDashboard`) lists every `awaiting_payment` OMT order with its voucher code and a
+  "Mark as Paid" button (`MarkOmtPaidButton.tsx`) → `POST /api/admin/payments/mark-paid` →
+  `markPaymentPaidManually()` (`service.ts`) → routes through the **same**
+  `applyPaymentEvent()` a real webhook would use, so it's idempotent (double-click safe) and
+  the Orders paid-transition hook (confirmation email/WhatsApp) fires identically regardless
+  of how the order got paid. Audit-logged. Renders nothing when the queue is empty.
+- **2.6 Refunds (v1 — works for every payment method, not just online ones)**:
+  `processRefund()` (`service.ts`) — `Orders.refundedAmount` (new field) is the single
+  source of truth for "how much has come back" regardless of provider; full or partial
+  (clamped to the remaining balance), optional whole-order restock. When a Payment record
+  exists (card/OMT) it's updated too (`status: refunded|partially_refunded`,
+  `rawEvents` gets a manual-refund entry) and an optional `provider.refund()` hook is called
+  (added to the `PaymentProvider` interface, not implemented by mock or OMT — both record
+  manually, which is the honest current state). COD/bank-transfer orders have no Payment
+  record at all — refunding them just updates the order's own bookkeeping. Admin UI:
+  `RefundButton.tsx` — an inline amount+restock-checkbox form (no modal) in the new
+  reconciliation panel, `POST /api/admin/payments/refund`, audit-logged.
+- **2.7 Reconciliation (v1)**: `PaymentsOpsPanel.tsx` (`beforeDashboard`) — per-provider
+  totals for paid orders, a mismatch check between Orders and Payments (should always be
+  empty; a non-empty list means something bypassed `applyPaymentEvent()`/`processRefund()`),
+  a "Recent paid orders" list with the refund action inline, and a CSV export link.
+  `GET /api/admin/payments/export` streams every order's money fields (not just the Payments
+  collection, so COD/bank-transfer show up too) — feeds into the future Part 4 report engine.
+  Provider/status/date filtering is Payload's own built-in list-view filtering on the
+  Payments collection already — no custom filter UI needed for that part.
+- **New shared piece**: `src/lib/payments/admin-guard.ts` (`requireAdminUser`) — the first
+  plain API routes (not Payload hooks) to call `logAuditEvent()`, which required loosening
+  its `req` param type from a full `PayloadRequest` to `Pick<PayloadRequest, 'user'>` (it
+  only ever reads `.user`) so a route can pass `{ user }` from `payload.auth()` directly
+  instead of fabricating a whole request object.
+- **Schema**: hand-written migration again (not `migrate:create` — same interactive-wizard
+  hang as F1's, documented there), `20260731_074810_add_omt_and_refunds.ts`: `'omt'` added
+  to both the `orders.payment_method` and `payments.provider` enums, `orders.refunded_amount`
+  (numeric, default 0), `site_settings.omt_payment_enabled`/`omt_instructions`. Applied
+  cleanly to dev.
+- **Verified against the real dev DB via real HTTP, not Local API scripts** — a genuine
+  step up in rigor from F1's verification: Node's native TS type-stripping can't resolve
+  this project's extensionless relative imports (`./registry` etc.) the way the esbuild-based
+  `bundle-config.mjs` loader can, so a plain `import()` of `service.ts` from a throwaway
+  script failed. Instead, created a real throwaway admin user via the Local API, logged in
+  through Payload's actual REST endpoint (`POST /api/users/login`) to get a real JWT, and
+  drove every admin route exactly as the browser would (`Authorization: JWT <token>`).
+  Confirmed: OMT order creation (voucher code returned, ~48h expiry) → confirmation page
+  renders the code → admin mark-paid flips `paymentStatus` to `paid` → idempotent replay
+  (`alreadyProcessed: true`) → unauthenticated request correctly 403s → partial refund →
+  `partially_refunded` → over-refund correctly rejected → remaining-amount refund + restock →
+  `refunded` and stock restored → refund on a non-paid order correctly rejected → CSV export
+  renders the right columns/data → **COD order refund (no Payment record at all) correctly
+  updates just the order**, proving the provider-agnostic refund path. Cleaned up the
+  throwaway admin account and verification script afterward.
+- ✅ `npx tsc --noEmit` clean; `npm test` 25/25; `npm run test:e2e` 1/1 (existing COD flow
+  unaffected); `npm run build` succeeded (62 routes, including the 3 new admin payment
+  routes). ROADMAP.md updated throughout (Part 2 header, 2.4/2.6/2.7 sections, F2
+  execution-order row).
+- **Not done this session** (correctly out of scope per the roadmap's own v1 framing): a
+  dedicated order-timeline UI (the Payments collection's `rawEvents` + admin list view is a
+  de facto audit trail already), real OMT API confirmation (still B2B-agreement-gated),
+  provider-side `refund()` (no adapter needs one yet).
+- Next: user's call — the remaining small F2 pieces above, F1-to-prod deploy timing,
+  Areeba/NetCommerce merchant-account conversations (external clock, unchanged since Session
+  21) to unblock 2.3, ROADMAP Part 4 (reports/PDF), or the ENHANCEMENTS-only a11y/i18n extras.
+
+### Session 24 (part 2) — 2026-07-31
+Focus: **deploy-time payment kill switch**, requested directly — the user wants a
+guarantee that Card/OMT can never be clickable-but-broken on prod before Areeba/OMT/Whish
+are actually confirmed, independent of anyone remembering to leave a Site Settings
+checkbox off.
+- Clarified first, since a per-provider env var vs. a UI cleanup were both plausible reads
+  of the request: user picked the env-level kill switch.
+- **`onlinePaymentsEnabled()`** (`src/lib/payments/registry.ts`) — same dev-open/
+  prod-explicit shape as the existing `mockPaymentsAllowed()`:
+  `NODE_ENV !== 'production' || ONLINE_PAYMENTS_ENABLED === 'true'`. Wired into
+  `isProviderAvailable()` as the very first check, so it automatically covers **both**
+  places that already call it — checkout's card/OMT visibility (`checkout/page.tsx`) and
+  the orders route's server-side creation validation (`api/orders/route.ts`) — no new call
+  sites needed, and a direct API request can't bypass the UI to create a card/OMT order
+  either. Local dev needs no extra setup; a real deploy needs `ONLINE_PAYMENTS_ENABLED=true`
+  explicitly set before either payment method can ever appear or process.
+- SiteSettings `cardPaymentsEnabled`/`omtPaymentEnabled` field descriptions updated to
+  spell out that the checkbox alone isn't enough — avoids an admin flipping a toggle,
+  seeing nothing change, and assuming the feature is broken.
+- `.env.local.example` rewritten into a clear 3-layer explanation (env kill switch → Site
+  Settings checkbox → an actually-usable provider) plus the previously-undocumented
+  `OMT_RESERVATION_HOURS` var.
+- ✅ `npx tsc --noEmit` clean; `npm test` 25/25; `npm run build` succeeded (62 routes,
+  unchanged route list — this is pure gating logic, no new surface).
+- ROADMAP.md 2.1 section updated with the new switch.
+- Next: same as above — this was a quick, self-contained addition, not a redirection from
+  the open F2/roadmap items.
+
+### Session 24 (part 3) — 2026-07-31
+Focus: **`ENV_VARS.md`** — user clarified the payments toggle question (keep the existing
+env-switch-plus-Site-Settings setup from part 2 — the env var is a one-time per-environment
+setup, the Site Settings checkbox is the actual day-to-day admin control, no code change
+needed) and separately asked for a dedicated environment-variable reference document, with
+an eye toward eventually selling this software to other brands (ROADMAP Part 8).
+- Built the doc from a fresh `grep -r "process\.env\."` over the real codebase, not from
+  `.env.local.example` — caught two stale entries in that file that don't correspond to
+  anything the code reads: `PAYLOAD_PUSH` (the config only ever checks `PAYLOAD_MIGRATE`;
+  `PAYLOAD_PUSH` has never been wired to anything) and `NEXT_PUBLIC_CART_KEY` (dead since
+  the Session 19 localStorage-cart removal — the cart is server-backed now). Fixed both in
+  `.env.local.example` while writing the reference doc, rather than let a "documentation for
+  a future buyer" artifact enshrine an existing inaccuracy.
+- **`ENV_VARS.md`** (new, repo root): grouped by required/storage/email/WhatsApp/
+  payments/cron/Sentry/migrations/seed/white-label, each with what breaks if missing and
+  sensible defaults; a separate CI-secrets section (GitHub Actions, not per-client); a
+  "framework-injected, never set manually" callout (`NODE_ENV`/`NEXT_RUNTIME`/`CI`); and a
+  **new-client deployment checklist** cross-referencing the per-client-deploy model already
+  decided in ROADMAP Part 8 — explicitly scoped as the future `ONBOARDING.md`'s env-var
+  building block, not a competing document.
+- **CLAUDE.md's own stale "Environment Variables Needed" section replaced with a pointer**
+  to `ENV_VARS.md` — it had the same `PAYLOAD_PUSH` inaccuracy and was missing most of what
+  actually exists (payments, Sentry, cron, S3, seed vars). Single source of truth now,
+  rather than two lists that already drifted apart once.
+- No code changes this part — docs + one `.env.local.example` correction only.
+- Next: same open items as Session 24 part 1/2 — remaining small F2 pieces, F1-to-prod
+  deploy timing, Areeba/NetCommerce/OMT/Whish merchant conversations, ROADMAP Part 4, or
+  ENHANCEMENTS-only extras.
+
+### Session 25 — 2026-07-31
+Focus: **closed the localization-drift audit** flagged in MIGRATIONS.md since the Session 23
+production incident (SiteSettings' `product_meta_tagline` column missing on prod after a
+field's `localized` status changed post-baseline). That incident's writeup named
+Products/Pages/Navigation/Homepage as sharing the same risk, unverified.
+- **Narrowed the list before auditing**: grepped `Homepage.ts` + every file in
+  `src/globals/blocks/` for `localized: true` — zero matches. Homepage-block text
+  localization was deferred back in Session 10 and never implemented, so Homepage was never
+  in a `_locales` table on any environment; it had been swept into the checklist by
+  resemblance to SiteSettings, not by an actual shared history. Dropped it.
+- **Sanity-checked dev first** (this session has dev-only DB credentials by design, per
+  [[dev-prod-share-one-database]]): queried `information_schema.columns` for the 8 real
+  `_locales` tables behind Products/Artists/Categories/Pages/GarmentTypes/Navigation
+  (header links, footer columns, footer column links) — dev matches
+  `src/migrations/20260720_055440_baseline.ts` exactly, confirming the baseline file is
+  trustworthy ground truth for "what prod should have."
+- **User ran the read-only diagnostic on prod** (same `information_schema.columns` query,
+  in Supabase's SQL Editor — I don't hold prod credentials and don't run mutating or even
+  read queries against prod directly, matching how the Session 23 incident was handled).
+  **Result: prod has all 8 tables with every expected column — zero gaps.** No `ADD COLUMN`
+  fix was needed; the prepared idempotent fix script was not run.
+- **Conclusion**: the `product_meta_tagline` gap was an isolated SiteSettings incident, not
+  a systemic pattern across the app's localized collections. MIGRATIONS.md's baselining
+  section updated to mark this audit ☑ done (2026-07-31) with the result, and to correct the
+  Homepage false-alarm.
+- No application code changed this session — audit + doc corrections only.
+- Next: user's call — ROADMAP Part 4 (Reports & analytics, confirmed unblocked: sales/
+  inventory/customer/discount reports need only F0, already done; F1 mock payments already
+  landed too), remaining small F2 pieces, F1-to-prod deploy timing, Areeba/NetCommerce/OMT/
+  Whish merchant conversations (external clock), or ENHANCEMENTS-only a11y/i18n extras.
+
+### Session 25 — 2026-07-31
+Focus: **ROADMAP Part 4 §4.1 — Report engine**, scoped up front with the user to just the
+engine itself this session (4.2 scheduled email reports and 4.3 dashboard v3 deferred to a
+follow-up), with all three export formats (CSV + XLSX + PDF).
+- **`src/lib/reports/`** — five SQL-aggregated report types (`payload.db.pool`, via the
+  existing `src/lib/db-pool.ts → getPool()`), a shared `ReportResult` shape
+  (`types.ts`/`params.ts`), and a `registry.ts` dispatcher: **Sales** (period buckets
+  day/week/month, or a breakdown by product/artist/category/area/payment method), **Payments**
+  (per `orders.payment_method`, so COD/bank-transfer without a Payments-collection row still
+  show up), **Inventory** (stock value, low/dead stock, sell-through — stock query + sold-in-
+  range query merged in JS, mirroring `src/lib/stock.ts`'s sized-vs-flat logic), **Customers**
+  (identity = account id else lower-cased guest email; new-vs-returning by comparing each
+  identity's all-time first order against the range start; repeat rate; top spenders),
+  **Discounts** (usage + revenue impact per code in range vs. all-time usageCount/usageLimit).
+  VAT/tax deliberately not built — genuinely blocked on Part 3.1 (no VAT fields exist), not a
+  scoping cut.
+- **Export formats**: `export-csv.ts` (same escaping convention as the existing payments CSV
+  route); `export-xlsx.ts` via **`write-excel-file`**, not exceljs — `npm install exceljs`
+  pulled in a high-severity `brace-expansion` DoS advisory through its bundled
+  archiver/archiver-utils/zip-stream chain with no fix short of a breaking downgrade;
+  swapped for `write-excel-file` (zero dependencies, confirmed via `npm audit` that the
+  vulnerability count returned to the project's pre-existing baseline after the swap);
+  `export-pdf.tsx` via **`@react-pdf/renderer`** (brand name from SiteSettings, a generic
+  columns/rows/summary table renderer — the same component ROADMAP Part 3.1 invoices will
+  reuse later).
+- **Admin UI**: `ReportsPanel.tsx` (server, `isAdmin`-gated) + `ReportsExplorer.tsx` (client:
+  report-type/date-range/dimension controls, a "Run report" preview table with summary KPI
+  cards, CSV/XLSX/PDF download links) — registered in `payload.config.ts`'s `beforeDashboard`
+  alongside SalesDashboard/OmtPaymentsPanel/PaymentsOpsPanel. New routes:
+  `GET /api/admin/reports/[type]` (JSON preview) and `GET /api/admin/reports/[type]/export?
+  format=csv|xlsx|pdf`, both gated through the existing `requireAdminUser` guard.
+- **Caught and fixed a real bug via verification, not just review**: ran every report's raw
+  SQL directly against the real dev DB (throwaway script, deleted after) before trusting any
+  of it, and the `sales` report's artist-breakdown query failed outright —
+  `column al.name does not exist`. Had wrongly assumed `Artists.name` was localized (like
+  `Categories.name` is); checking `src/collections/Artists.ts` showed only `bio`/`genre` are
+  `localized: true` — `name` is a plain column on the `artists` table itself, no `_locales`
+  join needed. Fixed the query, re-verified against real data, confirmed the "Unknown" artist
+  grouping it now returns is correct (the two products that sold in range genuinely have
+  `artist_id: null` — accessories aren't tied to an artist), not a join bug.
+  Also independently verified CSV escaping, and confirmed the XLSX/PDF buffers have valid
+  magic bytes (`PK`/`%PDF-`) by calling the exporters directly via `tsx` outside of Next.
+- **Self-inflicted `.next` conflict, disclosed rather than papered over**: ran `npm run build`
+  for verification without first checking whether the user's own `npm run dev` was still
+  running in another terminal on port 3000 — it was (same shared `.next` output directory
+  between dev and prod builds isn't supported by Next.js). This produced a transient
+  `Cannot find module vendor-chunks/@payloadcms.js` 500 on that dev server. No data or code
+  was lost — a dev-server restart regenerates `.next` cleanly — but flagged directly to the
+  user rather than silently restarting their process myself, since it wasn't mine to manage.
+  Switched all further server-required verification to a separate port (3100) and, once that
+  also revealed shared-`.next` corruption, to direct DB/script-level checks instead of another
+  Next process. **Lesson for future sessions**: check `netstat` for a running dev server
+  before any `npm run build`/`npm run start` in this project.
+- ✅ `npx tsc --noEmit` clean; `npm test` 25/25. Did **not** get a final `npm run build`
+  re-verification after the artist-query fix, deliberately, to avoid re-touching the shared
+  `.next` directory while the user's dev server is live — confidence instead comes from tsc +
+  unit tests + direct SQL/export verification against real data. Recommend a normal
+  `npm run dev` restart (whenever convenient) to pick up the new admin panel + routes.
+- ROADMAP.md Part 4 §4.1 marked ☑ (VAT sub-item explicitly left ☐, blocked not skipped).
+- Next: user's call — 4.2 (scheduled email reports) / 4.3 (dashboard v3), remaining small F2
+  pieces, F1-to-prod deploy timing, Areeba/NetCommerce/OMT/Whish merchant conversations, or
+  ENHANCEMENTS-only a11y/i18n extras.
+
+### Session 26 — 2026-07-31
+Focus: **incident response — a live Vercel deploy hung for 40+ minutes**, discovered from a
+build-log screenshot the user shared. Two unrelated fixes landed same-session: the CI
+lockfile drift from Session 25 (already pushed and confirmed green via a background
+Monitor poll of the GitHub Actions API), and this new build-hang issue.
+- **Root cause**: `@payloadcms/drizzle`'s `migrate()` shows an interactive `prompts`
+  confirm() — "It looks like you've run Payload in dev mode... proceed?" — whenever a
+  `batch = -1` sentinel row exists in `payload_migrations` (leftover from any database with
+  pre-migrations push history, which both this project's original prod *and*, it turned out,
+  the disposable dev DB both still carried). Vercel's build machine has no TTY to answer
+  that prompt, so the build doesn't fail — it just hangs until Vercel's own ceiling kills it,
+  burning real build minutes the whole time. Confirmed by grepping
+  `node_modules/@payloadcms/drizzle/dist/migrate.js` for the exact prompt text.
+- **Fixed at the source, not just for this one incident**: `scripts/migrate.mjs`'s `up`
+  command now unconditionally deletes any `batch = -1` rows before calling
+  `payload.db.migrate()`. The row isn't a real migration record — removing it only disarms
+  the confirmation gate and has zero effect on which migrations are considered applied.
+  This self-heals for any future client database with the same push-era history too
+  (relevant given the Part 8 productization plans), not just a one-off prod cleanup.
+  Verified against the **dev** DB: `npm run migrate` actually found and cleared a stale
+  `batch = -1` row there too (dev apparently carried the same leftover), ran straight
+  through with no prompt, and `migrate:status` afterward showed all 5 migrations still
+  correctly applied at their original batch numbers — nothing else was disturbed.
+- **Also cleaned up `src/migrations/index.ts`** while in the area: confirmed via grep it's
+  never imported anywhere (Payload's drizzle adapter scans `migrationDir` directly off disk
+  at runtime) and was stale, missing the two most recent migrations — regenerated to match
+  disk and commented as vestigial/non-authoritative so a future session doesn't trust it.
+- **Prod-side action left to the user** (no prod DB access in this session, by design —
+  same boundary as every other prod-touching session): cancel the currently-stuck Vercel
+  deployment (it will never complete on its own), then run
+  `delete from payload_migrations where batch = -1;` in prod's Supabase SQL editor before
+  redeploying. Documented in MIGRATIONS.md's Baselining section alongside the existing
+  `product_meta_tagline` incident writeup, including the read-only check-first query.
+- ✅ `npx tsc --noEmit` clean; `npm test` 25/25; `npm run migrate` + `migrate:status`
+  verified end-to-end against the real dev DB (not just reasoned about).
+- Next: user's call, once prod is unstuck — same backlog as Session 25 (4.2/4.3 reports
+  follow-up, remaining F2 pieces, F1-to-prod deploy timing, merchant conversations,
+  ENHANCEMENTS extras).

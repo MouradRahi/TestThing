@@ -158,6 +158,67 @@ export const SiteSettings: GlobalConfig = {
                   'Shown at checkout, on the order confirmation page, and in the confirmation email when the customer picks Bank Transfer — bank name, account/IBAN, and what to put as the transfer reference.',
               },
             },
+            {
+              name: 'cardPaymentsEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).',
+              },
+            },
+            {
+              name: 'cardPaymentProvider',
+              type: 'select',
+              defaultValue: 'mock',
+              options: [{ label: 'Mock (testing only)', value: 'mock' }],
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.cardPaymentsEnabled),
+                description:
+                  'The Mock provider simulates a payment session for local testing — it is disabled automatically in production unless ALLOW_MOCK_PAYMENTS=true is set.',
+              },
+            },
+            {
+              name: 'omtPaymentEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Show "OMT (pay at branch)" as a checkout payment option (ROADMAP F2). v1 is voucher + manual confirm — no OMT merchant agreement exists yet, so staff confirm payments by hand from the admin dashboard\'s "OMT Payments" panel. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).',
+              },
+            },
+            {
+              name: 'omtInstructions',
+              type: 'textarea',
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.omtPaymentEnabled),
+                description:
+                  'Shown at checkout and on the order confirmation page alongside the voucher code — e.g. "Pay at any OMT branch within 48 hours."',
+              },
+            },
+            {
+              name: 'currencyDisplayMode',
+              type: 'select',
+              defaultValue: 'usd_only',
+              options: [
+                { label: 'USD only', value: 'usd_only' },
+                { label: 'USD + LBP equivalent', value: 'both' },
+              ],
+              admin: {
+                description:
+                  'USD stays the money of record everywhere (payments, discounts, reports). "Both" adds an LBP equivalent next to prices using the exchange rate below.',
+              },
+            },
+            {
+              name: 'exchangeRate',
+              type: 'number',
+              min: 0,
+              admin: {
+                condition: (_, siblingData) => siblingData?.currencyDisplayMode === 'both',
+                description:
+                  'LBP per 1 USD, e.g. 89000. Update this as the rate moves — each order snapshots the rate at purchase time, so past orders keep the rate they were placed under.',
+              },
+            },
           ],
         },
 

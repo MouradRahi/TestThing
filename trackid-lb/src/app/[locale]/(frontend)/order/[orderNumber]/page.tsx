@@ -4,8 +4,9 @@ import { notFound } from 'next/navigation'
 import { getTranslations, getLocale } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
 import { getSiteSettings, getDeliveryZones, DEFAULT_ORDER_THANKYOU_NOTE } from '@/lib/site-settings'
-import { formatPrice } from '@/lib/format'
+import { formatPrice, formatLBP } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
+import { PaymentConfirmingBanner } from '@/components/payments/PaymentConfirmingBanner'
 
 // Always render fresh: customers revisit this page (and arrive via /track) to
 // see their live order status — a cached copy would freeze it at first view.
@@ -22,6 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function OrderConfirmationPage({ params }: Props) {
   const { orderNumber } = await params
   const t = await getTranslations('order')
+  const tPayment = await getTranslations('payment')
   const payload = await getPayload()
 
   const { docs } = await payload.find({
@@ -33,6 +35,19 @@ export default async function OrderConfirmationPage({ params }: Props) {
   const order = docs[0]
   if (!order) notFound()
 
+  const isOmtPayment = order.paymentMethod === 'omt'
+  let omtVoucherCode: string | null = null
+  if (isOmtPayment) {
+    const { docs: paymentDocs } = await payload.find({
+      collection: 'payments',
+      where: { order: { equals: order.id } },
+      sort: '-createdAt',
+      limit: 1,
+      depth: 0,
+    })
+    omtVoucherCode = (paymentDocs[0]?.providerRef as string) || null
+  }
+
   const items: Array<{
     titleAtPurchase: string
     priceAtPurchase: number
@@ -42,8 +57,11 @@ export default async function OrderConfirmationPage({ params }: Props) {
   }> = Array.isArray(order.items) ? order.items : []
 
   const isBankTransfer = order.paymentMethod === 'bank_transfer'
+  const isCardPayment = order.paymentMethod === 'card'
+  const paymentLabel = isCardPayment ? t('card') : isOmtPayment ? t('omt') : isBankTransfer ? t('bankTransfer') : t('cod')
   const settings = await getSiteSettings(await getLocale())
   const bankInstructions = (settings.bankTransferInstructions as string) || ''
+  const omtInstructions = (settings.omtInstructions as string) || ''
   const thankYouNote = (settings.orderThankYouNote as string) || DEFAULT_ORDER_THANKYOU_NOTE
   // A 0 fee only means "free" when zones are configured; otherwise the fee is
   // simply unknown and gets confirmed by phone (matches checkout + email copy).
@@ -51,6 +69,9 @@ export default async function OrderConfirmationPage({ params }: Props) {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-20">
+      {isCardPayment && (
+        <PaymentConfirmingBanner orderNumber={order.orderNumber as string} initialStatus={String(order.paymentStatus)} />
+      )}
       {/* Header */}
       <div className="text-center mb-14">
         <div className="w-12 h-12 border border-accent/50 rounded-full flex items-center justify-center mx-auto mb-8 text-accent text-xl">
@@ -108,9 +129,18 @@ export default async function OrderConfirmationPage({ params }: Props) {
                   : t('deliveryByPhone')}
             </span>
           </div>
-          <div className="flex justify-between text-foreground font-semibold pt-2 border-t border-border text-sm">
+          <div className="flex justify-between items-baseline text-foreground font-semibold pt-2 border-t border-border text-sm">
             <span>{t('total')}</span>
-            <span className="tabular-nums">{formatPrice(Number(order.total))}</span>
+            <span className="text-end">
+              <span className="tabular-nums">{formatPrice(Number(order.total))}</span>
+              {/* Snapshotted at purchase time — a later admin rate change never
+                  retroactively changes what a past order "was worth" (F1 §2.5). */}
+              {typeof order.exchangeRateAtPurchase === 'number' && (
+                <span className="block text-[10px] font-normal text-muted tabular-nums">
+                  {formatLBP(Number(order.total), order.exchangeRateAtPurchase)}
+                </span>
+              )}
+            </span>
           </div>
         </div>
       </div>
@@ -128,7 +158,7 @@ export default async function OrderConfirmationPage({ params }: Props) {
         </div>
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('payment')}</p>
-          <p className="text-foreground">{isBankTransfer ? t('bankTransfer') : t('cod')}</p>
+          <p className="text-foreground">{paymentLabel}</p>
         </div>
       </div>
 
@@ -137,6 +167,33 @@ export default async function OrderConfirmationPage({ params }: Props) {
         <div className="border border-accent/30 bg-surface p-6 mb-6">
           <p className="text-[10px] uppercase tracking-[0.2em] text-accent mb-3">{t('howToPay')}</p>
           <p className="text-xs text-muted leading-relaxed whitespace-pre-line">{bankInstructions}</p>
+        </div>
+      )}
+
+      {/* OMT voucher — code + instructions while awaiting payment; a short
+          status note once resolved (no live polling — this can take hours). */}
+      {isOmtPayment && omtVoucherCode && (
+        <div className="border border-accent/30 bg-surface p-6 mb-6">
+          {order.paymentStatus === 'awaiting_payment' && (
+            <>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-accent mb-3">{t('howToPay')}</p>
+              <p className="font-mono text-lg text-foreground tracking-wider mb-3">{omtVoucherCode}</p>
+              {omtInstructions && (
+                <p className="text-xs text-muted leading-relaxed whitespace-pre-line">{omtInstructions}</p>
+              )}
+            </>
+          )}
+          {order.paymentStatus === 'paid' && (
+            <p className="text-xs text-muted leading-relaxed">
+              {t('omtPaid')} <span className="font-mono text-foreground">{omtVoucherCode}</span>
+            </p>
+          )}
+          {order.paymentStatus === 'failed' && (
+            <p className="text-xs text-red-400 leading-relaxed">{tPayment('failedBody')}</p>
+          )}
+          {order.paymentStatus === 'expired' && (
+            <p className="text-xs text-red-400 leading-relaxed">{tPayment('expiredBody')}</p>
+          )}
         </div>
       )}
 

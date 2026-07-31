@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { useLocale } from 'next-intl'
 import type { CartItem, CartNotice } from '@/lib/cart'
 import { cartLineKey } from '@/lib/cart'
+import type { CurrencyDisplay } from '@/lib/site-settings'
 
 type CartContextValue = {
   items: CartItem[]
@@ -22,6 +23,8 @@ type CartContextValue = {
   total: number
   /** CMS-driven copy shown on the empty cart page (SiteSettings → Copy). */
   emptyCartMessage: string
+  /** USD/LBP display mode + rate (SiteSettings → Commerce), ROADMAP F1 §2.5. */
+  currency: CurrencyDisplay
   /** Slide-over mini-cart open state. */
   isOpen: boolean
   openCart: () => void
@@ -41,9 +44,11 @@ function parseKey(key: string): { productId: string; size?: string } {
 export function CartProvider({
   children,
   emptyCartMessage = 'Find a piece that speaks to you.',
+  currency = { mode: 'usd_only', exchangeRate: null },
 }: {
   children: React.ReactNode
   emptyCartMessage?: string
+  currency?: CurrencyDisplay
 }) {
   const locale = useLocale()
   const [items, setItems] = useState<CartItem[]>([])
@@ -158,7 +163,7 @@ export function CartProvider({
 
   return (
     <CartContext.Provider
-      value={{ items, isLoading, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, isOpen, openCart, closeCart }}
+      value={{ items, isLoading, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, currency, isOpen, openCart, closeCart }}
     >
       {children}
     </CartContext.Provider>

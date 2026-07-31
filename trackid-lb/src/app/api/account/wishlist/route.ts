@@ -4,6 +4,8 @@ import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { safeRevalidatePath } from '@/lib/revalidate'
 import { NextRequest, NextResponse } from 'next/server'
 
+const MAX_WISHLIST_SIZE = 200
+
 // Current wishlist state for a product — lets the product page stay static while
 // the button resolves login + saved state client-side on mount.
 export async function GET(req: NextRequest) {
@@ -41,6 +43,20 @@ export async function POST(req: NextRequest) {
   const current = await payload.findByID({ collection: 'customers', id: user.id, depth: 0 })
   const wishlist = Array.isArray(current.wishlist) ? current.wishlist.map(Number) : []
   const has = wishlist.includes(productId)
+
+  // Only adding needs validation — removing an id that's already gone (or was
+  // never a real product) is a harmless no-op, not an error.
+  if (!has) {
+    if (wishlist.length >= MAX_WISHLIST_SIZE) {
+      return NextResponse.json({ error: 'Your wishlist is full.' }, { status: 400 })
+    }
+    const product = await payload.findByID({ collection: 'products', id: productId, depth: 0 }).catch(() => null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!product || (product as any).status !== 'published') {
+      return NextResponse.json({ error: 'This item is no longer available.' }, { status: 400 })
+    }
+  }
+
   const next = has ? wishlist.filter((id) => id !== productId) : [...wishlist, productId]
 
   await payload.update({ collection: 'customers', id: user.id, data: { wishlist: next }, overrideAccess: true })

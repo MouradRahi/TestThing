@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { formatLBP } from './format'
 
 export type OrderNotificationData = {
   orderId: string
@@ -20,9 +21,11 @@ export type OrderNotificationData = {
   discountCode?: string
   /** Amount taken off the subtotal by the discount code */
   discountAmount?: number
-  paymentMethod: 'cod' | 'bank_transfer'
+  paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt'
   /** e.g. "Free" or "$4.00" — omitted when no delivery zones are configured */
   deliveryFeeLabel?: string
+  /** LBP-per-USD rate snapshotted at purchase (ROADMAP F1 §2.5) — omitted when currency display is USD-only. */
+  exchangeRateAtPurchase?: number
   /** Bank transfer payment details from SiteSettings, only set for bank_transfer orders */
   bankInstructions?: string
   /** Brand voice from SiteSettings → Copy tab. Defaults applied when omitted. */
@@ -99,7 +102,14 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
     .join('')
 
   const brand = order.brand ?? DEFAULT_BRAND
-  const paymentLabel = order.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Bank Transfer'
+  const paymentLabel =
+    order.paymentMethod === 'cod'
+      ? 'Cash on Delivery'
+      : order.paymentMethod === 'card'
+        ? 'Card'
+        : order.paymentMethod === 'omt'
+          ? 'OMT'
+          : 'Bank Transfer'
   const bankNote =
     order.paymentMethod === 'bank_transfer'
       ? `<p style="margin: 8px 0 0; font-size: 12px; color: #666; line-height: 1.5;">${
@@ -180,7 +190,14 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
                 </tr>
                 <tr>
                   <td style="font-size:13px;color:#c0b8ae;font-weight:600;">Total</td>
-                  <td align="right" style="font-size:13px;color:#c0b8ae;font-weight:600;font-variant-numeric:tabular-nums;">$${order.total.toFixed(2)}</td>
+                  <td align="right" style="font-size:13px;color:#c0b8ae;font-weight:600;font-variant-numeric:tabular-nums;">
+                    $${order.total.toFixed(2)}
+                    ${
+                      order.exchangeRateAtPurchase
+                        ? `<br><span style="font-size:11px;color:#666;font-weight:400;">${formatLBP(order.total, order.exchangeRateAtPurchase)}</span>`
+                        : ''
+                    }
+                  </td>
                 </tr>
               </table>
             </td>
@@ -392,7 +409,14 @@ export async function sendOrderWhatsAppAlert(order: OrderNotificationData): Prom
     .map((i) => `• ${i.titleAtPurchase}${i.size ? ` (${i.size})` : ''} ×${i.quantity} — $${(i.priceAtPurchase * i.quantity).toFixed(2)}`)
     .join('\n')
 
-  const paymentLabel = order.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Bank Transfer'
+  const paymentLabel =
+    order.paymentMethod === 'cod'
+      ? 'Cash on Delivery'
+      : order.paymentMethod === 'card'
+        ? 'Card'
+        : order.paymentMethod === 'omt'
+          ? 'OMT'
+          : 'Bank Transfer'
 
   const body = [
     `🛍 New Order — ${order.orderNumber}`,

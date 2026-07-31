@@ -1,7 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { isAdmin } from '../lib/access'
-import { sendOrderStatusEmail } from '../lib/notifications'
-import { resolveBrandCopy } from '../lib/site-settings'
+import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendOrderWhatsAppAlert } from '../lib/notifications'
+import { resolveBrandCopy, getDeliveryZones } from '../lib/site-settings'
 import { logAuditEvent } from '../lib/audit-log'
 
 export const Orders: CollectionConfig = {
@@ -87,6 +87,58 @@ export const Orders: CollectionConfig = {
               `[orders] Failed to adjust stock for product ${item.productId} after status change: ${String(err)}`,
             )
           }
+        }
+      },
+      // Online-payment orders (ROADMAP F1 §2.1) are created `awaiting_payment`
+      // with no confirmation email yet — this fires it the moment a verified
+      // webhook (src/lib/payments/service.ts → applyPaymentEvent) flips
+      // paymentStatus to `paid`, mirroring exactly what the orders route
+      // already sends immediately for COD/bank-transfer orders. One place
+      // owns "what happens when an order becomes paid" regardless of which
+      // provider (or a future admin override) got it there.
+      async ({ doc, previousDoc, req }) => {
+        if (previousDoc?.paymentStatus !== 'awaiting_payment' || doc?.paymentStatus !== 'paid') return
+        if (!doc?.customerEmail) return
+        try {
+          let settings: Record<string, unknown> = {}
+          try {
+            settings = (await req.payload.findGlobal({ slug: 'site-settings' })) as unknown as Record<string, unknown>
+          } catch {
+            // fresh install without the global — notifications.ts applies defaults
+          }
+          const zonesConfigured = getDeliveryZones(settings).length > 0
+          const deliveryFee = Number(doc.deliveryFee) || 0
+          const items: Array<{
+            titleAtPurchase: string
+            priceAtPurchase: number
+            quantity: number
+            size?: string
+          }> = Array.isArray(doc.items) ? doc.items : []
+          const notificationData = {
+            orderId: String(doc.id),
+            orderNumber: doc.orderNumber,
+            customerName: doc.customerName,
+            customerPhone: doc.customerPhone,
+            customerEmail: doc.customerEmail,
+            deliveryAddress: doc.deliveryAddress,
+            area: doc.area,
+            items,
+            subtotal: Number(doc.subtotal),
+            discountCode: doc.discountCode ?? undefined,
+            discountAmount: Number(doc.discountAmount) > 0 ? Number(doc.discountAmount) : undefined,
+            total: Number(doc.total),
+            paymentMethod: doc.paymentMethod as 'cod' | 'bank_transfer' | 'card' | 'omt',
+            deliveryFeeLabel: zonesConfigured ? (deliveryFee === 0 ? 'Free' : `$${deliveryFee.toFixed(2)}`) : undefined,
+            exchangeRateAtPurchase:
+              typeof doc.exchangeRateAtPurchase === 'number' ? doc.exchangeRateAtPurchase : undefined,
+            brand: resolveBrandCopy(settings),
+          }
+          await Promise.allSettled([
+            sendOrderConfirmationEmail(notificationData),
+            sendOrderWhatsAppAlert(notificationData),
+          ])
+        } catch (err) {
+          console.error('[orders] Payment-confirmed notifications failed:', err)
         }
       },
       // Audit trail (ROADMAP F0 §1.5) — orders are only ever updated from
@@ -224,6 +276,8 @@ export const Orders: CollectionConfig = {
       options: [
         { label: 'Cash on Delivery', value: 'cod' },
         { label: 'Bank Transfer', value: 'bank_transfer' },
+        { label: 'Card (online)', value: 'card' },
+        { label: 'OMT (pay at branch)', value: 'omt' },
       ],
       required: true,
       defaultValue: 'cod',
@@ -233,10 +287,42 @@ export const Orders: CollectionConfig = {
       type: 'select',
       options: [
         { label: 'Pending', value: 'pending' },
+        { label: 'Awaiting Payment', value: 'awaiting_payment' },
         { label: 'Paid', value: 'paid' },
+        { label: 'Failed', value: 'failed' },
+        { label: 'Expired', value: 'expired' },
+        { label: 'Refunded', value: 'refunded' },
+        { label: 'Partially Refunded', value: 'partially_refunded' },
       ],
       defaultValue: 'pending',
       index: true,
+    },
+    {
+      name: 'paymentExpiresAt',
+      type: 'date',
+      admin: {
+        readOnly: true,
+        description:
+          'Online-payment orders only. Stock is released and the order cancelled if payment isn\'t confirmed by this time (ROADMAP F1 §2.1).',
+        date: { pickerAppearance: 'dayAndTime' },
+      },
+    },
+    {
+      name: 'exchangeRateAtPurchase',
+      type: 'number',
+      admin: {
+        readOnly: true,
+        description: 'LBP-per-USD rate at the moment of purchase, snapshotted from Site Settings — USD stays the money of record.',
+      },
+    },
+    {
+      name: 'refundedAmount',
+      type: 'number',
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+        description: 'How much of this order has been refunded so far (ROADMAP F2 §2.6). Updated only by the admin refund action.',
+      },
     },
     {
       name: 'orderStatus',

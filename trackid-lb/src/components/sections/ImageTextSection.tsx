@@ -26,7 +26,13 @@ export function ImageTextSection({
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2">
         {/* Image */}
         <div className={`relative aspect-[4/3] md:aspect-auto md:min-h-[480px] bg-surface ${imageCol}`}>
-          <Image src={image} alt={imageAlt || heading || ''} fill className="object-cover" />
+          <Image
+            src={image}
+            alt={imageAlt || heading || ''}
+            fill
+            className="object-cover"
+            sizes="(min-width: 768px) 50vw, 100vw"
+          />
         </div>
 
         {/* Text */}

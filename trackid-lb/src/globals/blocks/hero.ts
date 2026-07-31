@@ -39,10 +39,15 @@ export const HeroBlock: Block = {
       name: 'textAlign',
       type: 'select',
       defaultValue: 'center',
+      // Values stay 'left'/'right' (no data migration for existing content) —
+      // only the labels change. Rendering now uses text-start/text-end, which
+      // flip with the page direction, so "Start" is the accurate name: it's
+      // the reading-start edge (left in English, right in Arabic), not a
+      // fixed physical side.
       options: [
-        { label: 'Left', value: 'left' },
+        { label: 'Start', value: 'left' },
         { label: 'Center', value: 'center' },
-        { label: 'Right', value: 'right' },
+        { label: 'End', value: 'right' },
       ],
     },
     {

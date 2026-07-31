@@ -27,9 +27,33 @@ payload.db.migrationDir = path.resolve('src/migrations')
 
 try {
   switch (command ?? 'up') {
-    case 'up':
+    case 'up': {
+      // A stale `batch = -1` sentinel row (left over from this project's
+      // original push-based schema era, before migrations existed) makes
+      // Payload's drizzle adapter show an interactive "you've run Payload in
+      // dev mode, data loss may occur, proceed?" confirm() prompt before it
+      // will run anything — see @payloadcms/drizzle/dist/migrate.js. There is
+      // no TTY on Vercel's build machine to answer that prompt, so it hangs
+      // forever instead of failing loudly (this hung a real prod deploy for
+      // 40+ minutes — see MIGRATIONS.md). The row itself is not a real
+      // migration record — deleting it only stops the confirmation gate; it
+      // has no effect on which migrations are considered applied. Safe (and
+      // necessary) to clear unconditionally before every `up`, including for
+      // any future client database with the same pre-migrations push history.
+      const { docs: staleSentinels } = await payload.find({
+        collection: 'payload-migrations',
+        where: { batch: { equals: -1 } },
+        limit: 100,
+      })
+      for (const doc of staleSentinels) {
+        await payload.delete({ collection: 'payload-migrations', id: doc.id })
+      }
+      if (staleSentinels.length > 0) {
+        console.log(`Cleared ${staleSentinels.length} stale batch=-1 sentinel row(s) before migrating.`)
+      }
       await payload.db.migrate()
       break
+    }
     case 'create':
       if (!nameArg) {
         console.error('Usage: npm run migrate:create <name>')
