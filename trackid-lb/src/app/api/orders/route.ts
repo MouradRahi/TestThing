@@ -9,7 +9,7 @@ import { reportServerError } from '@/lib/error-reporting'
 import { getSizes } from '@/lib/stock'
 import { safeRevalidatePath } from '@/lib/revalidate'
 import { getPool } from '@/lib/db-pool'
-import { initiatePayment, paymentExpiryDate } from '@/lib/payments/service'
+import { initiatePayment, paymentExpiryDate, PAYMENT_EXPIRY_MINUTES, OMT_RESERVATION_HOURS } from '@/lib/payments/service'
 import { isProviderAvailable } from '@/lib/payments/registry'
 import type { PaymentInitiateResult } from '@/lib/payments/types'
 import { NextRequest, NextResponse, after } from 'next/server'
@@ -155,9 +155,18 @@ export async function POST(req: NextRequest) {
     const customerEmail = cleanOptional(body.customerEmail, 160)
     const notes = cleanOptional(body.notes, 1000)
     const discountCodeInput = cleanOptional(body.discountCode, 40)
-    const paymentMethod: 'cod' | 'bank_transfer' | 'card' =
-      body.paymentMethod === 'bank_transfer' ? 'bank_transfer' : body.paymentMethod === 'card' ? 'card' : 'cod'
-    const isOnlinePayment = paymentMethod === 'card'
+    const paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt' =
+      body.paymentMethod === 'bank_transfer'
+        ? 'bank_transfer'
+        : body.paymentMethod === 'card'
+          ? 'card'
+          : body.paymentMethod === 'omt'
+            ? 'omt'
+            : 'cod'
+    // Both go through the same "reserve stock, open a provider session,
+    // await a confirmation event" flow — card via hosted-checkout redirect,
+    // OMT via a pay-at-branch voucher (ROADMAP F2 §2.4).
+    const needsPaymentSession = paymentMethod === 'card' || paymentMethod === 'omt'
 
     if (
       !customerName || !customerPhone || !deliveryAddress || !area ||
@@ -260,17 +269,24 @@ export async function POST(req: NextRequest) {
       // fresh install without the global — free-text area mode, fee 0
     }
 
-    // Card payments must be explicitly enabled AND the chosen provider must
-    // actually be usable (env/config permitting) — never silently fall back
-    // to a different payment method the customer didn't pick.
+    // Each online payment method must be explicitly enabled AND its provider
+    // must actually be usable (env/config permitting) — never silently fall
+    // back to a different payment method the customer didn't pick.
     const cardProviderKey =
       typeof settings.cardPaymentProvider === 'string' ? settings.cardPaymentProvider : 'mock'
-    if (isOnlinePayment && (!settings.cardPaymentsEnabled || !isProviderAvailable(cardProviderKey))) {
+    if (paymentMethod === 'card' && (!settings.cardPaymentsEnabled || !isProviderAvailable(cardProviderKey))) {
       return NextResponse.json(
         { error: 'Card payments aren’t available right now. Please choose another payment method.' },
         { status: 400 },
       )
     }
+    if (paymentMethod === 'omt' && (!settings.omtPaymentEnabled || !isProviderAvailable('omt'))) {
+      return NextResponse.json(
+        { error: 'OMT payments aren’t available right now. Please choose another payment method.' },
+        { status: 400 },
+      )
+    }
+    const paymentProviderKey = paymentMethod === 'card' ? cardProviderKey : 'omt'
 
     const deliveryFee = resolveDeliveryFee(settings, area, subtotal)
     if (deliveryFee === null) {
@@ -355,8 +371,10 @@ export async function POST(req: NextRequest) {
           discountAmount,
           total,
           paymentMethod,
-          paymentStatus: isOnlinePayment ? 'awaiting_payment' : 'pending',
-          ...(isOnlinePayment ? { paymentExpiresAt: paymentExpiryDate() } : {}),
+          paymentStatus: needsPaymentSession ? 'awaiting_payment' : 'pending',
+          ...(needsPaymentSession
+            ? { paymentExpiresAt: paymentExpiryDate(paymentMethod === 'omt' ? OMT_RESERVATION_HOURS * 60 : PAYMENT_EXPIRY_MINUTES) }
+            : {}),
           ...(exchangeRateAtPurchase != null ? { exchangeRateAtPurchase } : {}),
           orderStatus: 'pending',
           notes,
@@ -368,14 +386,15 @@ export async function POST(req: NextRequest) {
       throw err
     }
 
-    // Online payment: stock is already reserved (decremented above) — now
-    // open the provider session. paymentStatus only ever becomes `paid` via
-    // a verified webhook (src/app/api/payments/webhook/[provider]/route.ts),
-    // never trusted from this response or the browser's return redirect.
+    // Card/OMT: stock is already reserved (decremented above) — now open the
+    // provider session (a hosted-checkout redirect for card, a voucher code
+    // for OMT). paymentStatus only ever becomes `paid` via a verified webhook
+    // (src/app/api/payments/webhook/[provider]/route.ts) or, for OMT v1, the
+    // admin's manual "Mark as Paid" action — never trusted from this response.
     let payment: PaymentInitiateResult | null = null
-    if (isOnlinePayment) {
+    if (needsPaymentSession) {
       try {
-        payment = await initiatePayment(payload, cardProviderKey, {
+        payment = await initiatePayment(payload, paymentProviderKey, {
           orderId: order.id,
           orderNumber: order.orderNumber as string,
           amount: total,
@@ -392,7 +411,12 @@ export async function POST(req: NextRequest) {
           console.error('[orders] Failed to roll back order after payment-initiation failure:', deleteErr)
         }
         return NextResponse.json(
-          { error: 'Card payments are temporarily unavailable. Please choose another payment method.' },
+          {
+            error:
+              paymentMethod === 'card'
+                ? 'Card payments are temporarily unavailable. Please choose another payment method.'
+                : 'OMT payments are temporarily unavailable. Please choose another payment method.',
+          },
           { status: 502 },
         )
       }
@@ -433,10 +457,10 @@ export async function POST(req: NextRequest) {
       brand: resolveBrandCopy(settings),
     }
 
-    // Online-payment orders aren't confirmed yet — the Orders afterChange
-    // hook sends this same notification once a verified webhook marks the
-    // order paid, so it isn't sent twice.
-    if (!isOnlinePayment) {
+    // Card/OMT orders aren't confirmed yet — the Orders afterChange hook
+    // sends this same notification once the order is marked paid (webhook or
+    // admin manual confirm), so it isn't sent twice.
+    if (!needsPaymentSession) {
       // after() keeps the serverless function alive past the response —
       // a plain void'd promise can be frozen before it completes on Vercel.
       after(() =>

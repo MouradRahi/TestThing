@@ -118,3 +118,28 @@ The prod/dev DBs already have the full schema (built up via pushes). Before swit
 > INSERT INTO payload_migrations (name, batch, created_at, updated_at)
 > VALUES ('20260720_055440_baseline', 1, now(), now());
 > ```
+>
+> ✅ **Baseline marker + all 3 post-baseline migrations applied to prod (2026-07-30,
+> Session 23 incident response)**. Real production incident: Vercel's build command was
+> never actually updated to run `npm run migrate` (see the note below), so prod had been
+> silently stuck on a pre-Session-22 schema for multiple deploys — the admin panel was
+> completely inaccessible (`column ...rate_limit_counters_id does not exist`) until this
+> was caught and fixed by hand (SQL Editor for the baseline marker, a manual `npm run
+> migrate` run against prod's `DATABASE_URI` for the rest).
+>
+> ⚠️ **Lesson learned — "mark the baseline as applied" is an assumption, not a fact,
+> verify it**: even after marking baseline + running the 3 real migrations, Site Settings
+> still 500'd (`column site_settings__locales.product_meta_tagline does not exist`).
+> Baselining assumes the target DB's *actual* schema matches the baseline snapshot taken
+> from dev — that assumption was wrong here. `product_meta_tagline` started as a plain
+> `site_settings.product_meta_tagline` column (Session 11), then became `localized: true`
+> and moved to `site_settings_locales` (Session 18) — a schema change that reached dev but,
+> for whatever reason in this project's dev/prod-sharing history pre-Session-21, never
+> reached prod. Fixed with two `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements once
+> found via `information_schema.columns` diffing. **Takeaway**: after baselining, don't
+> assume the mark is correct just because most of the app works — any collection with a
+> `localized` field that changed locality at some point (moved into/out of a `_locales`
+> table) is a specific risk pattern worth spot-checking with an `information_schema` diff
+> against the baseline migration file, especially Products/Pages/Navigation/Homepage,
+> which have the same localization history as SiteSettings and haven't been individually
+> verified against prod yet.

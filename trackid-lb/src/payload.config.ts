@@ -50,8 +50,12 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
     components: {
-      // Sales analytics above the default admin dashboard
-      beforeDashboard: ['/components/admin/SalesDashboard#SalesDashboard'],
+      // Sales analytics + payments ops (F2) above the default admin dashboard
+      beforeDashboard: [
+        '/components/admin/SalesDashboard#SalesDashboard',
+        '/components/admin/OmtPaymentsPanel#OmtPaymentsPanel',
+        '/components/admin/PaymentsOpsPanel#PaymentsOpsPanel',
+      ],
     },
   },
   collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, RateLimitCounters, IdempotencyKeys, AuditLog, Users],

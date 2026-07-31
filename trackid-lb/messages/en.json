@@ -86,6 +86,7 @@
     "bankTransfer": "Bank Transfer",
     "card": "Card",
     "cardTestNote": "Test payment — you'll be sent to a test payment page. No real money moves.",
+    "omt": "OMT (pay at branch)",
     "notes": "Notes (optional)",
     "notesPlaceholder": "Any special instructions…",
     "placeOrder": "Place Order",
@@ -122,6 +123,8 @@
     "cod": "Cash on Delivery",
     "bankTransfer": "Bank Transfer",
     "card": "Card",
+    "omt": "OMT (pay at branch)",
+    "omtPaid": "Paid via OMT — voucher code",
     "howToPay": "How to pay",
     "continueShopping": "Continue Shopping",
     "statuses": {

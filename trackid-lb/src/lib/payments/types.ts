@@ -61,4 +61,12 @@ export interface PaymentProvider {
    * record (there's no external system to ask).
    */
   verify(payload: Payload, providerRef: string): Promise<PaymentStatus>
+  /**
+   * Provider-side refund (ROADMAP F2 §2.6) — optional because no adapter
+   * implements one yet (mock/OMT both fall back to a manually-recorded
+   * refund in processRefund()). A real gateway adapter provides this to
+   * actually reverse the charge; when absent, the refund is still recorded
+   * on our side, just not sent anywhere.
+   */
+  refund?(payload: Payload, payment: { id: string | number; providerRef: string }, amount: number): Promise<void>
 }

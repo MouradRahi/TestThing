@@ -21,7 +21,7 @@ export type OrderNotificationData = {
   discountCode?: string
   /** Amount taken off the subtotal by the discount code */
   discountAmount?: number
-  paymentMethod: 'cod' | 'bank_transfer' | 'card'
+  paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt'
   /** e.g. "Free" or "$4.00" — omitted when no delivery zones are configured */
   deliveryFeeLabel?: string
   /** LBP-per-USD rate snapshotted at purchase (ROADMAP F1 §2.5) — omitted when currency display is USD-only. */
@@ -103,7 +103,13 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
 
   const brand = order.brand ?? DEFAULT_BRAND
   const paymentLabel =
-    order.paymentMethod === 'cod' ? 'Cash on Delivery' : order.paymentMethod === 'card' ? 'Card' : 'Bank Transfer'
+    order.paymentMethod === 'cod'
+      ? 'Cash on Delivery'
+      : order.paymentMethod === 'card'
+        ? 'Card'
+        : order.paymentMethod === 'omt'
+          ? 'OMT'
+          : 'Bank Transfer'
   const bankNote =
     order.paymentMethod === 'bank_transfer'
       ? `<p style="margin: 8px 0 0; font-size: 12px; color: #666; line-height: 1.5;">${
@@ -404,7 +410,13 @@ export async function sendOrderWhatsAppAlert(order: OrderNotificationData): Prom
     .join('\n')
 
   const paymentLabel =
-    order.paymentMethod === 'cod' ? 'Cash on Delivery' : order.paymentMethod === 'card' ? 'Card' : 'Bank Transfer'
+    order.paymentMethod === 'cod'
+      ? 'Cash on Delivery'
+      : order.paymentMethod === 'card'
+        ? 'Card'
+        : order.paymentMethod === 'omt'
+          ? 'OMT'
+          : 'Bank Transfer'
 
   const body = [
     `🛍 New Order — ${order.orderNumber}`,

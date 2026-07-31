@@ -404,7 +404,7 @@ export interface Order {
    */
   discountAmount?: number | null;
   total: number;
-  paymentMethod: 'cod' | 'bank_transfer' | 'card';
+  paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt';
   paymentStatus?:
     ('pending' | 'awaiting_payment' | 'paid' | 'failed' | 'expired' | 'refunded' | 'partially_refunded') | null;
   /**
@@ -415,6 +415,10 @@ export interface Order {
    * LBP-per-USD rate at the moment of purchase, snapshotted from Site Settings — USD stays the money of record.
    */
   exchangeRateAtPurchase?: number | null;
+  /**
+   * How much of this order has been refunded so far (ROADMAP F2 §2.6). Updated only by the admin refund action.
+   */
+  refundedAmount?: number | null;
   orderStatus: 'pending' | 'confirmed' | 'in_production' | 'shipped' | 'delivered' | 'cancelled';
   /**
    * Customer notes
@@ -772,7 +776,7 @@ export interface Payment {
   /**
    * New vendors (Areeba, NetCommerce, …) get added here as their adapters ship.
    */
-  provider: 'mock';
+  provider: 'mock' | 'omt';
   /**
    * The provider's own reference for this attempt.
    */
@@ -1143,6 +1147,7 @@ export interface OrdersSelect<T extends boolean = true> {
   paymentStatus?: T;
   paymentExpiresAt?: T;
   exchangeRateAtPurchase?: T;
+  refundedAmount?: T;
   orderStatus?: T;
   notes?: T;
   updatedAt?: T;
@@ -1599,6 +1604,14 @@ export interface SiteSetting {
    */
   cardPaymentProvider?: 'mock' | null;
   /**
+   * Show "OMT (pay at branch)" as a checkout payment option (ROADMAP F2). v1 is voucher + manual confirm — no OMT merchant agreement exists yet, so staff confirm payments by hand from the admin dashboard's "OMT Payments" panel.
+   */
+  omtPaymentEnabled?: boolean | null;
+  /**
+   * Shown at checkout and on the order confirmation page alongside the voucher code — e.g. "Pay at any OMT branch within 48 hours."
+   */
+  omtInstructions?: string | null;
+  /**
    * USD stays the money of record everywhere (payments, discounts, reports). "Both" adds an LBP equivalent next to prices using the exchange rate below.
    */
   currencyDisplayMode?: ('usd_only' | 'both') | null;
@@ -2023,6 +2036,8 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   bankTransferInstructions?: T;
   cardPaymentsEnabled?: T;
   cardPaymentProvider?: T;
+  omtPaymentEnabled?: T;
+  omtInstructions?: T;
   currencyDisplayMode?: T;
   exchangeRate?: T;
   announcementEnabled?: T;

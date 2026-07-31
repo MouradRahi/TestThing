@@ -28,7 +28,10 @@ export const Payments: CollectionConfig = {
       type: 'select',
       required: true,
       index: true,
-      options: [{ label: 'Mock (testing)', value: 'mock' }],
+      options: [
+        { label: 'Mock (testing)', value: 'mock' },
+        { label: 'OMT (pay at branch)', value: 'omt' },
+      ],
       admin: { description: 'New vendors (Areeba, NetCommerce, …) get added here as their adapters ship.' },
     },
     {

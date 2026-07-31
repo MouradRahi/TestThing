@@ -17,7 +17,7 @@ type FormState = {
   deliveryAddress: string
   area: string
   notes: string
-  paymentMethod: 'cod' | 'bank_transfer' | 'card'
+  paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt'
   website: string // honeypot — must stay empty; bots that fill it are silently dropped
 }
 
@@ -29,10 +29,21 @@ type Props = {
   bankTransferInstructions: string
   /** Card option only shown when a provider is actually enabled + usable (ROADMAP F1). */
   cardPaymentsEnabled?: boolean
+  /** OMT (pay-at-branch voucher) option — ROADMAP F2 §2.4. */
+  omtPaymentsEnabled?: boolean
+  omtInstructions?: string
   prefill?: { name?: string; phone?: string; email?: string; addresses?: SavedAddress[] }
 }
 
-export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstructions, cardPaymentsEnabled, prefill }: Props) {
+export function CheckoutForm({
+  zones,
+  freeDeliveryThreshold,
+  bankTransferInstructions,
+  cardPaymentsEnabled,
+  omtPaymentsEnabled,
+  omtInstructions,
+  prefill,
+}: Props) {
   const router = useRouter()
   const t = useTranslations('checkout')
   const { items, isLoading: cartLoading, total, clearCart, currency } = useCart()
@@ -269,6 +280,7 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
               { value: 'cod', label: t('cod') },
               { value: 'bank_transfer', label: t('bankTransfer') },
               ...(cardPaymentsEnabled ? [{ value: 'card', label: t('card') }] : []),
+              ...(omtPaymentsEnabled ? [{ value: 'omt', label: t('omt') }] : []),
             ].map((opt) => (
               <label
                 key={opt.value}
@@ -300,6 +312,12 @@ export function CheckoutForm({ zones, freeDeliveryThreshold, bankTransferInstruc
           {form.paymentMethod === 'card' && (
             <div className="border border-accent/30 bg-surface px-4 py-3.5 text-xs text-muted leading-relaxed">
               {t('cardTestNote')}
+            </div>
+          )}
+
+          {form.paymentMethod === 'omt' && omtInstructions && (
+            <div className="border border-accent/30 bg-surface px-4 py-3.5 text-xs text-muted leading-relaxed whitespace-pre-line">
+              {omtInstructions}
             </div>
           )}
 

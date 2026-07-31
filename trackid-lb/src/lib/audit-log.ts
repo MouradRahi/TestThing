@@ -28,7 +28,11 @@ type LogParams = {
   collectionSlug: string
   documentId?: string
   action: 'create' | 'update' | 'delete'
-  req: PayloadRequest
+  // A full PayloadRequest satisfies this structurally (hooks pass one
+  // directly); plain API routes outside a hook context — e.g. the F2 admin
+  // payment actions — can pass just `{ user }` from `payload.auth()` instead
+  // of fabricating a whole PayloadRequest.
+  req: Pick<PayloadRequest, 'user'>
   summary: string
   changedFields?: JsonValue
 }

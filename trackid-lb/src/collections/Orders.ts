@@ -127,7 +127,7 @@ export const Orders: CollectionConfig = {
             discountCode: doc.discountCode ?? undefined,
             discountAmount: Number(doc.discountAmount) > 0 ? Number(doc.discountAmount) : undefined,
             total: Number(doc.total),
-            paymentMethod: doc.paymentMethod as 'cod' | 'bank_transfer' | 'card',
+            paymentMethod: doc.paymentMethod as 'cod' | 'bank_transfer' | 'card' | 'omt',
             deliveryFeeLabel: zonesConfigured ? (deliveryFee === 0 ? 'Free' : `$${deliveryFee.toFixed(2)}`) : undefined,
             exchangeRateAtPurchase:
               typeof doc.exchangeRateAtPurchase === 'number' ? doc.exchangeRateAtPurchase : undefined,
@@ -277,6 +277,7 @@ export const Orders: CollectionConfig = {
         { label: 'Cash on Delivery', value: 'cod' },
         { label: 'Bank Transfer', value: 'bank_transfer' },
         { label: 'Card (online)', value: 'card' },
+        { label: 'OMT (pay at branch)', value: 'omt' },
       ],
       required: true,
       defaultValue: 'cod',
@@ -312,6 +313,15 @@ export const Orders: CollectionConfig = {
       admin: {
         readOnly: true,
         description: 'LBP-per-USD rate at the moment of purchase, snapshotted from Site Settings — USD stays the money of record.',
+      },
+    },
+    {
+      name: 'refundedAmount',
+      type: 'number',
+      defaultValue: 0,
+      admin: {
+        readOnly: true,
+        description: 'How much of this order has been refunded so far (ROADMAP F2 §2.6). Updated only by the admin refund action.',
       },
     },
     {

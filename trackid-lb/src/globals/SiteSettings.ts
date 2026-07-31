@@ -164,7 +164,7 @@ export const SiteSettings: GlobalConfig = {
               defaultValue: false,
               admin: {
                 description:
-                  'Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded.',
+                  'Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).',
               },
             },
             {
@@ -176,6 +176,24 @@ export const SiteSettings: GlobalConfig = {
                 condition: (_, siblingData) => Boolean(siblingData?.cardPaymentsEnabled),
                 description:
                   'The Mock provider simulates a payment session for local testing — it is disabled automatically in production unless ALLOW_MOCK_PAYMENTS=true is set.',
+              },
+            },
+            {
+              name: 'omtPaymentEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Show "OMT (pay at branch)" as a checkout payment option (ROADMAP F2). v1 is voucher + manual confirm — no OMT merchant agreement exists yet, so staff confirm payments by hand from the admin dashboard\'s "OMT Payments" panel. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).',
+              },
+            },
+            {
+              name: 'omtInstructions',
+              type: 'textarea',
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.omtPaymentEnabled),
+                description:
+                  'Shown at checkout and on the order confirmation page alongside the voucher code — e.g. "Pay at any OMT branch within 48 hours."',
               },
             },
             {

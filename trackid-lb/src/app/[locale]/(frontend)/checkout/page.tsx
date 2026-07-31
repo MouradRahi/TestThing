@@ -25,6 +25,7 @@ export default async function CheckoutPage() {
   const cardProviderKey =
     typeof settings.cardPaymentProvider === 'string' ? settings.cardPaymentProvider : 'mock'
   const cardPaymentsEnabled = Boolean(settings.cardPaymentsEnabled) && isProviderAvailable(cardProviderKey)
+  const omtPaymentsEnabled = Boolean(settings.omtPaymentEnabled) && isProviderAvailable('omt')
 
   return (
     <CheckoutForm
@@ -34,6 +35,8 @@ export default async function CheckoutPage() {
       }
       bankTransferInstructions={(settings.bankTransferInstructions as string) || ''}
       cardPaymentsEnabled={cardPaymentsEnabled}
+      omtPaymentsEnabled={omtPaymentsEnabled}
+      omtInstructions={(settings.omtInstructions as string) || ''}
       prefill={prefill}
     />
   )
