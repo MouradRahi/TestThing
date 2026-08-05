@@ -197,8 +197,16 @@ export default async function OrderConfirmationPage({ params }: Props) {
         </div>
       )}
 
-      <div className="text-center pt-6">
+      <div className="text-center pt-6 flex flex-col items-center gap-3">
         <Button href="/shop" variant="secondary">{t('continueShopping')}</Button>
+        <a
+          href={`/api/invoices/${order.orderNumber}`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[10px] uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
+        >
+          {t('downloadInvoice')}
+        </a>
       </div>
     </div>
   )

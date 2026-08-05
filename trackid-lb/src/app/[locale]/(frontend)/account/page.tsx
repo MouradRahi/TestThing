@@ -80,12 +80,23 @@ export default async function AccountPage() {
                 </div>
                 <div className="text-end shrink-0">
                   <p className="text-sm text-foreground tabular-nums">{formatPrice(Number(o.total))}</p>
-                  <Link
-                    href={`/order/${o.orderNumber}`}
-                    className="text-[10px] uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
-                  >
-                    {t('viewOrder')}
-                  </Link>
+                  <div className="flex items-center gap-2 justify-end mt-0.5">
+                    <Link
+                      href={`/order/${o.orderNumber}`}
+                      className="text-[10px] uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
+                    >
+                      {t('viewOrder')}
+                    </Link>
+                    <span className="text-[10px] text-muted">·</span>
+                    <a
+                      href={`/api/invoices/${o.orderNumber}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[10px] uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
+                    >
+                      {tOrder('downloadInvoice')}
+                    </a>
+                  </div>
                 </div>
               </div>
             ))}

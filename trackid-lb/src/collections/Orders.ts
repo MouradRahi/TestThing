@@ -1,8 +1,9 @@
 import type { CollectionConfig } from 'payload'
 import { isAdmin } from '../lib/access'
 import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendOrderWhatsAppAlert } from '../lib/notifications'
-import { resolveBrandCopy, getDeliveryZones } from '../lib/site-settings'
+import { resolveBrandCopy, getDeliveryZones, resolveVatConfig } from '../lib/site-settings'
 import { logAuditEvent } from '../lib/audit-log'
+import { generateInvoicePdf } from '../lib/invoices/invoice-pdf'
 
 export const Orders: CollectionConfig = {
   slug: 'orders',
@@ -133,8 +134,31 @@ export const Orders: CollectionConfig = {
               typeof doc.exchangeRateAtPurchase === 'number' ? doc.exchangeRateAtPurchase : undefined,
             brand: resolveBrandCopy(settings),
           }
+          let invoicePdf: Buffer | undefined
+          try {
+            const vatConfig = resolveVatConfig(settings)
+            invoicePdf = await generateInvoicePdf({
+              orderNumber: notificationData.orderNumber,
+              createdAt: doc.createdAt,
+              customerName: notificationData.customerName,
+              customerEmail: notificationData.customerEmail,
+              deliveryAddress: notificationData.deliveryAddress,
+              area: notificationData.area,
+              items,
+              subtotal: notificationData.subtotal,
+              deliveryFee,
+              discountAmount: notificationData.discountAmount,
+              discountCode: notificationData.discountCode,
+              total: notificationData.total,
+              storeName: notificationData.brand.storeName,
+              contactEmail: notificationData.brand.contactEmail,
+              vat: vatConfig.enabled ? { rate: vatConfig.rate, registrationNumber: vatConfig.registrationNumber } : undefined,
+            })
+          } catch (err) {
+            console.error('[orders] Invoice PDF generation failed (email still sends without it):', err)
+          }
           await Promise.allSettled([
-            sendOrderConfirmationEmail(notificationData),
+            sendOrderConfirmationEmail({ ...notificationData, invoicePdf }),
             sendOrderWhatsAppAlert(notificationData),
           ])
         } catch (err) {
@@ -172,6 +196,13 @@ export const Orders: CollectionConfig = {
       unique: true,
       index: true,
       admin: { readOnly: true },
+    },
+    {
+      name: 'invoiceLink',
+      type: 'ui',
+      admin: {
+        components: { Field: '/components/admin/InvoiceDownloadField#InvoiceDownloadField' },
+      },
     },
     {
       name: 'customerName',

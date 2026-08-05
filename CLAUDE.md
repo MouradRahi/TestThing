@@ -1388,3 +1388,78 @@ deliberately deferred from the Session 25 report-engine build. Both are now ☑ 
 - Next: user's call — remaining small F2 pieces, Part 3 (invoicing/VAT — would also unblock
   the VAT report), Areeba/NetCommerce/OMT/Whish merchant conversations, or ENHANCEMENTS
   a11y/i18n extras. Not yet deployed to prod — same deploy-timing decision as always.
+
+### Session 27 — 2026-07-31
+Focus: **ROADMAP Part 3.1 — Invoices & VAT**, picked as the recommended next step (closes
+the one loose end from Session 25's report engine — VAT was the only report type not
+buildable yet — and directly reuses the `@react-pdf/renderer` infrastructure that session
+explicitly built to be reused here). Now ☑ DONE.
+- **VAT math**: `src/lib/vat.ts → computeVatBreakdown()` — pure, unit-tested (6 new tests,
+  31/31 total now). Prices are VAT-inclusive (standard Lebanese retail practice — nothing
+  changes at checkout), so the function *extracts* the VAT share from a gross total
+  (`vat = gross × rate / (100 + rate)`) rather than adding VAT on top. `resolveVatConfig()`
+  added to `site-settings.ts` alongside the existing `resolveDeliveryFee`/`resolveBrandCopy`
+  pattern — treats a disabled toggle or a non-positive rate as fully off (no VAT section
+  rendered at all, not a zeroed-out one).
+- **SiteSettings Commerce tab** gained `vatEnabled` (off by default — unregistered small
+  brands stay unaffected), `vatRate` (defaults to 11, the Lebanon standard rate), and
+  `vatRegistrationNumber` (shown on invoices when set).
+- **Invoice PDF** (`src/lib/invoices/invoice-pdf.tsx`): brand header, VAT registration number
+  when set, bill-to block, line items table, and a totals block that adds a VAT breakdown
+  (rate/vat-amount/net) only when VAT is enabled — same `@react-pdf/renderer` library as the
+  Part 4 report exports, but its own dedicated invoice layout rather than the generic
+  columns/rows renderer (a real invoice needs bill-to/line-items structure that renderer
+  doesn't have).
+- **Public download route**: `GET /api/invoices/[orderNumber]` — deliberately unauthenticated,
+  matching the exact trust model `/order/[orderNumber]` already established (the order number
+  itself, a random `TRK-<timestamp>-<random>` suffix, is the access control — not a guessable
+  sequential id). Generated live from the order's own snapshotted items/prices, so it always
+  reflects what was actually charged regardless of later catalog changes.
+- **Wired into three surfaces**, as the roadmap item asked for all three:
+  - Order confirmation page (`/order/[orderNumber]`) — a "Download Invoice (PDF)" link.
+  - Account order history (`/account`) — an "Invoice" link next to each order's existing
+    "View Order" link.
+  - **Admin**: a new `ui`-type field on the Orders collection (`InvoiceDownloadField.tsx`,
+    the first field-level — not `beforeDashboard`-panel-level — custom admin component in
+    this codebase) that reads the current form's `orderNumber` via `@payloadcms/ui`'s
+    `useFormFields` hook and links to the same public route (no separate admin-only route
+    needed — staff are already authenticated to be looking at the edit view at all).
+  - **Confirmation email**: `OrderNotificationData` gained an optional `invoicePdf?: Buffer`
+    field; `notifications.ts` attaches it when present but still generates nothing itself
+    (deliberately stays "a pure renderer with no Payload/DB access," per its existing
+    documented design) — both call sites (`orders/route.ts`'s immediate COD/bank-transfer
+    send, and the Orders collection's payment-confirmed hook for card/OMT) generate the PDF
+    themselves and pass it in. Generation happens inside `after()`/the hook, never before the
+    response, so rendering a PDF never adds latency to checkout; a generation failure is
+    caught and logged, and the email still sends without the attachment rather than failing
+    the whole notification.
+- **Migration**: hand-written again (`20260731_190000_add_vat_settings.ts`) — same
+  interactive-wizard-hangs-under-this-runner reasoning as the four prior ones; purely
+  additive (three new nullable/defaulted columns on `site_settings`). Applied cleanly to dev
+  — 7th migration, batch numbers intact. `migrate.mjs`'s Session 26 self-heal cleared a fresh
+  stale `batch=-1` sentinel automatically before this run too; traced the *source* of that
+  recurring sentinel for the first time (not just its symptom): any throwaway verification
+  script that calls `getPayload()` without `PAYLOAD_MIGRATE=true` boots in dev-push mode,
+  and Payload's push cycle writes that sentinel row itself as a side effect of the "pulling
+  schema from database" step — so it isn't a leftover from history, it actively regenerates
+  every time a script (mine, this session, more than once) touches the dev DB that way.
+  Harmless given the existing self-heal, but worth knowing rather than assuming it was a
+  one-off relic.
+- **Verified against real dev data**: generated both a VAT-off and a VAT-on invoice from an
+  actual order via the bundled-config loader + `tsx` (`node scratch-invoice-check.mjs`,
+  deleted after) — both produced valid PDFs (`%PDF-` magic bytes), and the VAT breakdown
+  reconciled to the cent against the real order total (net 10.81 + vat 1.19 = gross 12.00).
+  Hit and fixed a real tooling gotcha along the way: importing `site-settings.ts` in a
+  throwaway script (even just for its pure helpers) pulls in `payload.ts`'s top-level
+  `import configPromise from '@payload-config'`, which crashes tsx's loader the same way the
+  Payload CLI itself does — worked around by inlining the two small computations the script
+  needed instead of importing the wrapper module, rather than fighting the loader.
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types`); `npm test` 31/31; full
+  `npm run build` verified (safe — confirmed no dev server running first) — `/api/invoices/
+  [orderNumber]` registered alongside every other route, middleware unaffected.
+- ROADMAP.md Part 3.1 marked ☑ DONE; Part 4 §4.1's VAT sub-item updated from "blocked" to
+  "unblocked, not yet built" (a real report type, not attempted this session — scoped as a
+  small standalone follow-up); F3/F4 execution-order rows updated.
+- Next: user's call — the VAT/tax report (now a small, unblocked follow-up), the rest of
+  Part 3 (3.2 courier ops, 3.3 inventory adjustments), remaining small F2 pieces, merchant
+  conversations, or ENHANCEMENTS a11y/i18n extras. Not yet deployed to prod.

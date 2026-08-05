@@ -219,6 +219,34 @@ export const SiteSettings: GlobalConfig = {
                   'LBP per 1 USD, e.g. 89000. Update this as the rate moves — each order snapshots the rate at purchase time, so past orders keep the rate they were placed under.',
               },
             },
+            {
+              name: 'vatEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Show VAT on invoices (ROADMAP Part 3.1). Prices are treated as VAT-inclusive — the VAT share is broken out on the invoice, never added on top. Off by default for unregistered small brands.',
+              },
+            },
+            {
+              name: 'vatRate',
+              type: 'number',
+              defaultValue: 11,
+              min: 0,
+              max: 100,
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.vatEnabled),
+                description: 'VAT rate as a percentage. Lebanon standard rate is 11%.',
+              },
+            },
+            {
+              name: 'vatRegistrationNumber',
+              type: 'text',
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.vatEnabled),
+                description: 'Shown on invoices under the brand details.',
+              },
+            },
           ],
         },
 

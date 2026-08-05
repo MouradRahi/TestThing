@@ -1646,6 +1646,18 @@ export interface SiteSetting {
    */
   exchangeRate?: number | null;
   /**
+   * Show VAT on invoices (ROADMAP Part 3.1). Prices are treated as VAT-inclusive — the VAT share is broken out on the invoice, never added on top. Off by default for unregistered small brands.
+   */
+  vatEnabled?: boolean | null;
+  /**
+   * VAT rate as a percentage. Lebanon standard rate is 11%.
+   */
+  vatRate?: number | null;
+  /**
+   * Shown on invoices under the brand details.
+   */
+  vatRegistrationNumber?: string | null;
+  /**
    * Toggle the bar on/off without losing the text.
    */
   announcementEnabled?: boolean | null;
@@ -2084,6 +2096,9 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   omtInstructions?: T;
   currencyDisplayMode?: T;
   exchangeRate?: T;
+  vatEnabled?: T;
+  vatRate?: T;
+  vatRegistrationNumber?: T;
   announcementEnabled?: T;
   announcementText?: T;
   announcementBgColor?: T;

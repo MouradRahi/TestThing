@@ -259,13 +259,28 @@ one adapter against the 2.1 interface — nothing else in the plan depends on it
 
 ## Part 3 — Fulfillment, invoicing & tax
 
-### 3.1 Invoices
-- ☐ PDF invoice generation per order (order number, line items, VAT breakdown, brand
-  logo/details from SiteSettings) — downloadable from admin + customer account +
-  attached to confirmation email
-- ☐ **VAT support**: SiteSettings `vatEnabled` + `vatRate` (Lebanon: 11%) + registration
-  number; prices treated as VAT-inclusive with the VAT share shown on invoice (standard
-  retail practice); off by default for unregistered small brands
+### 3.1 Invoices — ☑ DONE (Session 27)
+- ☑ PDF invoice generation per order (order number, line items, VAT breakdown, brand name/
+  contact from SiteSettings) — `src/lib/invoices/invoice-pdf.tsx`, built on the same
+  `@react-pdf/renderer` this reuses from Part 4's report exports, exactly as planned.
+  Downloadable via a public `GET /api/invoices/[orderNumber]` route (same trust model as
+  `/order/[orderNumber]` — the order number itself is the access control, no login required,
+  matching every other order-scoped customer-facing surface in this app), linked from the
+  order confirmation page, the account order-history list, and a `ui`-field "Download
+  Invoice" link on the Orders admin edit view (`InvoiceDownloadField.tsx`, reads the current
+  form's `orderNumber` via `useFormFields`). Also attached as a PDF to the order confirmation
+  email (both the COD/bank-transfer immediate-send path and the online-payment
+  payment-confirmed hook) — generated inside `after()`/the hook so rendering it never adds
+  latency to checkout itself; a generation failure logs and the email still sends without it.
+- ☑ **VAT support**: SiteSettings Commerce tab gained `vatEnabled` + `vatRate` (default 11,
+  Lebanon standard) + `vatRegistrationNumber`; `src/lib/vat.ts → computeVatBreakdown()` (pure,
+  unit-tested) extracts the VAT share from a VAT-inclusive total (`vat = gross × rate /
+  (100 + rate)`) rather than adding VAT on top — prices never change at checkout. Off by
+  default; the invoice renders no VAT section at all when disabled, not a zeroed-out one.
+- **Verified against real dev data**: generated both a VAT-off and a VAT-on invoice from an
+  actual order via the bundled-config loader + `tsx` — both produced valid PDFs (`%PDF-`
+  magic bytes), and the VAT breakdown reconciled to the cent (net + vat == gross) against
+  the real order total.
 
 ### 3.2 Courier & delivery operations
 - ☐ Order fields: courier name, tracking ref, dispatch date; status emails include them
@@ -290,7 +305,7 @@ Turns the existing dashboard into accounting-grade output. All reads go through
 SQL aggregation (`payload.db.pool`) so it stays fast at volume — this also retires
 the dashboard's "JS aggregation at scale" deferred item.
 
-### 4.1 Report engine — ☑ DONE (Session 25), minus VAT (blocked on Part 3.1)
+### 4.1 Report engine — ☑ DONE (Session 25); VAT/tax report still ☐, no longer blocked (Session 27)
 - ☑ `src/lib/reports/` — parameterized report definitions (date range, filters, dimension) →
   tabular result, one SQL round trip per breakdown via `payload.db.pool` (`src/lib/db-pool.ts`).
   Types built:
@@ -308,14 +323,16 @@ the dashboard's "JS aggregation at scale" deferred item.
     top customers by spend in range
   - **Discounts** (`discounts.ts`): usage + revenue impact per code in range, joined against
     the code's all-time `usageCount`/`usageLimit`
-  - **VAT/tax**: not built — genuinely blocked on Part 3.1 (no VAT fields exist yet), not a
-    scoping choice
+  - **VAT/tax**: still not built, but Part 3.1 (Session 27) added the `vatEnabled`/`vatRate`
+    fields this needed — no longer blocked, just not yet done. Small follow-up: a report
+    grouping `computeVatBreakdown()` over orders in range would be the whole task.
 - ☑ Export: `export-csv.ts` (same escaping convention as the existing payments CSV route),
   `export-xlsx.ts` via **`write-excel-file`** (not exceljs — exceljs pulls in an outdated
   archiver/archiver-utils chain with a high-severity `brace-expansion` DoS advisory and no
   clean fix; `write-excel-file` has zero dependencies), `export-pdf.tsx` via
   **`@react-pdf/renderer`** (brand name from SiteSettings, generic columns/rows/summary
-  renderer — same component will serve Part 3.1 invoices later)
+  renderer — Part 3.1's invoice PDF (Session 27) reuses this same library, as planned, via
+  its own dedicated `invoice-pdf.tsx` layout rather than the columns/rows renderer directly)
 - ☑ Admin UI: `ReportsPanel.tsx` (server, admin-gated) + `ReportsExplorer.tsx` (client) —
   report-type select, date range, sales-only dimension/group-by selects, preview table with
   summary KPIs, CSV/XLSX/PDF download links. Registered in `payload.config.ts` beforeDashboard,
@@ -538,8 +555,8 @@ The features "any business could possibly require" that aren't payments/reports/
 | **F0 — Foundation** ☑ DONE (Session 22) | Part 1 (DB split ☑, migrations ☑, durable rate-limit+idempotency ☑, Sentry ◐, audit log ☑, admin security ☑, Playwright+unit tests ☑) + Part 0 quick items | M | — |
 | **F1 — Payments core + cards** ◐ Session 23 | 2.1 abstraction ☑, 2.5 currency ☑, stock reservation + expiry cron ☑ — 2.3 real card gateway (Areeba MPGS / NetCommerce) still ☐, blocked on vendor onboarding *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
 | **F2 — OMT + refunds + reconciliation** ☑ v1 Session 24 | 2.4 ☑ (voucher + manual confirm), 2.6 ☑ (any payment method), 2.7 ☑ (dashboard + CSV) — order-timeline UI + real OMT API confirmation remain, both small/unblocked | M | F1 |
-| **F3 — Invoicing & fulfillment** | Part 3 (invoices/VAT, courier, inventory ops) | M | F0; invoices richer after F1 |
-| **F4 — Reports** ☑ DONE (Session 25–26), VAT excepted | Part 4 (engine ☑, exports ☑, scheduled ☑, dashboard v3 ☑) — only the VAT/tax report type remains, blocked on Part 3.1 | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
+| **F3 — Invoicing & fulfillment** ◐ 3.1 ☑ (Session 27) | Part 3 (invoices/VAT ☑, courier ☐, inventory ops ☐) | M | F0; invoices richer after F1 |
+| **F4 — Reports** ☑ DONE (Session 25–26), VAT report excepted | Part 4 (engine ☑, exports ☑, scheduled ☑, dashboard v3 ☑) — only the VAT/tax report type remains; unblocked as of Part 3.1 (Session 27), just not yet built | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
 | **F5 — AI assistants** | ⏭ SKIPPED (Session 22) | — | — |
 | **F6 — Commerce depth** | Part 6 (returns, reviews, gift cards, back-in-stock, abandoned cart) | L (parallelizable chunks) | F0; returns-refunds need F1 |
 | **F7 — Growth** | Part 7 | S–M | independent |

@@ -127,6 +127,7 @@
     "omtPaid": "Paid via OMT — voucher code",
     "howToPay": "How to pay",
     "continueShopping": "Continue Shopping",
+    "downloadInvoice": "Download Invoice (PDF)",
     "statuses": {
       "pending": "Pending confirmation",
       "confirmed": "Confirmed",

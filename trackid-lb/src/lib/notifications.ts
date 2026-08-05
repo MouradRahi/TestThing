@@ -30,6 +30,8 @@ export type OrderNotificationData = {
   bankInstructions?: string
   /** Brand voice from SiteSettings → Copy tab. Defaults applied when omitted. */
   brand?: BrandCopy
+  /** Rendered invoice PDF (ROADMAP Part 3.1) — attached when the caller supplies one; never generated here (this file stays a pure renderer with no Payload/DB access). */
+  invoicePdf?: Buffer
 }
 
 // Mirror of site-settings.ts BrandCopy — duplicated here so this stays a pure
@@ -82,6 +84,9 @@ export async function sendOrderConfirmationEmail(order: OrderNotificationData): 
       ...(replyTo ? { replyTo } : {}),
       subject: `Order confirmed — ${order.orderNumber}`,
       html: buildOrderEmailHtml(order),
+      ...(order.invoicePdf
+        ? { attachments: [{ filename: `invoice-${order.orderNumber}.pdf`, content: order.invoicePdf }] }
+        : {}),
     })
     if (error) console.error('[notifications] Resend error:', error)
   } catch (err) {
