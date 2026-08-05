@@ -1463,3 +1463,72 @@ explicitly built to be reused here). Now ☑ DONE.
 - Next: user's call — the VAT/tax report (now a small, unblocked follow-up), the rest of
   Part 3 (3.2 courier ops, 3.3 inventory adjustments), remaining small F2 pieces, merchant
   conversations, or ENHANCEMENTS a11y/i18n extras. Not yet deployed to prod.
+
+### Session 27 (part 2) — 2026-07-31
+Focus: **finishing Part 3** — 3.2 (Courier & delivery ops) and 3.3 (Inventory ops), the two
+pieces left after 3.1 earlier this session. **Part 3 (Fulfillment, invoicing & tax) is now
+fully done, v1.**
+- **3.2 Courier ops**: `Orders` gained `courierName`/`trackingRef`/`dispatchDate` (plain
+  staff-editable fields — manual entry, matching the OMT-v1 precedent of shipping the
+  interface before a real vendor is picked). The "shipped" status email
+  (`notifications.ts`) includes courier + tracking when set; the order confirmation page
+  shows the same. `src/lib/couriers/{types,registry}.ts` — a deliberately small adapter
+  interface (one `manual` provider) mirroring the payments abstraction's shape, so a real
+  integration (Wakilni/Toters — needs a vendor decision, not attempted) is "add a
+  provider" later, not "invent the abstraction under pressure." Packing-slip batch view:
+  `GET /api/admin/packing-slips` — plain HTML (not PDF; meant to be Ctrl+P'd, not
+  archived), one slip per `confirmed` order, admin-gated, linked from the Sales Overview
+  panel header rather than a new near-empty panel.
+- **3.3 Inventory ops**: stock-adjustment action as a `ui` field on Products
+  (`StockAdjustField.tsx`, reads the loaded doc via `useDocumentInfo()` for the size
+  dropdown display — the actual delta always re-reads live DB stock server-side, so a
+  stale client read can't cause a wrong adjustment) → `POST /api/admin/products/
+  adjust-stock` (handles sized vs. flat via the existing `stock.ts` helpers, floors at 0).
+  **Movement history is the AuditLog entry this writes**, not a new collection — checked
+  first whether a dedicated `StockMovements` table was warranted and concluded AuditLog
+  already does exactly this for every other admin-driven change in the app, so building a
+  parallel one would just duplicate it. Low-stock email alert: SiteSettings gained
+  `lowStockAlertEnabled`/`lowStockThreshold` (default 3, matching the dashboard widget)/
+  `lowStockAlertLastSentAt`; `GET /api/cron/low-stock-alert` — same daily-cron pattern as
+  the others, but the dedupe guard is only touched on a day it actually sends, so a quiet
+  day never suppresses tomorrow's real alert.
+- **Admin UX choice**: rather than a third near-empty `beforeDashboard` panel, the packing-
+  slip link was added directly to the existing Sales Overview panel's header (next to the
+  date-range selector) — kept the admin dashboard from accumulating panel sprawl for a
+  single link.
+- **Verified with real HTTP requests against a real running server**, a step up from most
+  of this session's Local-API-script verification: built and started an actual production
+  server (`npm run start`, port 3100 — checked no dev server was running first, learned
+  from Session 25's shared-`.next` incident), bootstrapped a throwaway admin via the Local
+  API (`overrideAccess`), logged in through the real `/api/users/login` REST endpoint for
+  a genuine JWT, then drove every new route exactly as a browser would — packing slips
+  (200, valid HTML, correct slip count, 403 unauthenticated), stock adjustment (+2/-2
+  round-trip confirmed back to the exact original value via a fresh DB read afterward,
+  correct audit-log entries, 400 on an invalid reason, 403 unauthenticated), low-stock
+  cron (disabled→skip, enabled-with-guaranteed-match→real Resend send confirmed,
+  same-day replay→correctly skipped, wrong secret→401) — settings reverted to their exact
+  original values afterward via a captured-before/restored-after pattern.
+- **Caught a real "is this a bug" moment and resolved it with a control, not a guess**: the
+  low-stock cron 401'd on first test — traced to `npm run start` always setting
+  `NODE_ENV=production` (unlike `next dev`), so the same dev-open/prod-`CRON_SECRET`-gated
+  pattern every other cron already uses correctly kicked in. Confirmed this was expected
+  (not a bug in the new route) by curling the two pre-existing crons the same way — they
+  401 identically, proving the new route matches the established pattern exactly.
+- ⚠️ Hit a recurring transient Git-Bash crash (`fatal error - add_item ... errno 1`) a few
+  times mid-session, unrelated to any code change — killed an in-flight piped build once;
+  recovered by rebuilding without the pipe. Environmental, not investigated further (not a
+  reproducible pattern tied to any specific command).
+- **Migration**: hand-written again (`20260731_210000_add_courier_and_low_stock_alert.ts`)
+  — same interactive-wizard-hangs-under-this-runner reasoning as every prior one this
+  project has needed; purely additive. Applied cleanly to dev (8th migration, batch
+  numbers intact).
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types`); `npm test` 31/31; full
+  `npm run build` verified twice (once before the HTTP verification server, once
+  implicitly via `npm run start` needing a fresh build after the Git-Bash interruption).
+- ROADMAP.md Part 3.2/3.3 marked ☑ DONE v1; F3 execution-order row updated to fully ☑.
+  **Part 3 (Fulfillment, invoicing & tax) is now complete** except the real courier vendor
+  integration (needs a vendor decision) and VAT/tax reporting (a small standalone
+  follow-up, unblocked since earlier this session).
+- Next: user's call — the VAT/tax report, remaining small F2 pieces, merchant
+  conversations (Areeba/NetCommerce/OMT/Whish/Wakilni/Toters — all external, business-side
+  decisions), or ENHANCEMENTS a11y/i18n extras. Not yet deployed to prod.

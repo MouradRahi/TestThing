@@ -12,6 +12,7 @@ import * as migration_20260724_094930_add_payments_and_currency from './20260724
 import * as migration_20260731_074810_add_omt_and_refunds from './20260731_074810_add_omt_and_refunds';
 import * as migration_20260731_150000_add_analytics_and_scheduled_reports from './20260731_150000_add_analytics_and_scheduled_reports';
 import * as migration_20260731_190000_add_vat_settings from './20260731_190000_add_vat_settings';
+import * as migration_20260731_210000_add_courier_and_low_stock_alert from './20260731_210000_add_courier_and_low_stock_alert';
 
 export const migrations = [
   {
@@ -48,5 +49,10 @@ export const migrations = [
     up: migration_20260731_190000_add_vat_settings.up,
     down: migration_20260731_190000_add_vat_settings.down,
     name: '20260731_190000_add_vat_settings',
+  },
+  {
+    up: migration_20260731_210000_add_courier_and_low_stock_alert.up,
+    down: migration_20260731_210000_add_courier_and_low_stock_alert.down,
+    name: '20260731_210000_add_courier_and_low_stock_alert',
   },
 ];

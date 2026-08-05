@@ -160,6 +160,17 @@ export default async function OrderConfirmationPage({ params }: Props) {
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('payment')}</p>
           <p className="text-foreground">{paymentLabel}</p>
         </div>
+        {(order.courierName || order.trackingRef) && (
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('courier')}</p>
+            {order.courierName && <p className="text-foreground">{order.courierName}</p>}
+            {order.trackingRef && (
+              <p className="text-muted mt-0.5">
+                {t('trackingRef')}: <span className="font-mono">{order.trackingRef}</span>
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bank transfer instructions */}

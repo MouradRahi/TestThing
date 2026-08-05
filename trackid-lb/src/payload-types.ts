@@ -426,6 +426,15 @@ export interface Order {
    * Customer notes
    */
   notes?: string | null;
+  /**
+   * Courier handling this delivery, e.g. "Wakilni" or "Toters" — manual entry (ROADMAP Part 3.2 v1; no real courier API integrated yet). Shown to the customer once set.
+   */
+  courierName?: string | null;
+  /**
+   * Courier's tracking reference/number, if they provide one.
+   */
+  trackingRef?: string | null;
+  dispatchDate?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1168,6 +1177,9 @@ export interface OrdersSelect<T extends boolean = true> {
   refundedAmount?: T;
   orderStatus?: T;
   notes?: T;
+  courierName?: T;
+  trackingRef?: T;
+  dispatchDate?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1658,6 +1670,18 @@ export interface SiteSetting {
    */
   vatRegistrationNumber?: string | null;
   /**
+   * Email a low-stock summary when any published product is at or below the threshold (ROADMAP Part 3.3). Pushes the dashboard's existing low-stock widget instead of relying on someone checking it.
+   */
+  lowStockAlertEnabled?: boolean | null;
+  /**
+   * Stock level (per product, or per size) at or below which it counts as low.
+   */
+  lowStockThreshold?: number | null;
+  /**
+   * Set automatically — prevents sending twice in the same day.
+   */
+  lowStockAlertLastSentAt?: string | null;
+  /**
    * Toggle the bar on/off without losing the text.
    */
   announcementEnabled?: boolean | null;
@@ -2099,6 +2123,9 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   vatEnabled?: T;
   vatRate?: T;
   vatRegistrationNumber?: T;
+  lowStockAlertEnabled?: T;
+  lowStockThreshold?: T;
+  lowStockAlertLastSentAt?: T;
   announcementEnabled?: T;
   announcementText?: T;
   announcementBgColor?: T;

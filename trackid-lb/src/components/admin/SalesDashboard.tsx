@@ -282,7 +282,15 @@ export async function SalesDashboard(props: {
     <div style={{ marginBottom: '2.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
         <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Sales Overview</h2>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <a
+            href="/api/admin/packing-slips"
+            target="_blank"
+            rel="noreferrer"
+            style={{ fontSize: '0.75rem', color: 'var(--theme-elevation-600)' }}
+          >
+            Print packing slips →
+          </a>
           {RANGES.map((r) => (
             <Link
               key={r.key}

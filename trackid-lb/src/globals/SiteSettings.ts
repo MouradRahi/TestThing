@@ -247,6 +247,34 @@ export const SiteSettings: GlobalConfig = {
                 description: 'Shown on invoices under the brand details.',
               },
             },
+            {
+              name: 'lowStockAlertEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Email a low-stock summary when any published product is at or below the threshold (ROADMAP Part 3.3). Pushes the dashboard\'s existing low-stock widget instead of relying on someone checking it.',
+              },
+            },
+            {
+              name: 'lowStockThreshold',
+              type: 'number',
+              defaultValue: 3,
+              min: 0,
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.lowStockAlertEnabled),
+                description: 'Stock level (per product, or per size) at or below which it counts as low.',
+              },
+            },
+            {
+              name: 'lowStockAlertLastSentAt',
+              type: 'date',
+              admin: {
+                readOnly: true,
+                description: 'Set automatically — prevents sending twice in the same day.',
+                date: { pickerAppearance: 'dayAndTime' },
+              },
+            },
           ],
         },
 

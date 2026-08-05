@@ -40,6 +40,8 @@ export const Orders: CollectionConfig = {
             customerEmail: doc.customerEmail,
             status: next,
             brand,
+            courierName: doc.courierName ?? undefined,
+            trackingRef: doc.trackingRef ?? undefined,
           })
         } catch (err) {
           console.error('[orders] Status email failed:', err)
@@ -374,6 +376,24 @@ export const Orders: CollectionConfig = {
       name: 'notes',
       type: 'textarea',
       admin: { description: 'Customer notes' },
+    },
+    {
+      name: 'courierName',
+      type: 'text',
+      admin: {
+        description:
+          'Courier handling this delivery, e.g. "Wakilni" or "Toters" — manual entry (ROADMAP Part 3.2 v1; no real courier API integrated yet). Shown to the customer once set.',
+      },
+    },
+    {
+      name: 'trackingRef',
+      type: 'text',
+      admin: { description: "Courier's tracking reference/number, if they provide one." },
+    },
+    {
+      name: 'dispatchDate',
+      type: 'date',
+      admin: { date: { pickerAppearance: 'dayOnly' } },
     },
   ],
   timestamps: true,

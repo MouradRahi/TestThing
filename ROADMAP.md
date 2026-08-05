@@ -282,20 +282,52 @@ one adapter against the 2.1 interface — nothing else in the plan depends on it
   magic bytes), and the VAT breakdown reconciled to the cent (net + vat == gross) against
   the real order total.
 
-### 3.2 Courier & delivery operations
-- ☐ Order fields: courier name, tracking ref, dispatch date; status emails include them
-- ☐ Pick list / packing slip printable view (batch: all `confirmed` orders)
-- ☐ Courier adapter interface (mirrors the payments pattern) — first integration with
-  whichever courier the launch brand uses (Wakilni and Toters are the common Lebanese
-  API-capable options); manual entry is the universal fallback
-- ☐ Customer-facing delivery status on `/order/[orderNumber]` (already shows status;
-  add courier + tracking when set)
+### 3.2 Courier & delivery operations — ☑ DONE v1 (Session 27, part 2)
+- ☑ Order fields: `courierName`, `trackingRef`, `dispatchDate` — plain staff-editable fields
+  (manual entry, no real courier API yet). The "shipped" status email includes courier +
+  tracking when set.
+- ☑ Pick list / packing slip printable view: `GET /api/admin/packing-slips` — admin-gated,
+  plain HTML (not PDF — meant to be glanced at and Ctrl+P'd, not downloaded/archived) with
+  one slip per `confirmed` order, `page-break-after` per slip for clean printing. Linked
+  from the Sales Overview admin panel header ("Print packing slips →").
+- ☑ Courier adapter interface (`src/lib/couriers/{types,registry}.ts`) — mirrors the
+  payments abstraction shape, one `manual` provider for now (same sequencing the payments
+  code went through: mock → OMT → real gateway). First real integration (Wakilni/Toters,
+  whichever the launch brand uses) is "add a provider," not "invent the abstraction under
+  vendor pressure" — deliberately not attempted this session, needs a vendor decision.
+- ☑ Customer-facing delivery status on `/order/[orderNumber]` — shows courier + tracking
+  ref when set, alongside the existing order status.
 
-### 3.3 Inventory operations
-- ☐ Stock-adjustment admin action with reason (received, damaged, correction) — writes
-  to audit log; keeps a movement history so "why is stock wrong" is answerable
-- ☐ Low-stock email alert (threshold in SiteSettings; the dashboard widget exists,
-  this pushes it)
+### 3.3 Inventory operations — ☑ DONE (Session 27, part 2)
+- ☑ Stock-adjustment admin action with reason (received/damaged/correction/other) — a `ui`
+  field on the Products edit view (`StockAdjustField.tsx`, the second field-level custom
+  admin component in this codebase after Orders' `InvoiceDownloadField`), posts to
+  `POST /api/admin/products/adjust-stock` (handles sized vs. flat stock via the existing
+  `src/lib/stock.ts` helpers, floors at 0). **Movement history is the AuditLog entry this
+  writes** (before → after, delta, reason, who) — a dedicated StockMovements collection
+  would duplicate what AuditLog already does for every other admin-driven change; reused
+  rather than rebuilt.
+- ☑ Low-stock email alert: SiteSettings gained `lowStockAlertEnabled`/`lowStockThreshold`
+  (defaults to 3, matching the existing dashboard widget)/`lowStockAlertLastSentAt`.
+  `GET /api/cron/low-stock-alert` (daily cron, same dev-open/prod-`CRON_SECRET` pattern and
+  same daily-cron-computes-its-own-due-day shape as the other crons) emails a summary via
+  `sendLowStockAlertEmail()` — but **only touches the dedupe guard on a day it actually
+  sends**, so a quiet day never suppresses tomorrow's real alert.
+- **Verified with real HTTP requests against a real dev server** (not just Local API calls):
+  built a real production server (`npm run start`, port 3100 — confirmed no dev server was
+  running first), bootstrapped a throwaway admin via the Local API (`overrideAccess`, same
+  as F2's verification), logged in through the real `/api/users/login` REST endpoint for a
+  genuine JWT, then drove every new route exactly as the browser would: packing slips
+  (200, valid HTML, correct slip count, 403 unauthenticated), stock adjustment (+2/-2
+  round-trip confirmed back to the original value via a fresh DB read, correct audit-log
+  entries, 400 on an invalid reason, 403 unauthenticated), and the low-stock cron (disabled
+  → skip; enabled with a threshold guaranteed to match → real send confirmed via Resend;
+  same-day replay → correctly skipped; wrong secret → 401) — settings were reverted to
+  their exact original values afterward. Also caught and confirmed as *expected, not a
+  bug*: `npm run start` always sets `NODE_ENV=production`, so the new cron 401'd without
+  `CRON_SECRET` on the first pass — checked the two pre-existing crons as a control and
+  they 401 identically, confirming the new route matches the established pattern exactly
+  rather than being stricter or looser.
 
 ---
 
@@ -555,7 +587,7 @@ The features "any business could possibly require" that aren't payments/reports/
 | **F0 — Foundation** ☑ DONE (Session 22) | Part 1 (DB split ☑, migrations ☑, durable rate-limit+idempotency ☑, Sentry ◐, audit log ☑, admin security ☑, Playwright+unit tests ☑) + Part 0 quick items | M | — |
 | **F1 — Payments core + cards** ◐ Session 23 | 2.1 abstraction ☑, 2.5 currency ☑, stock reservation + expiry cron ☑ — 2.3 real card gateway (Areeba MPGS / NetCommerce) still ☐, blocked on vendor onboarding *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
 | **F2 — OMT + refunds + reconciliation** ☑ v1 Session 24 | 2.4 ☑ (voucher + manual confirm), 2.6 ☑ (any payment method), 2.7 ☑ (dashboard + CSV) — order-timeline UI + real OMT API confirmation remain, both small/unblocked | M | F1 |
-| **F3 — Invoicing & fulfillment** ◐ 3.1 ☑ (Session 27) | Part 3 (invoices/VAT ☑, courier ☐, inventory ops ☐) | M | F0; invoices richer after F1 |
+| **F3 — Invoicing & fulfillment** ☑ DONE (Session 27) | Part 3 (invoices/VAT ☑, courier ☑ v1 manual-only, inventory ops ☑) | M | F0; invoices richer after F1 |
 | **F4 — Reports** ☑ DONE (Session 25–26), VAT report excepted | Part 4 (engine ☑, exports ☑, scheduled ☑, dashboard v3 ☑) — only the VAT/tax report type remains; unblocked as of Part 3.1 (Session 27), just not yet built | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
 | **F5 — AI assistants** | ⏭ SKIPPED (Session 22) | — | — |
 | **F6 — Commerce depth** | Part 6 (returns, reviews, gift cards, back-in-stock, abandoned cart) | L (parallelizable chunks) | F0; returns-refunds need F1 |

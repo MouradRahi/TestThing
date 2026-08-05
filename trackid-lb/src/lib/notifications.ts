@@ -249,6 +249,9 @@ export type StatusEmailData = {
   status: string
   /** Brand voice from SiteSettings → Copy tab. Defaults applied when omitted. */
   brand?: BrandCopy
+  /** Shown on the "shipped" email when set (ROADMAP Part 3.2) */
+  courierName?: string
+  trackingRef?: string
 }
 
 const STATUS_EMAIL_COPY: Record<string, { subject: string; body: string }> = {
@@ -307,6 +310,15 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
         </td></tr>
         <tr><td style="padding-bottom:32px;">
           <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(data.customerName)},<br><br>${copy.body}</p>
+          ${
+            data.status === 'shipped' && (data.courierName || data.trackingRef)
+              ? `<p style="margin:16px 0 0;font-size:13px;color:#c9a96e;">${
+                  data.courierName ? `Courier: ${escapeHtml(data.courierName)}` : ''
+                }${data.courierName && data.trackingRef ? ' · ' : ''}${
+                  data.trackingRef ? `Tracking: ${escapeHtml(data.trackingRef)}` : ''
+                }</p>`
+              : ''
+          }
         </td></tr>
         <tr><td style="padding-top:24px;border-top:1px solid #1e1e1e;">
           <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">Questions? Reply to this email or WhatsApp us directly.</p>
@@ -328,6 +340,77 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
     if (error) console.error('[notifications] Resend status email error:', error)
   } catch (err) {
     console.error('[notifications] Failed to send status email:', err)
+  }
+}
+
+// --- Low-stock alert ---
+
+export type LowStockAlertData = {
+  recipientEmail: string
+  brand?: BrandCopy
+  products: Array<{ title: string; size?: string; stock: number }>
+}
+
+export async function sendLowStockAlertEmail(data: LowStockAlertData): Promise<void> {
+  if (!data.recipientEmail || data.products.length === 0) return
+
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[notifications] RESEND_API_KEY not set — skipping low-stock alert')
+    return
+  }
+
+  const resend = new Resend(apiKey)
+  const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const brand = data.brand ?? DEFAULT_BRAND
+
+  const rowsHtml = data.products
+    .map(
+      (p) =>
+        `<tr><td style="padding:6px 0;border-bottom:1px solid #1e1e1e;color:#f5f0e8;">${escapeHtml(p.title)}${
+          p.size ? ` <span style="color:#666;">(${escapeHtml(p.size)})</span>` : ''
+        }</td><td style="padding:6px 0;border-bottom:1px solid #1e1e1e;text-align:right;color:${
+          p.stock === 0 ? '#e07a5f' : '#c9a96e'
+        };">${p.stock === 0 ? 'Sold out' : `${p.stock} left`}</td></tr>`,
+    )
+    .join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Low stock alert</title></head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;">
+    <tr><td align="center" style="padding:48px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
+        </td></tr>
+        <tr><td style="padding:36px 0 20px;">
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">Low stock alert</h1>
+          <p style="margin:8px 0 0;font-size:13px;color:#888;">${data.products.length} product${data.products.length === 1 ? '' : 's'} at or below threshold</p>
+        </td></tr>
+        <tr><td style="padding-bottom:32px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">${rowsHtml}</table>
+        </td></tr>
+        <tr><td style="padding-top:24px;border-top:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">Adjust stock or restock from the admin Products list.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { error } = await resend.emails.send({
+      from,
+      to: data.recipientEmail,
+      subject: `${brand.storeName} — Low stock alert (${data.products.length})`,
+      html,
+    })
+    if (error) console.error('[notifications] Resend low-stock alert error:', error)
+  } catch (err) {
+    console.error('[notifications] Failed to send low-stock alert:', err)
   }
 }
 
