@@ -127,6 +127,9 @@
     "omtPaid": "تم الدفع عبر OMT — رمز القسيمة",
     "howToPay": "طريقة الدفع",
     "continueShopping": "متابعة التسوّق",
+    "downloadInvoice": "تحميل الفاتورة (PDF)",
+    "courier": "شركة التوصيل",
+    "trackingRef": "رقم التتبع",
     "statuses": {
       "pending": "بانتظار التأكيد",
       "confirmed": "مؤكَّد",

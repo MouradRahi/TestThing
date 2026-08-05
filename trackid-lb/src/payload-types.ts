@@ -83,6 +83,7 @@ export interface Config {
     'rate-limit-counters': RateLimitCounter;
     'idempotency-keys': IdempotencyKey;
     'audit-log': AuditLog;
+    'analytics-counters': AnalyticsCounter;
     users: User;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
@@ -106,6 +107,7 @@ export interface Config {
     'rate-limit-counters': RateLimitCountersSelect<false> | RateLimitCountersSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'audit-log': AuditLogSelect<false> | AuditLogSelect<true>;
+    'analytics-counters': AnalyticsCountersSelect<false> | AnalyticsCountersSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -424,6 +426,15 @@ export interface Order {
    * Customer notes
    */
   notes?: string | null;
+  /**
+   * Courier handling this delivery, e.g. "Wakilni" or "Toters" — manual entry (ROADMAP Part 3.2 v1; no real courier API integrated yet). Shown to the customer once set.
+   */
+  courierName?: string | null;
+  /**
+   * Courier's tracking reference/number, if they provide one.
+   */
+  trackingRef?: string | null;
+  dispatchDate?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -888,6 +899,18 @@ export interface AuditLog {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "analytics-counters".
+ */
+export interface AnalyticsCounter {
+  id: number;
+  /**
+   * YYYY-MM-DD (UTC)
+   */
+  date: string;
+  pageViews: number;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
@@ -995,6 +1018,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'audit-log';
         value: number | AuditLog;
+      } | null)
+    | ({
+        relationTo: 'analytics-counters';
+        value: number | AnalyticsCounter;
       } | null)
     | ({
         relationTo: 'users';
@@ -1150,6 +1177,9 @@ export interface OrdersSelect<T extends boolean = true> {
   refundedAmount?: T;
   orderStatus?: T;
   notes?: T;
+  courierName?: T;
+  trackingRef?: T;
+  dispatchDate?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1478,6 +1508,14 @@ export interface AuditLogSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "analytics-counters_select".
+ */
+export interface AnalyticsCountersSelect<T extends boolean = true> {
+  date?: T;
+  pageViews?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
@@ -1596,7 +1634,7 @@ export interface SiteSetting {
    */
   bankTransferInstructions?: string | null;
   /**
-   * Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded.
+   * Show "Card" as a checkout payment option (ROADMAP F1). Only the testing "Mock" provider exists so far — real vendor adapters (Areeba/NetCommerce) plug into the same toggle once onboarded. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).
    */
   cardPaymentsEnabled?: boolean | null;
   /**
@@ -1604,7 +1642,7 @@ export interface SiteSetting {
    */
   cardPaymentProvider?: 'mock' | null;
   /**
-   * Show "OMT (pay at branch)" as a checkout payment option (ROADMAP F2). v1 is voucher + manual confirm — no OMT merchant agreement exists yet, so staff confirm payments by hand from the admin dashboard's "OMT Payments" panel.
+   * Show "OMT (pay at branch)" as a checkout payment option (ROADMAP F2). v1 is voucher + manual confirm — no OMT merchant agreement exists yet, so staff confirm payments by hand from the admin dashboard's "OMT Payments" panel. Also requires the ONLINE_PAYMENTS_ENABLED=true environment variable to be set — this checkbox alone is not enough, on purpose (a deploy-time safety net independent of this settings panel).
    */
   omtPaymentEnabled?: boolean | null;
   /**
@@ -1619,6 +1657,30 @@ export interface SiteSetting {
    * LBP per 1 USD, e.g. 89000. Update this as the rate moves — each order snapshots the rate at purchase time, so past orders keep the rate they were placed under.
    */
   exchangeRate?: number | null;
+  /**
+   * Show VAT on invoices (ROADMAP Part 3.1). Prices are treated as VAT-inclusive — the VAT share is broken out on the invoice, never added on top. Off by default for unregistered small brands.
+   */
+  vatEnabled?: boolean | null;
+  /**
+   * VAT rate as a percentage. Lebanon standard rate is 11%.
+   */
+  vatRate?: number | null;
+  /**
+   * Shown on invoices under the brand details.
+   */
+  vatRegistrationNumber?: string | null;
+  /**
+   * Email a low-stock summary when any published product is at or below the threshold (ROADMAP Part 3.3). Pushes the dashboard's existing low-stock widget instead of relying on someone checking it.
+   */
+  lowStockAlertEnabled?: boolean | null;
+  /**
+   * Stock level (per product, or per size) at or below which it counts as low.
+   */
+  lowStockThreshold?: number | null;
+  /**
+   * Set automatically — prevents sending twice in the same day.
+   */
+  lowStockAlertLastSentAt?: string | null;
   /**
    * Toggle the bar on/off without losing the text.
    */
@@ -1771,6 +1833,24 @@ export interface SiteSetting {
    * Prefix for generated order numbers, e.g. "TRK" → TRK-123456-AB12. Letters/numbers only; changing it does not rename existing orders.
    */
   orderNumberPrefix?: string | null;
+  /**
+   * Send a scheduled email digest of the reports below.
+   */
+  reportsEmailEnabled?: boolean | null;
+  reportsEmailCadence?: ('weekly' | 'monthly') | null;
+  /**
+   * Comma-separated email addresses. Leave empty to use Contact Email (Brand tab).
+   */
+  reportsEmailRecipients?: string | null;
+  sendSalesReport?: boolean | null;
+  sendInventoryReport?: boolean | null;
+  sendCustomersReport?: boolean | null;
+  sendDiscountsReport?: boolean | null;
+  sendPaymentsReport?: boolean | null;
+  /**
+   * Set automatically — prevents sending twice in the same period.
+   */
+  reportsEmailLastSentAt?: string | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2040,6 +2120,12 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   omtInstructions?: T;
   currencyDisplayMode?: T;
   exchangeRate?: T;
+  vatEnabled?: T;
+  vatRate?: T;
+  vatRegistrationNumber?: T;
+  lowStockAlertEnabled?: T;
+  lowStockThreshold?: T;
+  lowStockAlertLastSentAt?: T;
   announcementEnabled?: T;
   announcementText?: T;
   announcementBgColor?: T;
@@ -2086,6 +2172,15 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   emailGreeting?: T;
   emailFooterNote?: T;
   orderNumberPrefix?: T;
+  reportsEmailEnabled?: T;
+  reportsEmailCadence?: T;
+  reportsEmailRecipients?: T;
+  sendSalesReport?: T;
+  sendInventoryReport?: T;
+  sendCustomersReport?: T;
+  sendDiscountsReport?: T;
+  sendPaymentsReport?: T;
+  reportsEmailLastSentAt?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

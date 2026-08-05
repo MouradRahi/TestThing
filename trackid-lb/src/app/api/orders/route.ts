@@ -3,7 +3,8 @@ import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifi
 import { clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
 import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { getIdempotentResponse, saveIdempotentResponse } from '@/lib/idempotency'
-import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy, resolveCurrencyDisplay } from '@/lib/site-settings'
+import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy, resolveCurrencyDisplay, resolveVatConfig } from '@/lib/site-settings'
+import { generateInvoicePdf } from '@/lib/invoices/invoice-pdf'
 import { resolveDiscount, redeemDiscount, releaseDiscount } from '@/lib/discounts'
 import { reportServerError } from '@/lib/error-reporting'
 import { getSizes } from '@/lib/stock'
@@ -463,12 +464,37 @@ export async function POST(req: NextRequest) {
     if (!needsPaymentSession) {
       // after() keeps the serverless function alive past the response —
       // a plain void'd promise can be frozen before it completes on Vercel.
-      after(() =>
-        Promise.allSettled([
-          sendOrderConfirmationEmail(notificationData),
+      // The invoice PDF is generated here too (not before the response) so
+      // rendering it never adds latency to checkout itself (ROADMAP 3.1).
+      const vatConfig = resolveVatConfig(settings)
+      after(async () => {
+        let invoicePdf: Buffer | undefined
+        try {
+          invoicePdf = await generateInvoicePdf({
+            orderNumber: notificationData.orderNumber,
+            createdAt: order.createdAt as string,
+            customerName,
+            customerEmail,
+            deliveryAddress,
+            area,
+            items,
+            subtotal,
+            deliveryFee,
+            discountAmount: discountAmount > 0 ? discountAmount : undefined,
+            discountCode,
+            total,
+            storeName: notificationData.brand.storeName,
+            contactEmail: notificationData.brand.contactEmail,
+            vat: vatConfig.enabled ? { rate: vatConfig.rate, registrationNumber: vatConfig.registrationNumber } : undefined,
+          })
+        } catch (err) {
+          console.error('[orders] Invoice PDF generation failed (email still sends without it):', err)
+        }
+        await Promise.allSettled([
+          sendOrderConfirmationEmail({ ...notificationData, invoicePdf }),
           sendOrderWhatsAppAlert(notificationData),
-        ]),
-      )
+        ])
+      })
     }
 
     const successBody = {

@@ -283,6 +283,21 @@ export function resolveStoreName(settings: AnyRecord): string {
   return (settings.storeName as string) || DEFAULT_STORE_NAME
 }
 
+export type VatConfig = { enabled: boolean; rate: number; registrationNumber?: string }
+
+// ROADMAP Part 3.1 — off by default for unregistered small brands. A
+// malformed/negative rate is treated as disabled rather than trusted, same
+// defensive posture as resolveDeliveryFee/getDeliveryZones above.
+export function resolveVatConfig(settings: AnyRecord): VatConfig {
+  const enabled = Boolean(settings.vatEnabled)
+  const rate = typeof settings.vatRate === 'number' && settings.vatRate > 0 ? settings.vatRate : 0
+  const registrationNumber =
+    typeof settings.vatRegistrationNumber === 'string' && settings.vatRegistrationNumber.trim()
+      ? settings.vatRegistrationNumber.trim()
+      : undefined
+  return { enabled: enabled && rate > 0, rate, registrationNumber }
+}
+
 /**
  * Build a wa.me link from a stored WhatsApp number.
  * wa.me wants digits only (country code included, no +, spaces, or dashes).

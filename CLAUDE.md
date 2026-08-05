@@ -1307,6 +1307,228 @@ Monitor poll of the GitHub Actions API), and this new build-hang issue.
   `product_meta_tagline` incident writeup, including the read-only check-first query.
 - ✅ `npx tsc --noEmit` clean; `npm test` 25/25; `npm run migrate` + `migrate:status`
   verified end-to-end against the real dev DB (not just reasoned about).
-- Next: user's call, once prod is unstuck — same backlog as Session 25 (4.2/4.3 reports
-  follow-up, remaining F2 pieces, F1-to-prod deploy timing, merchant conversations,
-  ENHANCEMENTS extras).
+- ✅ **Prod deploy succeeded** (user cancelled the stuck deployment, ran the
+  `payload_migrations` cleanup, redeployed) — the F1/F2 payments work (Sessions 23–24) and
+  the Session 25 report engine are now both live in production, not just on the branch.
+- Next: user's call — same backlog as Session 25 (4.2/4.3 reports follow-up, remaining F2
+  pieces, Areeba/NetCommerce/OMT/Whish merchant conversations, ENHANCEMENTS extras).
+
+### Session 26 (part 2) — 2026-07-31
+Focus: **ROADMAP Part 4 §4.2 (scheduled reports) + §4.3 (dashboard v3)** — the two pieces
+deliberately deferred from the Session 25 report-engine build. Both are now ☑ DONE.
+- **Scoping question asked first**: the funnel's "sessions" stage has no existing data
+  source — Vercel's own Analytics API needs a paid plan + API token neither exists nor was
+  wanted as a new external dependency. User picked **building a lightweight own counter**
+  over skipping sessions entirely or wiring up Vercel Analytics.
+- **§4.3 — lightweight page-view counter + dashboard v3**:
+  - `AnalyticsCounters` collection (one row per UTC day, hidden/schema-managed like
+    RateLimitCounters) + `src/lib/analytics.ts → recordPageView()` (single atomic UPSERT,
+    same pattern as durable-rate-limit.ts). New `POST /api/analytics/pageview` (public,
+    durable-rate-limited at 300/10min/IP to blunt trivial abuse — this only inflates an
+    internal dashboard number, not a security boundary).
+  - `src/middleware.ts` now fire-and-forgets a ping to that route via `event.waitUntil()`
+    on real navigations only (`sec-fetch-mode: navigate` — excludes Next.js prefetches and
+    client-side RSC segment fetches, which don't carry that header, so hovering a link or
+    client-side routing doesn't inflate the count). No cookies, no per-user tracking.
+  - `src/lib/reports/dashboard-v3.ts` — `buildFunnel` (Sessions → Carts → Checkouts →
+    Completed orders; Carts = distinct carts with ≥1 item in range; Checkouts = every order
+    created in range, since an Order row only exists once checkout was actually submitted —
+    no separate "started checkout" signal was in scope; Completed = orders not cancelled),
+    `buildCohorts` (customers grouped by calendar month of first non-cancelled order, with
+    repeat-customer count/rate — same identity convention as the Customers report:
+    account id, else lower-cased guest email), `buildPaymentMix` (per payment_method
+    attempted/succeeded/failed; failure rate null for COD/bank-transfer, computed only over
+    concluded card/omt attempts).
+  - New `AnalyticsDashboardPanel.tsx` admin panel (own `?v3range=` query param so it doesn't
+    collide with SalesDashboard's `?range=` on the same /admin page) — funnel with
+    stage-to-stage %, payment mix cards, a 12-month cohort table. Registered in
+    `payload.config.ts` beforeDashboard, alongside the other four panels.
+- **§4.2 — scheduled email digest**: new SiteSettings **Reports** tab (enable toggle,
+  weekly/monthly cadence, comma-separated recipients falling back to Brand → Contact Email,
+  a checkbox per report type — Sales/Inventory default on, Customers/Discounts/Payments
+  default off). `src/lib/reports/scheduled-email.ts → sendScheduledReportEmail()` builds
+  each selected report and emails an HTML summary with **a CSV attached per report type**
+  (deliberately CSV-only, not XLSX/PDF, to keep the automated email itself light — the admin
+  Reports panel covers the other formats on demand). New `GET /api/cron/scheduled-reports`
+  (same dev-open/prod-`CRON_SECRET`-gated pattern as the other two crons) runs daily
+  (`vercel.json`) but only actually sends on the cadence's due day (weekly → Monday,
+  monthly → the 1st) and only once per period (`reportsEmailLastSentAt` dedupe guard) —
+  same "daily cron computes its own due day" shape `expire-payments`/`cleanup-carts`
+  already established, needed because Vercel Hobby only allows daily cron granularity.
+- **Migration**: hand-written again (`20260731_150000_add_analytics_and_scheduled_reports.ts`)
+  — same interactive-wizard-hangs-under-this-runner reasoning as the three prior hand-written
+  migrations; purely additive (new table, new enum, new nullable/defaulted columns on
+  site_settings). Applied cleanly to dev, no new stale sentinel this time (already cleared
+  by the Session 26 part 1 fix). Also **fixed `src/migrations/index.ts` for real this time**
+  — added this 6th migration, keeping the file (unused by the runtime, but worth not leaving
+  misleading) in sync.
+- **Verified for real, not just reviewed**:
+  - Ran every new SQL query (page-view upsert, funnel stages, cohorts, payment mix) directly
+    against the real dev DB via a throwaway script. Results lined up with known test data
+    from prior sessions (e.g. payment-mix numbers matched the exact card-failed/omt-paid/
+    cod-refunded test orders created during F1/F2 verification) — confirmed the atomic
+    upsert actually increments (1→2), then reverted the two test page-view rows so no fake
+    data was left in the real counters.
+  - **Sent a real scheduled-report email** through the actual Resend API (via the
+    bundled-config loader + `tsx`, same technique the migration scripts use, since Node's
+    native TS stripping can't resolve this project's extensionless relative imports).
+    First attempt used a guessed recipient and was correctly rejected by Resend's sandbox
+    restriction ("you can only send testing emails to your own email address") — exactly
+    why this was tested for real instead of assumed working; retried with the account's
+    actual verified address and got a real send with CSV attachments delivered.
+  - Full `npm run build` verified (safe — confirmed no dev server was running first): both
+    new routes registered, middleware bundle size essentially unchanged (53.8→53.9KB) despite
+    the new Edge-side fetch call.
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types` picked up the new SiteSettings
+  fields); `npm test` 25/25; `npm run migrate:status` shows all 6 migrations applied on dev.
+- ROADMAP.md Part 4 §4.2/§4.3 marked ☑ DONE; F4 row in the execution-order table updated
+  (only the VAT/tax report type remains open, blocked on Part 3.1, not this work).
+- **ROADMAP Part 4 (Reports & analytics) is now fully done** except VAT, which has an
+  external-in-the-sense-of-scope blocker (Part 3.1 doesn't exist yet), not a skipped item.
+- Next: user's call — remaining small F2 pieces, Part 3 (invoicing/VAT — would also unblock
+  the VAT report), Areeba/NetCommerce/OMT/Whish merchant conversations, or ENHANCEMENTS
+  a11y/i18n extras. Not yet deployed to prod — same deploy-timing decision as always.
+
+### Session 27 — 2026-07-31
+Focus: **ROADMAP Part 3.1 — Invoices & VAT**, picked as the recommended next step (closes
+the one loose end from Session 25's report engine — VAT was the only report type not
+buildable yet — and directly reuses the `@react-pdf/renderer` infrastructure that session
+explicitly built to be reused here). Now ☑ DONE.
+- **VAT math**: `src/lib/vat.ts → computeVatBreakdown()` — pure, unit-tested (6 new tests,
+  31/31 total now). Prices are VAT-inclusive (standard Lebanese retail practice — nothing
+  changes at checkout), so the function *extracts* the VAT share from a gross total
+  (`vat = gross × rate / (100 + rate)`) rather than adding VAT on top. `resolveVatConfig()`
+  added to `site-settings.ts` alongside the existing `resolveDeliveryFee`/`resolveBrandCopy`
+  pattern — treats a disabled toggle or a non-positive rate as fully off (no VAT section
+  rendered at all, not a zeroed-out one).
+- **SiteSettings Commerce tab** gained `vatEnabled` (off by default — unregistered small
+  brands stay unaffected), `vatRate` (defaults to 11, the Lebanon standard rate), and
+  `vatRegistrationNumber` (shown on invoices when set).
+- **Invoice PDF** (`src/lib/invoices/invoice-pdf.tsx`): brand header, VAT registration number
+  when set, bill-to block, line items table, and a totals block that adds a VAT breakdown
+  (rate/vat-amount/net) only when VAT is enabled — same `@react-pdf/renderer` library as the
+  Part 4 report exports, but its own dedicated invoice layout rather than the generic
+  columns/rows renderer (a real invoice needs bill-to/line-items structure that renderer
+  doesn't have).
+- **Public download route**: `GET /api/invoices/[orderNumber]` — deliberately unauthenticated,
+  matching the exact trust model `/order/[orderNumber]` already established (the order number
+  itself, a random `TRK-<timestamp>-<random>` suffix, is the access control — not a guessable
+  sequential id). Generated live from the order's own snapshotted items/prices, so it always
+  reflects what was actually charged regardless of later catalog changes.
+- **Wired into three surfaces**, as the roadmap item asked for all three:
+  - Order confirmation page (`/order/[orderNumber]`) — a "Download Invoice (PDF)" link.
+  - Account order history (`/account`) — an "Invoice" link next to each order's existing
+    "View Order" link.
+  - **Admin**: a new `ui`-type field on the Orders collection (`InvoiceDownloadField.tsx`,
+    the first field-level — not `beforeDashboard`-panel-level — custom admin component in
+    this codebase) that reads the current form's `orderNumber` via `@payloadcms/ui`'s
+    `useFormFields` hook and links to the same public route (no separate admin-only route
+    needed — staff are already authenticated to be looking at the edit view at all).
+  - **Confirmation email**: `OrderNotificationData` gained an optional `invoicePdf?: Buffer`
+    field; `notifications.ts` attaches it when present but still generates nothing itself
+    (deliberately stays "a pure renderer with no Payload/DB access," per its existing
+    documented design) — both call sites (`orders/route.ts`'s immediate COD/bank-transfer
+    send, and the Orders collection's payment-confirmed hook for card/OMT) generate the PDF
+    themselves and pass it in. Generation happens inside `after()`/the hook, never before the
+    response, so rendering a PDF never adds latency to checkout; a generation failure is
+    caught and logged, and the email still sends without the attachment rather than failing
+    the whole notification.
+- **Migration**: hand-written again (`20260731_190000_add_vat_settings.ts`) — same
+  interactive-wizard-hangs-under-this-runner reasoning as the four prior ones; purely
+  additive (three new nullable/defaulted columns on `site_settings`). Applied cleanly to dev
+  — 7th migration, batch numbers intact. `migrate.mjs`'s Session 26 self-heal cleared a fresh
+  stale `batch=-1` sentinel automatically before this run too; traced the *source* of that
+  recurring sentinel for the first time (not just its symptom): any throwaway verification
+  script that calls `getPayload()` without `PAYLOAD_MIGRATE=true` boots in dev-push mode,
+  and Payload's push cycle writes that sentinel row itself as a side effect of the "pulling
+  schema from database" step — so it isn't a leftover from history, it actively regenerates
+  every time a script (mine, this session, more than once) touches the dev DB that way.
+  Harmless given the existing self-heal, but worth knowing rather than assuming it was a
+  one-off relic.
+- **Verified against real dev data**: generated both a VAT-off and a VAT-on invoice from an
+  actual order via the bundled-config loader + `tsx` (`node scratch-invoice-check.mjs`,
+  deleted after) — both produced valid PDFs (`%PDF-` magic bytes), and the VAT breakdown
+  reconciled to the cent against the real order total (net 10.81 + vat 1.19 = gross 12.00).
+  Hit and fixed a real tooling gotcha along the way: importing `site-settings.ts` in a
+  throwaway script (even just for its pure helpers) pulls in `payload.ts`'s top-level
+  `import configPromise from '@payload-config'`, which crashes tsx's loader the same way the
+  Payload CLI itself does — worked around by inlining the two small computations the script
+  needed instead of importing the wrapper module, rather than fighting the loader.
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types`); `npm test` 31/31; full
+  `npm run build` verified (safe — confirmed no dev server running first) — `/api/invoices/
+  [orderNumber]` registered alongside every other route, middleware unaffected.
+- ROADMAP.md Part 3.1 marked ☑ DONE; Part 4 §4.1's VAT sub-item updated from "blocked" to
+  "unblocked, not yet built" (a real report type, not attempted this session — scoped as a
+  small standalone follow-up); F3/F4 execution-order rows updated.
+- Next: user's call — the VAT/tax report (now a small, unblocked follow-up), the rest of
+  Part 3 (3.2 courier ops, 3.3 inventory adjustments), remaining small F2 pieces, merchant
+  conversations, or ENHANCEMENTS a11y/i18n extras. Not yet deployed to prod.
+
+### Session 27 (part 2) — 2026-07-31
+Focus: **finishing Part 3** — 3.2 (Courier & delivery ops) and 3.3 (Inventory ops), the two
+pieces left after 3.1 earlier this session. **Part 3 (Fulfillment, invoicing & tax) is now
+fully done, v1.**
+- **3.2 Courier ops**: `Orders` gained `courierName`/`trackingRef`/`dispatchDate` (plain
+  staff-editable fields — manual entry, matching the OMT-v1 precedent of shipping the
+  interface before a real vendor is picked). The "shipped" status email
+  (`notifications.ts`) includes courier + tracking when set; the order confirmation page
+  shows the same. `src/lib/couriers/{types,registry}.ts` — a deliberately small adapter
+  interface (one `manual` provider) mirroring the payments abstraction's shape, so a real
+  integration (Wakilni/Toters — needs a vendor decision, not attempted) is "add a
+  provider" later, not "invent the abstraction under pressure." Packing-slip batch view:
+  `GET /api/admin/packing-slips` — plain HTML (not PDF; meant to be Ctrl+P'd, not
+  archived), one slip per `confirmed` order, admin-gated, linked from the Sales Overview
+  panel header rather than a new near-empty panel.
+- **3.3 Inventory ops**: stock-adjustment action as a `ui` field on Products
+  (`StockAdjustField.tsx`, reads the loaded doc via `useDocumentInfo()` for the size
+  dropdown display — the actual delta always re-reads live DB stock server-side, so a
+  stale client read can't cause a wrong adjustment) → `POST /api/admin/products/
+  adjust-stock` (handles sized vs. flat via the existing `stock.ts` helpers, floors at 0).
+  **Movement history is the AuditLog entry this writes**, not a new collection — checked
+  first whether a dedicated `StockMovements` table was warranted and concluded AuditLog
+  already does exactly this for every other admin-driven change in the app, so building a
+  parallel one would just duplicate it. Low-stock email alert: SiteSettings gained
+  `lowStockAlertEnabled`/`lowStockThreshold` (default 3, matching the dashboard widget)/
+  `lowStockAlertLastSentAt`; `GET /api/cron/low-stock-alert` — same daily-cron pattern as
+  the others, but the dedupe guard is only touched on a day it actually sends, so a quiet
+  day never suppresses tomorrow's real alert.
+- **Admin UX choice**: rather than a third near-empty `beforeDashboard` panel, the packing-
+  slip link was added directly to the existing Sales Overview panel's header (next to the
+  date-range selector) — kept the admin dashboard from accumulating panel sprawl for a
+  single link.
+- **Verified with real HTTP requests against a real running server**, a step up from most
+  of this session's Local-API-script verification: built and started an actual production
+  server (`npm run start`, port 3100 — checked no dev server was running first, learned
+  from Session 25's shared-`.next` incident), bootstrapped a throwaway admin via the Local
+  API (`overrideAccess`), logged in through the real `/api/users/login` REST endpoint for
+  a genuine JWT, then drove every new route exactly as a browser would — packing slips
+  (200, valid HTML, correct slip count, 403 unauthenticated), stock adjustment (+2/-2
+  round-trip confirmed back to the exact original value via a fresh DB read afterward,
+  correct audit-log entries, 400 on an invalid reason, 403 unauthenticated), low-stock
+  cron (disabled→skip, enabled-with-guaranteed-match→real Resend send confirmed,
+  same-day replay→correctly skipped, wrong secret→401) — settings reverted to their exact
+  original values afterward via a captured-before/restored-after pattern.
+- **Caught a real "is this a bug" moment and resolved it with a control, not a guess**: the
+  low-stock cron 401'd on first test — traced to `npm run start` always setting
+  `NODE_ENV=production` (unlike `next dev`), so the same dev-open/prod-`CRON_SECRET`-gated
+  pattern every other cron already uses correctly kicked in. Confirmed this was expected
+  (not a bug in the new route) by curling the two pre-existing crons the same way — they
+  401 identically, proving the new route matches the established pattern exactly.
+- ⚠️ Hit a recurring transient Git-Bash crash (`fatal error - add_item ... errno 1`) a few
+  times mid-session, unrelated to any code change — killed an in-flight piped build once;
+  recovered by rebuilding without the pipe. Environmental, not investigated further (not a
+  reproducible pattern tied to any specific command).
+- **Migration**: hand-written again (`20260731_210000_add_courier_and_low_stock_alert.ts`)
+  — same interactive-wizard-hangs-under-this-runner reasoning as every prior one this
+  project has needed; purely additive. Applied cleanly to dev (8th migration, batch
+  numbers intact).
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types`); `npm test` 31/31; full
+  `npm run build` verified twice (once before the HTTP verification server, once
+  implicitly via `npm run start` needing a fresh build after the Git-Bash interruption).
+- ROADMAP.md Part 3.2/3.3 marked ☑ DONE v1; F3 execution-order row updated to fully ☑.
+  **Part 3 (Fulfillment, invoicing & tax) is now complete** except the real courier vendor
+  integration (needs a vendor decision) and VAT/tax reporting (a small standalone
+  follow-up, unblocked since earlier this session).
+- Next: user's call — the VAT/tax report, remaining small F2 pieces, merchant
+  conversations (Areeba/NetCommerce/OMT/Whish/Wakilni/Toters — all external, business-side
+  decisions), or ENHANCEMENTS a11y/i18n extras. Not yet deployed to prod.

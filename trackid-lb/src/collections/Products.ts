@@ -178,6 +178,13 @@ export const Products: CollectionConfig = {
       },
     },
     {
+      name: 'stockAdjust',
+      type: 'ui',
+      admin: {
+        components: { Field: '/components/admin/StockAdjustField#StockAdjustField' },
+      },
+    },
+    {
       name: 'isOneOfAKind',
       type: 'checkbox',
       defaultValue: false,

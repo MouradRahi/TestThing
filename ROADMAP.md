@@ -44,7 +44,7 @@ adjacent phases as we go.
 - ☑ **4.2 `payload-types.ts` generation** — DONE (Session 22): `npm run generate:types` (programmatic runner sidesteps the broken CLI); generated types adopted, all strict-type errors fixed, tsc clean
 - ☐ **i18n leftovers** — homepage-block text localization, product image `alt` localization, decorative shop strings, localized order emails
 - ☐ **4.3 deferred** — Payload versions/rollback + live-preview iframe for Pages/Homepage
-- ☐ **Weekly email summary** for the sales dashboard (needs Vercel Cron — lands naturally with Part 4 reports)
+- ☑ **Weekly email summary** for the sales dashboard — DONE (Session 26), see Part 4 §4.2
 - ☐ **Recently-viewed strip** — server-backed design (no localStorage per mandate); fold into customer-account phase polish
 - ☐ **2.7 artist filter chips → dropdown/combobox** at scale (~15+ artists)
 - ☐ **Announcement-bar contrast check** on admin-set colors
@@ -259,28 +259,75 @@ one adapter against the 2.1 interface — nothing else in the plan depends on it
 
 ## Part 3 — Fulfillment, invoicing & tax
 
-### 3.1 Invoices
-- ☐ PDF invoice generation per order (order number, line items, VAT breakdown, brand
-  logo/details from SiteSettings) — downloadable from admin + customer account +
-  attached to confirmation email
-- ☐ **VAT support**: SiteSettings `vatEnabled` + `vatRate` (Lebanon: 11%) + registration
-  number; prices treated as VAT-inclusive with the VAT share shown on invoice (standard
-  retail practice); off by default for unregistered small brands
+### 3.1 Invoices — ☑ DONE (Session 27)
+- ☑ PDF invoice generation per order (order number, line items, VAT breakdown, brand name/
+  contact from SiteSettings) — `src/lib/invoices/invoice-pdf.tsx`, built on the same
+  `@react-pdf/renderer` this reuses from Part 4's report exports, exactly as planned.
+  Downloadable via a public `GET /api/invoices/[orderNumber]` route (same trust model as
+  `/order/[orderNumber]` — the order number itself is the access control, no login required,
+  matching every other order-scoped customer-facing surface in this app), linked from the
+  order confirmation page, the account order-history list, and a `ui`-field "Download
+  Invoice" link on the Orders admin edit view (`InvoiceDownloadField.tsx`, reads the current
+  form's `orderNumber` via `useFormFields`). Also attached as a PDF to the order confirmation
+  email (both the COD/bank-transfer immediate-send path and the online-payment
+  payment-confirmed hook) — generated inside `after()`/the hook so rendering it never adds
+  latency to checkout itself; a generation failure logs and the email still sends without it.
+- ☑ **VAT support**: SiteSettings Commerce tab gained `vatEnabled` + `vatRate` (default 11,
+  Lebanon standard) + `vatRegistrationNumber`; `src/lib/vat.ts → computeVatBreakdown()` (pure,
+  unit-tested) extracts the VAT share from a VAT-inclusive total (`vat = gross × rate /
+  (100 + rate)`) rather than adding VAT on top — prices never change at checkout. Off by
+  default; the invoice renders no VAT section at all when disabled, not a zeroed-out one.
+- **Verified against real dev data**: generated both a VAT-off and a VAT-on invoice from an
+  actual order via the bundled-config loader + `tsx` — both produced valid PDFs (`%PDF-`
+  magic bytes), and the VAT breakdown reconciled to the cent (net + vat == gross) against
+  the real order total.
 
-### 3.2 Courier & delivery operations
-- ☐ Order fields: courier name, tracking ref, dispatch date; status emails include them
-- ☐ Pick list / packing slip printable view (batch: all `confirmed` orders)
-- ☐ Courier adapter interface (mirrors the payments pattern) — first integration with
-  whichever courier the launch brand uses (Wakilni and Toters are the common Lebanese
-  API-capable options); manual entry is the universal fallback
-- ☐ Customer-facing delivery status on `/order/[orderNumber]` (already shows status;
-  add courier + tracking when set)
+### 3.2 Courier & delivery operations — ☑ DONE v1 (Session 27, part 2)
+- ☑ Order fields: `courierName`, `trackingRef`, `dispatchDate` — plain staff-editable fields
+  (manual entry, no real courier API yet). The "shipped" status email includes courier +
+  tracking when set.
+- ☑ Pick list / packing slip printable view: `GET /api/admin/packing-slips` — admin-gated,
+  plain HTML (not PDF — meant to be glanced at and Ctrl+P'd, not downloaded/archived) with
+  one slip per `confirmed` order, `page-break-after` per slip for clean printing. Linked
+  from the Sales Overview admin panel header ("Print packing slips →").
+- ☑ Courier adapter interface (`src/lib/couriers/{types,registry}.ts`) — mirrors the
+  payments abstraction shape, one `manual` provider for now (same sequencing the payments
+  code went through: mock → OMT → real gateway). First real integration (Wakilni/Toters,
+  whichever the launch brand uses) is "add a provider," not "invent the abstraction under
+  vendor pressure" — deliberately not attempted this session, needs a vendor decision.
+- ☑ Customer-facing delivery status on `/order/[orderNumber]` — shows courier + tracking
+  ref when set, alongside the existing order status.
 
-### 3.3 Inventory operations
-- ☐ Stock-adjustment admin action with reason (received, damaged, correction) — writes
-  to audit log; keeps a movement history so "why is stock wrong" is answerable
-- ☐ Low-stock email alert (threshold in SiteSettings; the dashboard widget exists,
-  this pushes it)
+### 3.3 Inventory operations — ☑ DONE (Session 27, part 2)
+- ☑ Stock-adjustment admin action with reason (received/damaged/correction/other) — a `ui`
+  field on the Products edit view (`StockAdjustField.tsx`, the second field-level custom
+  admin component in this codebase after Orders' `InvoiceDownloadField`), posts to
+  `POST /api/admin/products/adjust-stock` (handles sized vs. flat stock via the existing
+  `src/lib/stock.ts` helpers, floors at 0). **Movement history is the AuditLog entry this
+  writes** (before → after, delta, reason, who) — a dedicated StockMovements collection
+  would duplicate what AuditLog already does for every other admin-driven change; reused
+  rather than rebuilt.
+- ☑ Low-stock email alert: SiteSettings gained `lowStockAlertEnabled`/`lowStockThreshold`
+  (defaults to 3, matching the existing dashboard widget)/`lowStockAlertLastSentAt`.
+  `GET /api/cron/low-stock-alert` (daily cron, same dev-open/prod-`CRON_SECRET` pattern and
+  same daily-cron-computes-its-own-due-day shape as the other crons) emails a summary via
+  `sendLowStockAlertEmail()` — but **only touches the dedupe guard on a day it actually
+  sends**, so a quiet day never suppresses tomorrow's real alert.
+- **Verified with real HTTP requests against a real dev server** (not just Local API calls):
+  built a real production server (`npm run start`, port 3100 — confirmed no dev server was
+  running first), bootstrapped a throwaway admin via the Local API (`overrideAccess`, same
+  as F2's verification), logged in through the real `/api/users/login` REST endpoint for a
+  genuine JWT, then drove every new route exactly as the browser would: packing slips
+  (200, valid HTML, correct slip count, 403 unauthenticated), stock adjustment (+2/-2
+  round-trip confirmed back to the original value via a fresh DB read, correct audit-log
+  entries, 400 on an invalid reason, 403 unauthenticated), and the low-stock cron (disabled
+  → skip; enabled with a threshold guaranteed to match → real send confirmed via Resend;
+  same-day replay → correctly skipped; wrong secret → 401) — settings were reverted to
+  their exact original values afterward. Also caught and confirmed as *expected, not a
+  bug*: `npm run start` always sets `NODE_ENV=production`, so the new cron 401'd without
+  `CRON_SECRET` on the first pass — checked the two pre-existing crons as a control and
+  they 401 identically, confirming the new route matches the established pattern exactly
+  rather than being stricter or looser.
 
 ---
 
@@ -290,7 +337,7 @@ Turns the existing dashboard into accounting-grade output. All reads go through
 SQL aggregation (`payload.db.pool`) so it stays fast at volume — this also retires
 the dashboard's "JS aggregation at scale" deferred item.
 
-### 4.1 Report engine — ☑ DONE (Session 25), minus VAT (blocked on Part 3.1)
+### 4.1 Report engine — ☑ DONE (Session 25); VAT/tax report still ☐, no longer blocked (Session 27)
 - ☑ `src/lib/reports/` — parameterized report definitions (date range, filters, dimension) →
   tabular result, one SQL round trip per breakdown via `payload.db.pool` (`src/lib/db-pool.ts`).
   Types built:
@@ -308,14 +355,16 @@ the dashboard's "JS aggregation at scale" deferred item.
     top customers by spend in range
   - **Discounts** (`discounts.ts`): usage + revenue impact per code in range, joined against
     the code's all-time `usageCount`/`usageLimit`
-  - **VAT/tax**: not built — genuinely blocked on Part 3.1 (no VAT fields exist yet), not a
-    scoping choice
+  - **VAT/tax**: still not built, but Part 3.1 (Session 27) added the `vatEnabled`/`vatRate`
+    fields this needed — no longer blocked, just not yet done. Small follow-up: a report
+    grouping `computeVatBreakdown()` over orders in range would be the whole task.
 - ☑ Export: `export-csv.ts` (same escaping convention as the existing payments CSV route),
   `export-xlsx.ts` via **`write-excel-file`** (not exceljs — exceljs pulls in an outdated
   archiver/archiver-utils chain with a high-severity `brace-expansion` DoS advisory and no
   clean fix; `write-excel-file` has zero dependencies), `export-pdf.tsx` via
   **`@react-pdf/renderer`** (brand name from SiteSettings, generic columns/rows/summary
-  renderer — same component will serve Part 3.1 invoices later)
+  renderer — Part 3.1's invoice PDF (Session 27) reuses this same library, as planned, via
+  its own dedicated `invoice-pdf.tsx` layout rather than the columns/rows renderer directly)
 - ☑ Admin UI: `ReportsPanel.tsx` (server, admin-gated) + `ReportsExplorer.tsx` (client) —
   report-type select, date range, sales-only dimension/group-by selects, preview table with
   summary KPIs, CSV/XLSX/PDF download links. Registered in `payload.config.ts` beforeDashboard,
@@ -329,16 +378,53 @@ the dashboard's "JS aggregation at scale" deferred item.
   reports needed only F0 + the F1 mock provider (already done) — no payments work was
   blocking, only VAT is (and only VAT, deliberately deferred)
 
-### 4.2 Scheduled reports
-- ☐ Vercel Cron → `/api/reports/scheduled`: weekly/monthly summary emailed to
-  `contactEmail` (retires the deferred "weekly email summary")
-- ☐ Admin-configurable: which reports, what cadence, recipients
+### 4.2 Scheduled reports — ☑ DONE (Session 26)
+- ☑ Vercel Cron (`vercel.json`, daily at 06:00) → `GET /api/cron/scheduled-reports`: builds
+  the admin-selected report types and emails a digest with a CSV attached per report,
+  via `src/lib/reports/scheduled-email.ts` (same Resend pattern as `notifications.ts`,
+  skips gracefully without `RESEND_API_KEY`). Runs daily but only actually sends on the
+  configured cadence's due day (weekly → Monday, monthly → the 1st), and only once per
+  period (`reportsEmailLastSentAt` dedupe guard) — same "daily cron, computed due-day"
+  shape as `expire-payments`/`cleanup-carts`.
+- ☑ Admin-configurable via a new SiteSettings **Reports** tab: on/off, cadence
+  (weekly/monthly), recipients (comma-separated, falls back to Brand → Contact Email),
+  and a checkbox per report type (Sales/Inventory on by default; Customers/Discounts/
+  Payments off by default, opt-in).
+- Retires the deferred "weekly email summary" item.
+- **Verified with a real send**, not just review: ran the actual `sendScheduledReportEmail()`
+  against the real dev DB and the real Resend API (via the bundled-config loader + `tsx`,
+  same technique as the migration scripts) — first attempt used a guessed recipient email
+  and correctly got rejected by Resend's sandbox restriction (`You can only send testing
+  emails to your own email address`), which is exactly why this was tested for real rather
+  than assumed; retried with the account's actual verified address and got `{ sent: true }`
+  with real CSV attachments delivered.
 
-### 4.3 Dashboard v3
-- ☐ Conversion funnel (sessions → carts → checkouts → orders; carts data already exists,
-  sessions from Vercel Analytics API or a lightweight own counter)
-- ☐ Cohort/repeat-purchase view (accounts exist, so this is now computable)
-- ☐ Payment-method mix and payment-failure rate (new, from Part 2 data)
+### 4.3 Dashboard v3 — ☑ DONE (Session 26)
+- ☑ Conversion funnel: **Sessions → Carts → Checkouts → Completed orders**. Sessions comes
+  from a **lightweight own counter** (user's explicit choice over the Vercel Analytics API,
+  which needs a paid plan + token neither exists nor was wanted as a new dependency) —
+  `AnalyticsCounters` collection (one row per UTC day, atomic upsert via
+  `src/lib/analytics.ts`), pinged fire-and-forget from `src/middleware.ts` via
+  `event.waitUntil()` on real navigations only (`sec-fetch-mode: navigate`, so Next.js
+  prefetches and client-side RSC fetches don't inflate the count). "Carts" = distinct carts
+  with ≥1 item in range; "Checkouts" = every order created in range (an Order row only
+  exists once checkout was actually submitted — no separate "started checkout" signal
+  without more instrumentation than was scoped); "Completed" = orders not cancelled.
+- ☑ Cohort/repeat-purchase view: customers grouped by the calendar month of their first
+  (non-cancelled) order, with repeat-customer count/rate and avg orders — identity =
+  account id else lower-cased guest email, same convention as the Customers report.
+- ☑ Payment-method mix + failure rate: per `orders.payment_method` attempted/succeeded/
+  failed counts; failure rate is null for COD/bank-transfer (no such concept for them) and
+  computed only over *concluded* card/omt attempts (excludes still-`awaiting_payment` ones).
+- All three built in `src/lib/reports/dashboard-v3.ts`, rendered by a new
+  `AnalyticsDashboardPanel.tsx` admin panel (own `?v3range=` query param so it doesn't
+  collide with SalesDashboard's `?range=` on the same /admin page).
+- **Verified against real dev data**: funnel/cohort/payment-mix queries run via a throwaway
+  script against the real dev DB — results matched known test scenarios from prior sessions
+  (e.g. the payment-mix numbers lined up exactly with the F1/F2 verification's known
+  card-failed / omt-paid / cod-refunded test orders), and the page-view upsert was verified
+  to actually increment (1→2) before the test rows were reverted to avoid leaving fake data
+  in the real counters.
 
 ---
 
@@ -501,8 +587,8 @@ The features "any business could possibly require" that aren't payments/reports/
 | **F0 — Foundation** ☑ DONE (Session 22) | Part 1 (DB split ☑, migrations ☑, durable rate-limit+idempotency ☑, Sentry ◐, audit log ☑, admin security ☑, Playwright+unit tests ☑) + Part 0 quick items | M | — |
 | **F1 — Payments core + cards** ◐ Session 23 | 2.1 abstraction ☑, 2.5 currency ☑, stock reservation + expiry cron ☑ — 2.3 real card gateway (Areeba MPGS / NetCommerce) still ☐, blocked on vendor onboarding *(2.2 Whish skipped)* | L | F0 (hard req) + vendor onboarding ⏳ |
 | **F2 — OMT + refunds + reconciliation** ☑ v1 Session 24 | 2.4 ☑ (voucher + manual confirm), 2.6 ☑ (any payment method), 2.7 ☑ (dashboard + CSV) — order-timeline UI + real OMT API confirmation remain, both small/unblocked | M | F1 |
-| **F3 — Invoicing & fulfillment** | Part 3 (invoices/VAT, courier, inventory ops) | M | F0; invoices richer after F1 |
-| **F4 — Reports** | Part 4 (engine, exports, scheduled, dashboard v3) | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
+| **F3 — Invoicing & fulfillment** ☑ DONE (Session 27) | Part 3 (invoices/VAT ☑, courier ☑ v1 manual-only, inventory ops ☑) | M | F0; invoices richer after F1 |
+| **F4 — Reports** ☑ DONE (Session 25–26), VAT report excepted | Part 4 (engine ☑, exports ☑, scheduled ☑, dashboard v3 ☑) — only the VAT/tax report type remains; unblocked as of Part 3.1 (Session 27), just not yet built | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
 | **F5 — AI assistants** | ⏭ SKIPPED (Session 22) | — | — |
 | **F6 — Commerce depth** | Part 6 (returns, reviews, gift cards, back-in-stock, abandoned cart) | L (parallelizable chunks) | F0; returns-refunds need F1 |
 | **F7 — Growth** | Part 7 | S–M | independent |

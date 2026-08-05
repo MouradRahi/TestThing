@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/expire-payments",
       "schedule": "30 3 * * *"
+    },
+    {
+      "path": "/api/cron/scheduled-reports",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/low-stock-alert",
+      "schedule": "0 7 * * *"
     }
   ]
 }

@@ -219,6 +219,62 @@ export const SiteSettings: GlobalConfig = {
                   'LBP per 1 USD, e.g. 89000. Update this as the rate moves — each order snapshots the rate at purchase time, so past orders keep the rate they were placed under.',
               },
             },
+            {
+              name: 'vatEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Show VAT on invoices (ROADMAP Part 3.1). Prices are treated as VAT-inclusive — the VAT share is broken out on the invoice, never added on top. Off by default for unregistered small brands.',
+              },
+            },
+            {
+              name: 'vatRate',
+              type: 'number',
+              defaultValue: 11,
+              min: 0,
+              max: 100,
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.vatEnabled),
+                description: 'VAT rate as a percentage. Lebanon standard rate is 11%.',
+              },
+            },
+            {
+              name: 'vatRegistrationNumber',
+              type: 'text',
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.vatEnabled),
+                description: 'Shown on invoices under the brand details.',
+              },
+            },
+            {
+              name: 'lowStockAlertEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description:
+                  'Email a low-stock summary when any published product is at or below the threshold (ROADMAP Part 3.3). Pushes the dashboard\'s existing low-stock widget instead of relying on someone checking it.',
+              },
+            },
+            {
+              name: 'lowStockThreshold',
+              type: 'number',
+              defaultValue: 3,
+              min: 0,
+              admin: {
+                condition: (_, siblingData) => Boolean(siblingData?.lowStockAlertEnabled),
+                description: 'Stock level (per product, or per size) at or below which it counts as low.',
+              },
+            },
+            {
+              name: 'lowStockAlertLastSentAt',
+              type: 'date',
+              admin: {
+                readOnly: true,
+                description: 'Set automatically — prevents sending twice in the same day.',
+                date: { pickerAppearance: 'dayAndTime' },
+              },
+            },
           ],
         },
 
@@ -555,6 +611,80 @@ export const SiteSettings: GlobalConfig = {
               admin: {
                 description:
                   'Prefix for generated order numbers, e.g. "TRK" → TRK-123456-AB12. Letters/numbers only; changing it does not rename existing orders.',
+              },
+            },
+          ],
+        },
+
+        // ── REPORTS ─────────────────────────────────────────────────────────
+        // Scheduled email digest (ROADMAP Part 4 §4.2) — a Vercel Cron hits
+        // /api/cron/scheduled-reports daily; this config decides whether/what/
+        // to whom it actually sends. reportsEmailLastSentAt is internal
+        // bookkeeping (dedupe guard), not something an admin edits by hand.
+        {
+          label: 'Reports',
+          fields: [
+            {
+              name: 'reportsEmailEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: { description: 'Send a scheduled email digest of the reports below.' },
+            },
+            {
+              name: 'reportsEmailCadence',
+              type: 'select',
+              defaultValue: 'weekly',
+              options: [
+                { label: 'Weekly (every Monday, last 7 days)', value: 'weekly' },
+                { label: 'Monthly (1st of month, last 30 days)', value: 'monthly' },
+              ],
+              admin: { condition: (data) => !!data?.reportsEmailEnabled },
+            },
+            {
+              name: 'reportsEmailRecipients',
+              type: 'text',
+              admin: {
+                description: 'Comma-separated email addresses. Leave empty to use Contact Email (Brand tab).',
+                condition: (data) => !!data?.reportsEmailEnabled,
+              },
+            },
+            {
+              name: 'sendSalesReport',
+              type: 'checkbox',
+              defaultValue: true,
+              admin: { condition: (data) => !!data?.reportsEmailEnabled },
+            },
+            {
+              name: 'sendInventoryReport',
+              type: 'checkbox',
+              defaultValue: true,
+              admin: { condition: (data) => !!data?.reportsEmailEnabled },
+            },
+            {
+              name: 'sendCustomersReport',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: { condition: (data) => !!data?.reportsEmailEnabled },
+            },
+            {
+              name: 'sendDiscountsReport',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: { condition: (data) => !!data?.reportsEmailEnabled },
+            },
+            {
+              name: 'sendPaymentsReport',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: { condition: (data) => !!data?.reportsEmailEnabled },
+            },
+            {
+              name: 'reportsEmailLastSentAt',
+              type: 'date',
+              admin: {
+                readOnly: true,
+                description: 'Set automatically — prevents sending twice in the same period.',
+                date: { pickerAppearance: 'dayAndTime' },
               },
             },
           ],
