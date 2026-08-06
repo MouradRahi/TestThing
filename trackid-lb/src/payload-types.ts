@@ -81,6 +81,10 @@ export interface Config {
     customers: Customer;
     carts: Cart;
     returns: Return;
+    reviews: Review;
+    'gift-cards': GiftCard;
+    'back-in-stock-requests': BackInStockRequest;
+    bundles: Bundle;
     'rate-limit-counters': RateLimitCounter;
     'idempotency-keys': IdempotencyKey;
     'audit-log': AuditLog;
@@ -106,6 +110,10 @@ export interface Config {
     customers: CustomersSelect<false> | CustomersSelect<true>;
     carts: CartsSelect<false> | CartsSelect<true>;
     returns: ReturnsSelect<false> | ReturnsSelect<true>;
+    reviews: ReviewsSelect<false> | ReviewsSelect<true>;
+    'gift-cards': GiftCardsSelect<false> | GiftCardsSelect<true>;
+    'back-in-stock-requests': BackInStockRequestsSelect<false> | BackInStockRequestsSelect<true>;
+    bundles: BundlesSelect<false> | BundlesSelect<true>;
     'rate-limit-counters': RateLimitCountersSelect<false> | RateLimitCountersSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'audit-log': AuditLogSelect<false> | AuditLogSelect<true>;
@@ -254,6 +262,29 @@ export interface Product {
    */
   isOneOfAKind?: boolean | null;
   status: 'draft' | 'published';
+  /**
+   * Auto-computed from published reviews (ROADMAP Part 6.2).
+   */
+  ratingAvg?: number | null;
+  ratingCount?: number | null;
+  /**
+   * Show preorder messaging instead of normal stock messaging (ROADMAP Part 6.4). Does NOT change stock mechanics — set Stock Quantity above to your preorder allocation; it decrements normally as preorders come in.
+   */
+  preorderEnabled?: boolean | null;
+  /**
+   * e.g. "Ships in 2–3 weeks"
+   */
+  preorderMessage?: string | null;
+  /**
+   * Flexible key/value specs shown on the product page — materials, care instructions, dimensions, etc. (ROADMAP Part 6.7). Not per-locale in v1 — write once, same for every language (avoids an uncertain nested-locales table shape for a hand-written migration; can be revisited later).
+   */
+  specs?:
+    | {
+        label: string;
+        value: string;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -363,6 +394,24 @@ export interface GarmentType {
    * Auto-generated from the name if left empty.
    */
   slug: string;
+  /**
+   * Shown on the product page (in a toggle section) for any product with this garment type set (ROADMAP Part 6.7).
+   */
+  sizeGuide?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -407,6 +456,22 @@ export interface Order {
    * Amount taken off the subtotal by the discount code.
    */
   discountAmount?: number | null;
+  /**
+   * Gift card code applied at checkout, if any (ROADMAP Part 6.3).
+   */
+  giftCardCode?: string | null;
+  /**
+   * Amount covered by the gift card.
+   */
+  giftCardAmount?: number | null;
+  /**
+   * Amount covered by the customer's store credit balance (ROADMAP Part 6.3).
+   */
+  storeCreditApplied?: number | null;
+  /**
+   * Loyalty points redeemed at checkout (ROADMAP Part 6.6).
+   */
+  pointsRedeemed?: number | null;
   total: number;
   paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt';
   paymentStatus?:
@@ -470,6 +535,22 @@ export interface Customer {
    * Set via the one-click unsubscribe link in a recovery email (ROADMAP Part 6.5) — never shown in the customer-facing profile form.
    */
   cartRecoveryOptOut?: boolean | null;
+  /**
+   * Store credit balance in USD (ROADMAP Part 6.3) — a Returns refund can be issued as credit instead of cash. Applied at checkout.
+   */
+  storeCredit?: number | null;
+  /**
+   * Earned on delivered orders, redeemable at checkout (ROADMAP Part 6.6).
+   */
+  loyaltyPoints?: number | null;
+  /**
+   * Set at registration from a ?ref= link. Reward is credited once this customer's first order is delivered.
+   */
+  referredBy?: (number | null) | Customer;
+  /**
+   * Set once the referral reward has been paid out — prevents double-crediting on later orders.
+   */
+  referralRewardGranted?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -876,9 +957,91 @@ export interface Return {
    */
   refundAmount?: number | null;
   /**
+   * Set before marking as Refunded. "Cash" calls the normal refund flow (fails gracefully for unpaid/COD orders — settle manually). "Store credit" always succeeds and never touches payment status.
+   */
+  refundMethod?: ('cash' | 'store_credit') | null;
+  /**
    * Internal notes — e.g. why a return was rejected. Never shown to the customer.
    */
   adminNotes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Customer reviews. Created via the storefront — moderate by changing status to Published.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews".
+ */
+export interface Review {
+  id: number;
+  product: number | Product;
+  customer: number | Customer;
+  customerName: string;
+  rating: number;
+  text: string;
+  /**
+   * Customer has a delivered order containing this product.
+   */
+  verifiedPurchase?: boolean | null;
+  status: 'pending' | 'published';
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gift-cards".
+ */
+export interface GiftCard {
+  id: number;
+  /**
+   * Case-insensitive — stored uppercase.
+   */
+  code: string;
+  initialBalance: number;
+  /**
+   * Defaults to Initial Balance on create. Decrements automatically at redemption.
+   */
+  remainingBalance?: number | null;
+  purchaserEmail?: string | null;
+  recipientEmail?: string | null;
+  enabled?: boolean | null;
+  expiresAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "back-in-stock-requests".
+ */
+export interface BackInStockRequest {
+  id: number;
+  product: number | Product;
+  email: string;
+  customer?: (number | null) | Customer;
+  notifiedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bundles".
+ */
+export interface Bundle {
+  id: number;
+  title: string;
+  slug: string;
+  description?: string | null;
+  products: {
+    product: number | Product;
+    quantity: number;
+    id?: string | null;
+  }[];
+  /**
+   * Stated bundle price, shown as the savings vs. buying separately. Informational only — checkout still charges each component at its own price (see collection description).
+   */
+  bundlePrice: number;
+  status: 'draft' | 'published';
   updatedAt: string;
   createdAt: string;
 }
@@ -1062,6 +1225,22 @@ export interface PayloadLockedDocument {
         value: number | Return;
       } | null)
     | ({
+        relationTo: 'reviews';
+        value: number | Review;
+      } | null)
+    | ({
+        relationTo: 'gift-cards';
+        value: number | GiftCard;
+      } | null)
+    | ({
+        relationTo: 'back-in-stock-requests';
+        value: number | BackInStockRequest;
+      } | null)
+    | ({
+        relationTo: 'bundles';
+        value: number | Bundle;
+      } | null)
+    | ({
         relationTo: 'rate-limit-counters';
         value: number | RateLimitCounter;
       } | null)
@@ -1169,6 +1348,17 @@ export interface ProductsSelect<T extends boolean = true> {
   stockQuantity?: T;
   isOneOfAKind?: T;
   status?: T;
+  ratingAvg?: T;
+  ratingCount?: T;
+  preorderEnabled?: T;
+  preorderMessage?: T;
+  specs?:
+    | T
+    | {
+        label?: T;
+        value?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1223,6 +1413,10 @@ export interface OrdersSelect<T extends boolean = true> {
   deliveryFee?: T;
   discountCode?: T;
   discountAmount?: T;
+  giftCardCode?: T;
+  giftCardAmount?: T;
+  storeCreditApplied?: T;
+  pointsRedeemed?: T;
   total?: T;
   paymentMethod?: T;
   paymentStatus?: T;
@@ -1441,6 +1635,7 @@ export interface GarmentTypesSelect<T extends boolean = true> {
   _order?: T;
   name?: T;
   slug?: T;
+  sizeGuide?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1492,6 +1687,10 @@ export interface CustomersSelect<T extends boolean = true> {
       };
   wishlist?: T;
   cartRecoveryOptOut?: T;
+  storeCredit?: T;
+  loyaltyPoints?: T;
+  referredBy?: T;
+  referralRewardGranted?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1551,7 +1750,70 @@ export interface ReturnsSelect<T extends boolean = true> {
   reason?: T;
   status?: T;
   refundAmount?: T;
+  refundMethod?: T;
   adminNotes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "reviews_select".
+ */
+export interface ReviewsSelect<T extends boolean = true> {
+  product?: T;
+  customer?: T;
+  customerName?: T;
+  rating?: T;
+  text?: T;
+  verifiedPurchase?: T;
+  status?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "gift-cards_select".
+ */
+export interface GiftCardsSelect<T extends boolean = true> {
+  code?: T;
+  initialBalance?: T;
+  remainingBalance?: T;
+  purchaserEmail?: T;
+  recipientEmail?: T;
+  enabled?: T;
+  expiresAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "back-in-stock-requests_select".
+ */
+export interface BackInStockRequestsSelect<T extends boolean = true> {
+  product?: T;
+  email?: T;
+  customer?: T;
+  notifiedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bundles_select".
+ */
+export interface BundlesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  description?: T;
+  products?:
+    | T
+    | {
+        product?: T;
+        quantity?: T;
+        id?: T;
+      };
+  bundlePrice?: T;
+  status?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1753,6 +2015,10 @@ export interface SiteSetting {
    */
   vatRegistrationNumber?: string | null;
   /**
+   * Allow a gift card and a discount code to be applied to the same order (ROADMAP Part 6.3).
+   */
+  giftCardsCombinableWithDiscounts?: boolean | null;
+  /**
    * Email a low-stock summary when any published product is at or below the threshold (ROADMAP Part 3.3). Pushes the dashboard's existing low-stock widget instead of relying on someone checking it.
    */
   lowStockAlertEnabled?: boolean | null;
@@ -1934,6 +2200,26 @@ export interface SiteSetting {
    * Set automatically — prevents sending twice in the same period.
    */
   reportsEmailLastSentAt?: string | null;
+  /**
+   * Customers earn points on delivered orders and can redeem them at checkout.
+   */
+  loyaltyEnabled?: boolean | null;
+  /**
+   * Points earned per $1 spent (order subtotal) once delivered.
+   */
+  loyaltyEarnRatePerDollar?: number | null;
+  /**
+   * Points required to redeem $1 off at checkout.
+   */
+  loyaltyBurnPointsPerDollar?: number | null;
+  /**
+   * Points credited to the referring customer once the referred customer's first order is delivered.
+   */
+  referralReferrerPoints?: number | null;
+  /**
+   * Signup bonus points credited to a new customer who registered via a referral link.
+   */
+  referralRefereePoints?: number | null;
   updatedAt?: string | null;
   createdAt?: string | null;
 }
@@ -2206,6 +2492,7 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   vatEnabled?: T;
   vatRate?: T;
   vatRegistrationNumber?: T;
+  giftCardsCombinableWithDiscounts?: T;
   lowStockAlertEnabled?: T;
   lowStockThreshold?: T;
   lowStockAlertLastSentAt?: T;
@@ -2264,6 +2551,11 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   sendDiscountsReport?: T;
   sendPaymentsReport?: T;
   reportsEmailLastSentAt?: T;
+  loyaltyEnabled?: T;
+  loyaltyEarnRatePerDollar?: T;
+  loyaltyBurnPointsPerDollar?: T;
+  referralReferrerPoints?: T;
+  referralRefereePoints?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

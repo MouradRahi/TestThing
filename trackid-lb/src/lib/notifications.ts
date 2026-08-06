@@ -581,6 +581,65 @@ export async function sendAbandonedCartEmail(data: AbandonedCartEmailData): Prom
   }
 }
 
+// --- Back-in-stock alert ---
+
+export type BackInStockEmailData = {
+  email: string
+  productTitle: string
+  productUrl: string
+  brand?: BrandCopy
+}
+
+export async function sendBackInStockEmail(data: BackInStockEmailData): Promise<void> {
+  if (!data.email) return
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[notifications] RESEND_API_KEY not set — skipping back-in-stock email')
+    return
+  }
+
+  const resend = new Resend(apiKey)
+  const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const brand = data.brand ?? DEFAULT_BRAND
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Back in stock</title></head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;">
+    <tr><td align="center" style="padding:48px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
+        </td></tr>
+        <tr><td style="padding:36px 0 6px;">
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">Back in stock</h1>
+        </td></tr>
+        <tr><td style="padding-bottom:28px;">
+          <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">${escapeHtml(data.productTitle)} is back — grab it before it's gone again.</p>
+        </td></tr>
+        <tr><td style="padding-bottom:32px;">
+          <a href="${data.productUrl}" style="display:inline-block;background-color:#c9a96e;color:#0a0a0a;padding:12px 28px;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:0.05em;">Shop now</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { error } = await resend.emails.send({
+      from,
+      to: data.email,
+      subject: `Back in stock — ${data.productTitle}`,
+      html,
+    })
+    if (error) console.error('[notifications] Resend back-in-stock email error:', error)
+  } catch (err) {
+    console.error('[notifications] Failed to send back-in-stock email:', err)
+  }
+}
+
 // --- Account ---
 
 export type PasswordResetEmailData = {

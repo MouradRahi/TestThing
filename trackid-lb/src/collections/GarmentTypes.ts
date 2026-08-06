@@ -42,5 +42,11 @@ export const GarmentTypes: CollectionConfig = {
       hooks: { beforeValidate: [formatSlug] },
       admin: { description: 'Auto-generated from the name if left empty.' },
     },
+    {
+      name: 'sizeGuide',
+      type: 'richText',
+      localized: true,
+      admin: { description: 'Shown on the product page (in a toggle section) for any product with this garment type set (ROADMAP Part 6.7).' },
+    },
   ],
 }

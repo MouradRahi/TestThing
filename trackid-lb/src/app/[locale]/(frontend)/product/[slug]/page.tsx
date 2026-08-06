@@ -8,6 +8,9 @@ import { ProductCard } from '@/components/product/ProductCard'
 import { ProductGallery } from '@/components/product/ProductGallery'
 import { WishlistButton } from '@/components/account/WishlistButton'
 import { RichTextRenderer } from '@/components/RichTextRenderer'
+import { WriteReviewForm } from '@/components/product/WriteReviewForm'
+import { NotifyMeForm } from '@/components/product/NotifyMeForm'
+import { getCustomer } from '@/lib/auth'
 import { getSizes, totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
 import { formatPrice, formatLBP } from '@/lib/format'
@@ -90,7 +93,7 @@ export default async function ProductPage({
   const { locale, slug } = await params
   const payload = await getPayload()
 
-  const [{ docs }, settings] = await Promise.all([
+  const [{ docs }, settings, customer] = await Promise.all([
     payload.find({
       collection: 'products',
       where: { slug: { equals: slug }, status: { equals: 'published' } },
@@ -99,6 +102,7 @@ export default async function ProductPage({
       locale: locale as 'en' | 'ar',
     }),
     getSiteSettings(locale),
+    getCustomer(),
   ])
 
   const product = docs[0]
@@ -125,6 +129,17 @@ export default async function ProductPage({
 
   const sizes = getSizes(product)
   const stock = totalStock(product)
+  const specs: Array<{ label: string; value: string }> = Array.isArray(product.specs) ? product.specs : []
+
+  // Reviews (ROADMAP Part 6.2) — published only; rating summary is the
+  // denormalized product.ratingAvg/ratingCount, no extra query needed for it.
+  const { docs: reviews } = await payload.find({
+    collection: 'reviews',
+    where: { and: [{ product: { equals: product.id } }, { status: { equals: 'published' } }] },
+    sort: '-createdAt',
+    limit: 20,
+    depth: 0,
+  })
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -141,9 +156,18 @@ export default async function ProductPage({
       '@type': 'Offer',
       price: product.price,
       priceCurrency: 'USD',
-      availability: stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      availability: stock > 0 || product.preorderEnabled ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       seller: { '@type': 'Organization', name: storeName },
     },
+    ...(product.ratingCount && product.ratingCount > 0
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: product.ratingAvg,
+            reviewCount: product.ratingCount,
+          },
+        }
+      : {}),
   }
 
   // Two related strips: (1) more from the same artist, (2) more of the same
@@ -244,6 +268,13 @@ export default async function ProductPage({
 
           <h1 className="text-3xl font-bold text-foreground leading-tight">{product.title}</h1>
 
+          {product.ratingCount != null && product.ratingCount > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-muted">
+              <span className="text-accent" aria-hidden>{'★'.repeat(Math.round(product.ratingAvg || 0))}{'☆'.repeat(5 - Math.round(product.ratingAvg || 0))}</span>
+              <span>{t('reviewCount', { count: product.ratingCount })}</span>
+            </div>
+          )}
+
           <p className="text-xl text-foreground">
             {formatPrice(product.price)}
             {currency.mode === 'both' && currency.exchangeRate && (
@@ -257,6 +288,12 @@ export default async function ProductPage({
             </span>
           )}
 
+          {product.preorderEnabled && (
+            <p className="text-xs text-accent uppercase tracking-[0.2em]">
+              {product.preorderMessage || t('preorder')}
+            </p>
+          )}
+
           {stock > 0 && stock <= 2 && !product.isOneOfAKind && (
             <p className="text-xs text-accent uppercase tracking-[0.2em]">
               {t('onlyLeft', { count: stock })}
@@ -264,16 +301,31 @@ export default async function ProductPage({
           )}
 
           <div className="pt-2">
-            <AddToCart
-              id={String(product.id)}
-              slug={product.slug}
-              title={product.title}
-              price={product.price}
-              imageUrl={galleryImages[0]?.url}
-              outOfStock={stock === 0}
-              maxQuantity={sizes.length > 0 ? undefined : (product.stockQuantity ?? 1)}
-              sizes={sizes}
-            />
+            {stock === 0 && !product.preorderEnabled ? (
+              <div className="space-y-3">
+                <AddToCart
+                  id={String(product.id)}
+                  slug={product.slug}
+                  title={product.title}
+                  price={product.price}
+                  imageUrl={galleryImages[0]?.url}
+                  outOfStock
+                  sizes={sizes}
+                />
+                <NotifyMeForm productId={String(product.id)} />
+              </div>
+            ) : (
+              <AddToCart
+                id={String(product.id)}
+                slug={product.slug}
+                title={product.title}
+                price={product.price}
+                imageUrl={galleryImages[0]?.url}
+                outOfStock={false}
+                maxQuantity={sizes.length > 0 ? undefined : (product.stockQuantity ?? 1)}
+                sizes={sizes}
+              />
+            )}
             <div className="pt-3">
               <WishlistButton productId={String(product.id)} fetchState />
             </div>
@@ -316,6 +368,34 @@ export default async function ProductPage({
               {productBlurb}
             </p>
           </div>
+
+          {/* Flexible specs (ROADMAP Part 6.7) — materials, care, dimensions, etc. */}
+          {specs.length > 0 && (
+            <div className="pt-4 border-t border-border">
+              <dl className="space-y-1.5 text-xs">
+                {specs.map((s, i) => (
+                  <div key={i} className="flex justify-between gap-4">
+                    <dt className="text-muted">{s.label}</dt>
+                    <dd className="text-foreground text-end">{s.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {/* Size guide (ROADMAP Part 6.7) — from the product's garment type, when set */}
+          {garmentType && 'sizeGuide' in garmentType && garmentType.sizeGuide && (
+            <details className="pt-4 border-t border-border text-xs group">
+              <summary className="cursor-pointer uppercase tracking-[0.2em] text-muted hover:text-foreground transition-colors">
+                {t('sizeGuide')}
+              </summary>
+              <div className="pt-3">
+                <RichTextRenderer
+                  content={garmentType.sizeGuide as unknown as Parameters<typeof RichTextRenderer>[0]['content']}
+                />
+              </div>
+            </details>
+          )}
         </div>
       </div>
 
@@ -338,6 +418,40 @@ export default async function ProductPage({
           {renderRelatedGrid(sameGarment)}
         </section>
       )}
+
+      {/* Reviews (ROADMAP Part 6.2) */}
+      <section className="mt-24 pt-12 border-t border-border max-w-2xl">
+        <h2 className="text-xs uppercase tracking-[0.25em] text-muted mb-8">
+          {t('reviews')}
+        </h2>
+
+        {customer && (
+          <div className="mb-10 pb-10 border-b border-border">
+            <WriteReviewForm productId={String(product.id)} />
+          </div>
+        )}
+
+        {reviews.length === 0 ? (
+          <p className="text-sm text-muted">{t('noReviews')}</p>
+        ) : (
+          <div className="space-y-6">
+            {reviews.map((r) => (
+              <div key={r.id} className="border-b border-border pb-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-accent text-sm" aria-hidden>
+                    {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
+                  </span>
+                  <span className="text-xs text-foreground">{r.customerName}</span>
+                  {r.verifiedPurchase && (
+                    <span className="text-[10px] text-muted uppercase tracking-widest">{t('verifiedPurchase')}</span>
+                  )}
+                </div>
+                <p className="text-sm text-muted leading-relaxed">{r.text}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   )
 }

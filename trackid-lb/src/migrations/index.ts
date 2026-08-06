@@ -14,6 +14,7 @@ import * as migration_20260731_150000_add_analytics_and_scheduled_reports from '
 import * as migration_20260731_190000_add_vat_settings from './20260731_190000_add_vat_settings';
 import * as migration_20260731_210000_add_courier_and_low_stock_alert from './20260731_210000_add_courier_and_low_stock_alert';
 import * as migration_20260731_230000_add_returns_and_cart_recovery from './20260731_230000_add_returns_and_cart_recovery';
+import * as migration_20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty from './20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty';
 
 export const migrations = [
   {
@@ -60,5 +61,10 @@ export const migrations = [
     up: migration_20260731_230000_add_returns_and_cart_recovery.up,
     down: migration_20260731_230000_add_returns_and_cart_recovery.down,
     name: '20260731_230000_add_returns_and_cart_recovery',
+  },
+  {
+    up: migration_20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty.up,
+    down: migration_20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty.down,
+    name: '20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty',
   },
 ];

@@ -3,6 +3,9 @@ import { formatSlug } from '../lib/slug'
 import { safeRevalidatePath } from '../lib/revalidate'
 import { mediaUrl } from '../lib/media-fill'
 import { isAdmin } from '../lib/access'
+import { totalStock } from '../lib/stock'
+import { sendBackInStockEmail } from '../lib/notifications'
+import { resolveBrandCopy } from '../lib/site-settings'
 
 export const Products: CollectionConfig = {
   slug: 'products',
@@ -44,6 +47,47 @@ export const Products: CollectionConfig = {
         if (doc?.slug) safeRevalidatePath(`/product/${doc.slug}`)
         if (previousDoc?.slug && previousDoc.slug !== doc?.slug) {
           safeRevalidatePath(`/product/${previousDoc.slug}`)
+        }
+      },
+      // Back-in-stock notifications (ROADMAP Part 6.4) — fires only on a
+      // genuine 0 -> positive transition, scoped to fully-sold-out products
+      // (v1 doesn't do per-size "notify me" alongside an otherwise-in-stock
+      // product — see BackInStockRequests.ts).
+      async ({ doc, previousDoc, req }) => {
+        const before = previousDoc ? totalStock(previousDoc) : 0
+        const after = totalStock(doc)
+        if (before > 0 || after <= 0) return
+        try {
+          const { docs: pending } = await req.payload.find({
+            collection: 'back-in-stock-requests',
+            where: { and: [{ product: { equals: doc.id } }, { notifiedAt: { exists: false } }] },
+            limit: 500,
+            depth: 0,
+          })
+          if (pending.length === 0) return
+          let brand
+          try {
+            const settings = await req.payload.findGlobal({ slug: 'site-settings' })
+            brand = resolveBrandCopy(settings as unknown as Record<string, unknown>)
+          } catch {
+            // fresh install without the global — notifications.ts applies defaults
+          }
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+          for (const request of pending) {
+            await sendBackInStockEmail({
+              email: request.email,
+              productTitle: doc.title,
+              productUrl: `${siteUrl}/product/${doc.slug}`,
+              brand,
+            })
+            await req.payload.update({
+              collection: 'back-in-stock-requests',
+              id: request.id,
+              data: { notifiedAt: new Date().toISOString() },
+            })
+          }
+        } catch (err) {
+          req.payload.logger.error(`[products] Back-in-stock notification failed: ${String(err)}`)
         }
       },
     ],
@@ -202,6 +246,48 @@ export const Products: CollectionConfig = {
       defaultValue: 'draft',
       required: true,
       index: true,
+    },
+    {
+      name: 'ratingAvg',
+      type: 'number',
+      defaultValue: 0,
+      admin: { readOnly: true, description: 'Auto-computed from published reviews (ROADMAP Part 6.2).' },
+    },
+    {
+      name: 'ratingCount',
+      type: 'number',
+      defaultValue: 0,
+      admin: { readOnly: true },
+    },
+    {
+      name: 'preorderEnabled',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description:
+          'Show preorder messaging instead of normal stock messaging (ROADMAP Part 6.4). Does NOT change stock mechanics — set Stock Quantity above to your preorder allocation; it decrements normally as preorders come in.',
+      },
+    },
+    {
+      name: 'preorderMessage',
+      type: 'text',
+      localized: true,
+      admin: {
+        condition: (data) => !!data?.preorderEnabled,
+        description: 'e.g. "Ships in 2–3 weeks"',
+      },
+    },
+    {
+      name: 'specs',
+      type: 'array',
+      admin: {
+        description:
+          'Flexible key/value specs shown on the product page — materials, care instructions, dimensions, etc. (ROADMAP Part 6.7). Not per-locale in v1 — write once, same for every language (avoids an uncertain nested-locales table shape for a hand-written migration; can be revisited later).',
+      },
+      fields: [
+        { name: 'label', type: 'text', required: true },
+        { name: 'value', type: 'text', required: true },
+      ],
     },
   ],
   timestamps: true,

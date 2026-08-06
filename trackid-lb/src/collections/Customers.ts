@@ -75,6 +75,32 @@ export const Customers: CollectionConfig = {
         description: 'Set via the one-click unsubscribe link in a recovery email (ROADMAP Part 6.5) — never shown in the customer-facing profile form.',
       },
     },
+    {
+      name: 'storeCredit',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      admin: { description: 'Store credit balance in USD (ROADMAP Part 6.3) — a Returns refund can be issued as credit instead of cash. Applied at checkout.' },
+    },
+    {
+      name: 'loyaltyPoints',
+      type: 'number',
+      defaultValue: 0,
+      min: 0,
+      admin: { description: 'Earned on delivered orders, redeemable at checkout (ROADMAP Part 6.6).' },
+    },
+    {
+      name: 'referredBy',
+      type: 'relationship',
+      relationTo: 'customers',
+      admin: { readOnly: true, description: 'Set at registration from a ?ref= link. Reward is credited once this customer\'s first order is delivered.' },
+    },
+    {
+      name: 'referralRewardGranted',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { readOnly: true, description: 'Set once the referral reward has been paid out — prevents double-crediting on later orders.' },
+    },
   ],
   timestamps: true,
 }

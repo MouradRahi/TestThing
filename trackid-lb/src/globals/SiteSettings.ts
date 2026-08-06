@@ -248,6 +248,12 @@ export const SiteSettings: GlobalConfig = {
               },
             },
             {
+              name: 'giftCardsCombinableWithDiscounts',
+              type: 'checkbox',
+              defaultValue: true,
+              admin: { description: 'Allow a gift card and a discount code to be applied to the same order (ROADMAP Part 6.3).' },
+            },
+            {
               name: 'lowStockAlertEnabled',
               type: 'checkbox',
               defaultValue: false,
@@ -686,6 +692,50 @@ export const SiteSettings: GlobalConfig = {
                 description: 'Set automatically — prevents sending twice in the same period.',
                 date: { pickerAppearance: 'dayAndTime' },
               },
+            },
+          ],
+        },
+
+        // ── LOYALTY ─────────────────────────────────────────────────────────
+        // Points + referrals (ROADMAP Part 6.6) — flagged "optional per brand"
+        // in the roadmap itself; off by default so it never appears unless
+        // deliberately turned on.
+        {
+          label: 'Loyalty',
+          fields: [
+            {
+              name: 'loyaltyEnabled',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: { description: 'Customers earn points on delivered orders and can redeem them at checkout.' },
+            },
+            {
+              name: 'loyaltyEarnRatePerDollar',
+              type: 'number',
+              defaultValue: 1,
+              min: 0,
+              admin: { condition: (data) => !!data?.loyaltyEnabled, description: 'Points earned per $1 spent (order subtotal) once delivered.' },
+            },
+            {
+              name: 'loyaltyBurnPointsPerDollar',
+              type: 'number',
+              defaultValue: 100,
+              min: 1,
+              admin: { condition: (data) => !!data?.loyaltyEnabled, description: 'Points required to redeem $1 off at checkout.' },
+            },
+            {
+              name: 'referralReferrerPoints',
+              type: 'number',
+              defaultValue: 200,
+              min: 0,
+              admin: { condition: (data) => !!data?.loyaltyEnabled, description: 'Points credited to the referring customer once the referred customer\'s first order is delivered.' },
+            },
+            {
+              name: 'referralRefereePoints',
+              type: 'number',
+              defaultValue: 100,
+              min: 0,
+              admin: { condition: (data) => !!data?.loyaltyEnabled, description: 'Signup bonus points credited to a new customer who registered via a referral link.' },
             },
           ],
         },

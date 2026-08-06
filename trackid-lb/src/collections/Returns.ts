@@ -4,6 +4,7 @@ import { logAuditEvent } from '../lib/audit-log'
 import { sendReturnStatusEmail } from '../lib/notifications'
 import { resolveBrandCopy } from '../lib/site-settings'
 import { processRefund } from '../lib/payments/service'
+import { grantStoreCredit } from '../lib/store-credit'
 
 // Return/exchange requests (ROADMAP Part 6.1). Created only via
 // POST /api/returns (the customer-facing route validates ownership + order
@@ -75,7 +76,12 @@ export const Returns: CollectionConfig = {
           }
         }
       },
-      // Refund on entering "refunded" — reuses processRefund() as-is.
+      // Refund on entering "refunded" — reuses processRefund() as-is, or
+      // grants store credit instead when the admin picked that as the
+      // refund method (ROADMAP Part 6.3's "store credit as a refund
+      // destination"). Store credit never fails the way processRefund can
+      // (no payment-status gate to satisfy) — a clean way to settle a
+      // COD/unpaid-order return without a manual cash refund outside the app.
       async ({ doc, previousDoc, req }) => {
         if (previousDoc?.status === 'refunded' || doc?.status !== 'refunded') return
         const items: Array<{ priceAtPurchase?: number; quantity?: number }> = Array.isArray(doc.items)
@@ -87,6 +93,18 @@ export const Returns: CollectionConfig = {
         )
         const amount = typeof doc.refundAmount === 'number' && doc.refundAmount > 0 ? doc.refundAmount : defaultAmount
         if (!(amount > 0)) return
+        const rounded = Math.round(amount * 100) / 100
+
+        if (doc.refundMethod === 'store_credit') {
+          const customerId = typeof doc.customer === 'object' && doc.customer ? (doc.customer as { id: number }).id : doc.customer
+          if (customerId) {
+            await grantStoreCredit(req.payload, customerId, rounded)
+          } else {
+            req.payload.logger.warn(`[returns] Return ${doc.id} refundMethod=store_credit but has no customer — nothing granted.`)
+          }
+          return
+        }
+
         // `doc.order` can be a populated object (not a raw id) depending on
         // the depth the triggering update ran at — normalize before handing
         // it to processRefund's findByID, or it silently "Order not found"s.
@@ -94,7 +112,7 @@ export const Returns: CollectionConfig = {
         try {
           const result = await processRefund(req.payload, {
             orderId,
-            amount: Math.round(amount * 100) / 100,
+            amount: rounded,
             restock: false, // already restocked at "received" above
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             adminEmail: (req.user as any)?.email || 'system',
@@ -206,6 +224,18 @@ export const Returns: CollectionConfig = {
       min: 0,
       admin: {
         description: 'Override the auto-computed refund amount (sum of item prices) before marking as Refunded. Leave empty to use the default.',
+      },
+    },
+    {
+      name: 'refundMethod',
+      type: 'select',
+      defaultValue: 'cash',
+      options: [
+        { label: 'Cash / original payment method', value: 'cash' },
+        { label: 'Store credit', value: 'store_credit' },
+      ],
+      admin: {
+        description: 'Set before marking as Refunded. "Cash" calls the normal refund flow (fails gracefully for unpaid/COD orders — settle manually). "Store credit" always succeeds and never touches payment status.',
       },
     },
     {
