@@ -80,6 +80,7 @@ export interface Config {
     payments: Payment;
     customers: Customer;
     carts: Cart;
+    returns: Return;
     'rate-limit-counters': RateLimitCounter;
     'idempotency-keys': IdempotencyKey;
     'audit-log': AuditLog;
@@ -104,6 +105,7 @@ export interface Config {
     payments: PaymentsSelect<false> | PaymentsSelect<true>;
     customers: CustomersSelect<false> | CustomersSelect<true>;
     carts: CartsSelect<false> | CartsSelect<true>;
+    returns: ReturnsSelect<false> | ReturnsSelect<true>;
     'rate-limit-counters': RateLimitCountersSelect<false> | RateLimitCountersSelect<true>;
     'idempotency-keys': IdempotencyKeysSelect<false> | IdempotencyKeysSelect<true>;
     'audit-log': AuditLogSelect<false> | AuditLogSelect<true>;
@@ -464,6 +466,10 @@ export interface Customer {
    * Saved-for-later products.
    */
   wishlist?: (number | Product)[] | null;
+  /**
+   * Set via the one-click unsubscribe link in a recovery email (ROADMAP Part 6.5) — never shown in the customer-facing profile form.
+   */
+  cartRecoveryOptOut?: boolean | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -829,6 +835,50 @@ export interface Cart {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Set once the abandoned-cart recovery email has gone out (ROADMAP Part 6.5) — never sent twice for the same cart.
+   */
+  recoveryEmailSentAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Customer-initiated return/exchange requests. Created via the storefront — status changes here drive restock + refund.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "returns".
+ */
+export interface Return {
+  id: number;
+  order: number | Order;
+  /**
+   * Snapshotted at creation for status emails — avoids a relation lookup there.
+   */
+  orderNumber: string;
+  customer: number | Customer;
+  customerName: string;
+  customerEmail: string;
+  /**
+   * The specific items (and quantities) being returned — may be a subset of the order.
+   */
+  items: {
+    productId: string;
+    titleAtPurchase: string;
+    size?: string | null;
+    priceAtPurchase: number;
+    quantity: number;
+    id?: string | null;
+  }[];
+  reason: string;
+  status: 'requested' | 'approved' | 'received' | 'refunded' | 'rejected';
+  /**
+   * Override the auto-computed refund amount (sum of item prices) before marking as Refunded. Leave empty to use the default.
+   */
+  refundAmount?: number | null;
+  /**
+   * Internal notes — e.g. why a return was rejected. Never shown to the customer.
+   */
+  adminNotes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1006,6 +1056,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'carts';
         value: number | Cart;
+      } | null)
+    | ({
+        relationTo: 'returns';
+        value: number | Return;
       } | null)
     | ({
         relationTo: 'rate-limit-counters';
@@ -1437,6 +1491,7 @@ export interface CustomersSelect<T extends boolean = true> {
         id?: T;
       };
   wishlist?: T;
+  cartRecoveryOptOut?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1469,6 +1524,34 @@ export interface CartsSelect<T extends boolean = true> {
         quantity?: T;
         id?: T;
       };
+  recoveryEmailSentAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "returns_select".
+ */
+export interface ReturnsSelect<T extends boolean = true> {
+  order?: T;
+  orderNumber?: T;
+  customer?: T;
+  customerName?: T;
+  customerEmail?: T;
+  items?:
+    | T
+    | {
+        productId?: T;
+        titleAtPurchase?: T;
+        size?: T;
+        priceAtPurchase?: T;
+        quantity?: T;
+        id?: T;
+      };
+  reason?: T;
+  status?: T;
+  refundAmount?: T;
+  adminNotes?: T;
   updatedAt?: T;
   createdAt?: T;
 }

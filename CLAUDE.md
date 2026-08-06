@@ -1532,3 +1532,73 @@ fully done, v1.**
 - Next: user's call — the VAT/tax report, remaining small F2 pieces, merchant
   conversations (Areeba/NetCommerce/OMT/Whish/Wakilni/Toters — all external, business-side
   decisions), or ENHANCEMENTS a11y/i18n extras. Not yet deployed to prod.
+
+### Session 27 (part 3) — 2026-08-06
+Focus: **ROADMAP Part 6.5 (abandoned-cart recovery) + 6.1 (Returns & Exchanges)**, the two
+items recommended and picked at the start of this "what's next" round. Both now ☑ v1.
+- **Checked before building**: Part 6.5's roadmap text asks for a "cart-cleanup sweep" —
+  grepped `src/app/api/cron/` first and found `cleanup-carts` already exists (Session 22
+  part 5). ROADMAP.md just hadn't been updated to reflect it; nothing to build there, only
+  the recovery *email* itself was actually open.
+- **6.5 — Abandoned-cart recovery**: `Carts.recoveryEmailSentAt` + `Customers.
+  cartRecoveryOptOut` (new fields) → `GET /api/cron/abandoned-cart-recovery` finds carts
+  idle >24h with a linked customer account (guest carts have no captured email — out of
+  scope, matching the same login-required boundary Returns uses), resolves current
+  items/prices via the existing `serializeCart()`, sends via a new
+  `sendAbandonedCartEmail()`. Sends **exactly once per cart ever** (a per-cart flag, not a
+  daily-reset dedupe like the other crons — different rule, "one per abandoned cart" not
+  "one per day"). One-click opt-out (`src/lib/unsubscribe-token.ts`, HMAC-signed, no login
+  needed, doesn't expire) → `GET /api/account/cart-recovery-optout`.
+- **6.1 — Returns & Exchanges**: new `Returns` collection (requested/approved/received/
+  refunded/rejected). `POST /api/returns` — logged-in customer only, only `delivered`
+  orders, quantities validated against the order (not against prior return requests on the
+  same order — v1 simplification). New `/account/returns/new/[orderNumber]` +
+  `ReturnRequestForm.tsx`; `/account` gained a "Request Return" link on delivered orders
+  and a "Your Returns" status list.
+- **Deliberately narrower interpretation of the roadmap wording, explained in the
+  collection's own comments**: "approved returns restock" → restock actually fires on
+  entering **received** (physically back), not approval (restocking at approval would let
+  a customer keep the item *and* get it restocked — a real fraud/correctness concern worth
+  deviating from a literal reading for), scoped to the return's own items only (a return
+  can be partial, unlike Orders' whole-order cancel/restock hook). Refund fires on entering
+  **refunded** and calls the *existing* `processRefund()` — the same function the admin's
+  manual Refund button already uses — rather than writing new money-moving logic; a
+  COD/unpaid order fails the attempt gracefully (logs, doesn't block the status save) since
+  there's nothing for `processRefund` to reverse. Store credit (6.3) not built — v1 refund
+  is real-money only.
+- **Caught and fixed a real bug via verification, not review**: first test run of the
+  refund flow silently failed with `"Order not found."` — traced to `doc.order` inside the
+  afterChange hook sometimes being a *populated object* rather than a raw id (depends on
+  the depth the triggering update ran at), which `processRefund()`'s `findByID` then
+  couldn't match. Caught only because the verification script asserted the actual expected
+  `partially_refunded`/`refundedAmount: 20` values instead of just checking the call didn't
+  throw — a shallower check would have shipped this. Fixed by normalizing to a plain id
+  before the call; re-verified clean.
+- **Verified end-to-end against a real running server, twice** (once before the fix, once
+  after): built a real production server (port 3100), created a real customer + order +
+  admin via the Local API, drove the actual customer-facing create flow over real HTTP
+  (over-quantity → 400, unauthenticated → 401), then simulated every admin status
+  transition as a real admin user — approved (a real status email delivered to a real
+  inbox), received (stock +1, correctly scoped to only the returned item, not the whole
+  order), refunded (confirmed via the order's actual `paymentStatus`/`refundedAmount`
+  after the call, not just the return code's own success flag), and a separate rejection
+  (confirmed *no* restock and *no* refund fired) — plus checked the resulting AuditLog
+  entries read back correctly. For 6.5: backdated a cart's `updatedAt` via direct SQL
+  (Payload always overwrites it on save, so this was the only way to simulate "idle 24h+"
+  without literally waiting), ran the cron twice (first found+sent for real, second
+  correctly found nothing), and verified both a real signed opt-out token and a tampered
+  one. All test records, stock, and settings cleaned back to their exact original state
+  afterward.
+- **Migration**: hand-written again (`20260731_230000_add_returns_and_cart_recovery.ts`) —
+  same interactive-wizard-hangs-under-this-runner reasoning as every prior one; new
+  `returns`/`returns_items` tables mirror the `orders`/`orders_items` shape and naming
+  convention exactly, plus two purely-additive columns on `carts`/`customers`. Applied
+  cleanly to dev (9th migration, batch numbers intact).
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types`); `npm test` 31/31; full
+  `npm run build` verified.
+- ROADMAP.md Part 6.1/6.5 marked ☑ DONE v1; F6 execution-order row updated (5 of 7 Part 6
+  sub-items — reviews, gift cards, back-in-stock, loyalty, catalog depth — remain open,
+  none blocking).
+- Next: user's call — the VAT/tax report, remaining Part 6 items (6.2 reviews is probably
+  the next-best-value one — real SEO/customer-facing value, no blockers), remaining small
+  F2 pieces, merchant conversations, or ENHANCEMENTS extras. Not yet deployed to prod.

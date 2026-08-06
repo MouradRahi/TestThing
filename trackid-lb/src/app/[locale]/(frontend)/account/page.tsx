@@ -29,15 +29,26 @@ export default async function AccountPage() {
   if (!auth) redirect(locale === 'en' ? '/account/login' : `/${locale}/account/login`)
 
   const payload = await getPayload()
-  const [t, tOrder] = await Promise.all([getTranslations('account'), getTranslations('order')])
+  const [t, tOrder, tReturns] = await Promise.all([
+    getTranslations('account'),
+    getTranslations('order'),
+    getTranslations('returns'),
+  ])
 
-  const [customer, { docs: orders }] = await Promise.all([
+  const [customer, { docs: orders }, { docs: returns }] = await Promise.all([
     payload.findByID({ collection: 'customers', id: auth.id, depth: 1, locale: locale as 'en' | 'ar' }),
     payload.find({
       collection: 'orders',
       where: { customer: { equals: auth.id } },
       sort: '-createdAt',
       limit: 50,
+      depth: 0,
+    }),
+    payload.find({
+      collection: 'returns',
+      where: { customer: { equals: auth.id } },
+      sort: '-createdAt',
+      limit: 20,
       depth: 0,
     }),
   ])
@@ -96,6 +107,17 @@ export default async function AccountPage() {
                     >
                       {tOrder('downloadInvoice')}
                     </a>
+                    {o.orderStatus === 'delivered' && (
+                      <>
+                        <span className="text-[10px] text-muted">·</span>
+                        <Link
+                          href={`/account/returns/new/${o.orderNumber}`}
+                          className="text-[10px] uppercase tracking-widest text-accent hover:text-accent-hover transition-colors"
+                        >
+                          {tReturns('requestReturn')}
+                        </Link>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -103,6 +125,24 @@ export default async function AccountPage() {
           </div>
         )}
       </section>
+
+      {/* Returns */}
+      {returns.length > 0 && (
+        <section className="mb-14">
+          <h2 className="text-[10px] uppercase tracking-[0.3em] text-muted mb-5">{tReturns('yourReturns')}</h2>
+          <div className="divide-y divide-border border-y border-border">
+            {returns.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-4 py-4">
+                <div className="min-w-0">
+                  <p className="font-mono text-sm text-foreground">{r.orderNumber as string}</p>
+                  <p className="text-[11px] text-muted mt-0.5">{t('placedOn', { date: fmtDate(r.createdAt as string) })}</p>
+                </div>
+                <p className="text-xs text-foreground">{tReturns(`statuses.${r.status as string}`)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Wishlist */}
       <section className="mb-14">

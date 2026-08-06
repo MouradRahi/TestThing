@@ -491,11 +491,43 @@ calls the same server-authoritative functions the app already trusts.
 
 The features "any business could possibly require" that aren't payments/reports/AI.
 
-### 6.1 Returns & exchanges (RMA)
-- ☐ Customer-initiated return request from order history (reason, items) →
-  `Returns` collection (statuses: requested / approved / received / refunded / rejected)
-- ☐ Admin workflow + status emails; approved returns restock + optionally trigger
-  Part 2 refund or issue store credit (6.3)
+### 6.1 Returns & exchanges (RMA) — ☑ DONE v1 (Session 27, part 3)
+- ☑ Customer-initiated return request from order history (reason, items) →
+  `Returns` collection (statuses: requested / approved / received / refunded / rejected).
+  `POST /api/returns` — logged-in customer only (matches "from order history," which only
+  logged-in customers have; a guest-order flow would need a separate orderNumber+email
+  verification step, not attempted), only `delivered` orders eligible, requested quantities
+  validated against what the order actually contains (not against prior return requests on
+  the same order — v1 simplification). `/account/returns/new/[orderNumber]` +
+  `ReturnRequestForm.tsx` — per-item checkboxes + quantity, submits the request; `/account`
+  shows a "Request Return" link on delivered orders and a "Your Returns" status list.
+- ☑ Admin workflow + status emails (`sendReturnStatusEmail` — approved/received/refunded/
+  rejected). **Restock and refund triggers deliberately interpreted narrower than a literal
+  "approved returns restock" reading**: restock fires on entering **received** (the item is
+  physically back — restocking at approval would let a customer keep the item *and* get it
+  restocked), scoped to the return's own items only (a return can be partial, unlike Orders'
+  whole-order cancel/restock). Refund fires on entering **refunded** and reuses
+  `processRefund()` exactly as the existing admin "Refund" button does — no new
+  money-moving code, just a new caller of the already-verified one; if the order isn't in a
+  refundable payment state (e.g. a COD order never marked "paid"), the attempt fails
+  gracefully and logs for manual settlement rather than blocking the status change. Store
+  credit (6.3) not built — refund is real-money only in v1.
+- **Caught and fixed a real bug via verification, not review**: the refund hook passed
+  `doc.order` straight to `processRefund()`'s `orderId` param — but `doc.order` can be a
+  *populated object*, not a raw id, depending on the depth the triggering update ran at.
+  First verification run silently failed with `"Order not found."` (caught because the test
+  script asserted the expected `partially_refunded`/`refundedAmount` values instead of just
+  checking the call didn't throw) — fixed by normalizing to a plain id before the call,
+  re-verified clean on the next run. Exactly the kind of bug a "does it compile" check alone
+  would have shipped.
+- **Verified end-to-end against a real running server**: created a real customer + order +
+  admin via the Local API, drove the actual customer-facing create flow via real HTTP
+  (over-quantity → 400, unauthenticated → 401), then simulated every admin status
+  transition — approved (real status email delivered to a real inbox), received (stock
+  +1, scoped correctly to only the returned item), refunded (`processRefund` genuinely ran:
+  `partially_refunded`, `refundedAmount: 20` on a $40 order), and a separate rejection
+  (confirmed *no* restock, *no* refund fired) — plus checked the resulting AuditLog entries.
+  Settings/stock/test records all cleaned up afterward.
 
 ### 6.2 Product reviews & ratings
 - ☐ `Reviews` collection: rating + text, linked to customer + product,
@@ -514,11 +546,30 @@ The features "any business could possibly require" that aren't payments/reports/
   → notification fires from the restock hook path
 - ☐ Preorder mode per product (charge on order, fulfil later, clear messaging)
 
-### 6.5 Abandoned-cart recovery
-- ☐ Carts collection already exists — Vercel Cron finds carts idle >24h with a known
-  email (logged-in customers), sends one recovery email (opt-out honored)
-- ☐ This also adds the **cart-cleanup sweep** (delete anonymous carts >60 days — closes
-  the unbounded-growth scalability gap noted in Session 20)
+### 6.5 Abandoned-cart recovery — ☑ DONE (Session 27, part 3)
+- ✅ **Cart-cleanup sweep already existed** (`/api/cron/cleanup-carts`, Session 22 part 5 —
+  checked before building anything and found this half of the item was already done;
+  ROADMAP just hadn't been updated to reflect it).
+- ☑ `GET /api/cron/abandoned-cart-recovery` — same daily-cron auth pattern as the other
+  crons; finds carts idle >24h with a linked customer account (guest carts have no captured
+  email to send to — out of scope, same as the Returns login requirement), skips
+  `cartRecoveryOptOut` customers, resolves current items/prices via the existing
+  `serializeCart()` (so a since-discontinued item doesn't appear in the email), sends via
+  `sendAbandonedCartEmail()`. **Sends exactly once per cart ever** via a per-cart
+  `recoveryEmailSentAt` flag — a different dedupe shape than the other crons' daily-reset
+  guard, because "one recovery email per abandoned cart" is the actual rule, not "one per
+  day."
+- ☑ Opt-out honored via a one-click unsubscribe link, no login required (`src/lib/
+  unsubscribe-token.ts` — HMAC-signed, so a stranger can't opt someone else out by guessing
+  a customer id, but the link itself never expires, unlike a password-reset token) →
+  `GET /api/account/cart-recovery-optout` sets `Customers.cartRecoveryOptOut`.
+- **Verified end-to-end against a real running server**: created a real customer + cart,
+  backdated the cart's `updatedAt` via direct SQL (Payload always overwrites it on save, so
+  this was the only way to simulate "idle 24h+" without literally waiting), ran the cron
+  twice — first run found and sent (confirmed via a real Resend delivery to a real inbox,
+  with `recoveryEmailSentAt` set), second run correctly found nothing (excluded by the
+  now-set flag). Opt-out verified with both a real signed token (flips the flag) and a
+  tampered one (400).
 
 ### 6.6 Loyalty & referrals (post-core, optional per brand)
 - ☐ Points per order value → redeemable as discount at checkout; SiteSettings-configured
@@ -590,7 +641,7 @@ The features "any business could possibly require" that aren't payments/reports/
 | **F3 — Invoicing & fulfillment** ☑ DONE (Session 27) | Part 3 (invoices/VAT ☑, courier ☑ v1 manual-only, inventory ops ☑) | M | F0; invoices richer after F1 |
 | **F4 — Reports** ☑ DONE (Session 25–26), VAT report excepted | Part 4 (engine ☑, exports ☑, scheduled ☑, dashboard v3 ☑) — only the VAT/tax report type remains; unblocked as of Part 3.1 (Session 27), just not yet built | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
 | **F5 — AI assistants** | ⏭ SKIPPED (Session 22) | — | — |
-| **F6 — Commerce depth** | Part 6 (returns, reviews, gift cards, back-in-stock, abandoned cart) | L (parallelizable chunks) | F0; returns-refunds need F1 |
+| **F6 — Commerce depth** ◐ 6.1 ☑ 6.5 ☑ (Session 27) | Part 6 (returns ☑, abandoned cart ☑, reviews ☐, gift cards ☐, back-in-stock ☐, loyalty ☐, catalog depth ☐) | L (parallelizable chunks) | F0; returns-refunds need F1 |
 | **F7 — Growth** | Part 7 | S–M | independent |
 | **F8 — Productization** | Part 8 (generic taxonomy, wizard, flags, docs, demo) | M | best last — flags wrap features that exist; generic-taxonomy item can be pulled earlier |
 

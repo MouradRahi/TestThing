@@ -22,6 +22,7 @@ import { RateLimitCounters } from './collections/RateLimitCounters'
 import { IdempotencyKeys } from './collections/IdempotencyKeys'
 import { AuditLog } from './collections/AuditLog'
 import { AnalyticsCounters } from './collections/AnalyticsCounters'
+import { Returns } from './collections/Returns'
 import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
@@ -61,7 +62,7 @@ export default buildConfig({
       ],
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, Returns, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],
   // Content localization — mirrors the storefront locales (src/i18n/routing.ts).
   // Fields marked `localized: true` store a value per locale; everything else is
   // shared. Add a locale here + in routing.ts + a messages/<locale>.json to grow.

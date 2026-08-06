@@ -216,6 +216,25 @@
     "changingPassword": "جارٍ التغيير…",
     "passwordChanged": "تم تغيير كلمة المرور ✓"
   },
+  "returns": {
+    "requestReturn": "طلب إرجاع",
+    "yourReturns": "طلبات الإرجاع",
+    "selectAtLeastOne": "الرجاء اختيار عنصر واحد على الأقل لإرجاعه.",
+    "reasonRequired": "الرجاء توضيح سبب الإرجاع.",
+    "reason": "سبب الإرجاع",
+    "purchasedQty": "تم شراء {qty}",
+    "submitting": "جارٍ الإرسال…",
+    "submitRequest": "إرسال الطلب",
+    "requestSubmitted": "تم إرسال طلب الإرجاع. سنتواصل معك قريبًا.",
+    "genericError": "حدث خطأ ما. الرجاء المحاولة مرة أخرى.",
+    "statuses": {
+      "requested": "قيد الطلب",
+      "approved": "تمت الموافقة",
+      "received": "تم الاستلام",
+      "refunded": "تم رد المبلغ",
+      "rejected": "مرفوض"
+    }
+  },
   "artist": {
     "shop": "المتجر",
     "noPhoto": "لا توجد صورة",

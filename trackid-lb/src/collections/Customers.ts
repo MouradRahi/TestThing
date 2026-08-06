@@ -67,6 +67,14 @@ export const Customers: CollectionConfig = {
       hasMany: true,
       admin: { description: 'Saved-for-later products.' },
     },
+    {
+      name: 'cartRecoveryOptOut',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        description: 'Set via the one-click unsubscribe link in a recovery email (ROADMAP Part 6.5) — never shown in the customer-facing profile form.',
+      },
+    },
   ],
   timestamps: true,
 }

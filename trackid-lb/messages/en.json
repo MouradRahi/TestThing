@@ -216,6 +216,25 @@
     "changingPassword": "Changing…",
     "passwordChanged": "Password changed ✓"
   },
+  "returns": {
+    "requestReturn": "Request Return",
+    "yourReturns": "Your Returns",
+    "selectAtLeastOne": "Select at least one item to return.",
+    "reasonRequired": "Please explain why you want to return this.",
+    "reason": "Reason for return",
+    "purchasedQty": "purchased {qty}",
+    "submitting": "Submitting…",
+    "submitRequest": "Submit request",
+    "requestSubmitted": "Your return request has been submitted. We'll be in touch soon.",
+    "genericError": "Something went wrong. Please try again.",
+    "statuses": {
+      "requested": "Requested",
+      "approved": "Approved",
+      "received": "Received",
+      "refunded": "Refunded",
+      "rejected": "Rejected"
+    }
+  },
   "artist": {
     "shop": "Shop",
     "noPhoto": "No photo",
