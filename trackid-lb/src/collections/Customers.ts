@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
+import { ValidationError } from 'payload'
 import { isAdmin } from '../lib/access'
+import { isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '../lib/api-guards'
 
 // Storefront customer accounts — a SEPARATE auth collection from staff `Users`.
 // Customers authenticate via the storefront (/account/login), never the admin
@@ -23,6 +25,29 @@ export const Customers: CollectionConfig = {
     useAsTitle: 'email',
     group: 'Customers',
     defaultColumns: ['name', 'email', 'phone', 'createdAt'],
+  },
+  hooks: {
+    // Same strength policy as staff Users — customer accounts now hold real
+    // monetary value (store credit, loyalty points, gift card balances), so
+    // the old "customers are lower-stakes than admin" asymmetry no longer
+    // holds. This is a backstop (register/reset/change-password already give
+    // a friendlier pre-check with the same rule) that applies regardless of
+    // entry point, including any future one.
+    beforeValidate: [
+      ({ data, req }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const password = (data as any)?.password
+        if (typeof password !== 'string') return data // no password being set on this save
+        if (!isStrongPassword(password)) {
+          throw new ValidationError({
+            collection: 'customers',
+            errors: [{ path: 'password', message: PASSWORD_STRENGTH_MESSAGE }],
+            req,
+          })
+        }
+        return data
+      },
+    ],
   },
   access: {
     // Public registration

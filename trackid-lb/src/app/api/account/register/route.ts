@@ -1,7 +1,7 @@
 import { getPayload } from '@/lib/payload'
 import { setAuthCookie } from '@/lib/auth'
 import { CART_COOKIE, mergeGuestCart } from '@/lib/cart-server'
-import { clientIp, cleanString, cleanOptional, EMAIL_RE } from '@/lib/api-guards'
+import { clientIp, cleanString, cleanOptional, EMAIL_RE, isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '@/lib/api-guards'
 import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { resolveLoyaltyConfig, grantPoints } from '@/lib/loyalty'
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 })
   }
-  if (password.length < 8) {
-    return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 })
+  if (!isStrongPassword(password)) {
+    return NextResponse.json({ error: PASSWORD_STRENGTH_MESSAGE }, { status: 400 })
   }
 
   const normalizedEmail = email.toLowerCase()

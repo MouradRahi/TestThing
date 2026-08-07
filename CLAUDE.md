@@ -1709,3 +1709,52 @@ checkout path.
 - Next: user's call — commit + push this work (pending), the VAT/tax report, remaining
   small F2 pieces, merchant conversations (all external/business-side), the deferred items
   listed above, or ENHANCEMENTS-only a11y/i18n extras. Not yet deployed to prod.
+
+### Session 27 (part 5) — 2026-08-07
+Focus: **login-security audit** (user shared a "5 ways your vibecoded login is insecure"
+Instagram reel and asked whether trackID.lb had the same gaps), then fixed the one item the
+user chose to act on.
+- **Audited each of the reel's 5 claims against the real codebase, not assumed**:
+  1. **Session token in LocalStorage** — NOT an issue here. Auth uses an httpOnly
+     `payload-token` cookie (`src/lib/auth.ts`) — never touches `localStorage` (the whole
+     app was already scrubbed of `localStorage` in Session 19, for an unrelated reason).
+  2. **Client-side admin checks** — NOT an issue. Every admin-only mutation is gated
+     server-side via `isAdmin()`/`requireAdminUser()`/Payload `access` blocks (see
+     Session 22 part 10's role-review work); nothing trusts a client-side role flag.
+  3. **No 2FA/OTP** — **real gap**, confirmed. Neither `Users` (staff) nor `Customers` has
+     any second factor. Identified but **not fixed** — user did not select this to act on.
+  4. **`/login` has no rate limiting** — **real gap for admin**, confirmed. Payload's
+     auto-generated `/api/users/login` only has the built-in 5-attempt lockout (Session 22
+     part 10), no IP-based rate limit layer like every custom route in this app has
+     (`durableRateLimit`). The *customer*-facing login (`/api/account/login`, this app's own
+     route) already had a home-grown rate limit from earlier work — only staff login lacked
+     the extra layer. Identified but **not fixed** — user did not select this to act on.
+  5. **No password strength check** — **real gap for customers**, confirmed and **fixed**.
+     `Users` (staff) already enforced 12-char + letter + number since Session 22 part 10;
+     `Customers` had no minimum beyond Payload's own permissive 3-char default, and the
+     three customer-facing password routes (register/reset/change) only checked
+     `length >= 8` with no complexity requirement.
+- **Fix, scoped to exactly what was chosen**: extracted the staff policy into a shared
+  `isStrongPassword()`/`MIN_PASSWORD_LENGTH`/`PASSWORD_STRENGTH_MESSAGE` in
+  `src/lib/api-guards.ts` (12+ chars, ≥1 letter, ≥1 digit); `Users.ts` refactored to use the
+  shared helper (behavior-preserving); `Customers.ts` gained a matching `beforeValidate`
+  hook (new — Customers had no `hooks` key before) as a collection-level backstop regardless
+  of which code path writes a password. The three customer routes
+  (`register`/`reset-password`/`change-password`) now import and use the same helper/message
+  instead of their own inline `length < 8` checks. `passwordHint` copy updated in both
+  `messages/en.json` and `messages/ar.json`; `ChangePasswordForm.tsx` gained a password hint
+  line under the new-password field (it previously showed none at all, unlike the
+  register/reset forms).
+- **Verified against the real dev DB, not just tsc**: a throwaway script exercised
+  `payload.create()` directly for both `customers` and `users` with three weak passwords
+  (too short, long-but-no-digit, long-but-no-letter) and one strong password — all three weak
+  attempts correctly rejected with a field-level validation error, the strong one succeeded,
+  for both collections; test documents cleaned up and the script deleted afterward.
+- ✅ `npx tsc --noEmit` clean; `npm test` 31/31; `npm run build` verified (confirmed no dev
+  server was running on 3000/3100 first, learned from Session 25's shared-`.next` incident).
+- **Deliberately not built this session** (explicit user scope choice, not an oversight):
+  admin `/login` rate limiting and 2FA/OTP for either account type. Both remain real,
+  identified gaps — worth a future session if the user decides to prioritize them.
+- Next: user's call — commit this fix (pending), admin-login rate limiting / 2FA if wanted
+  later, the VAT/tax report, remaining small F2 pieces, merchant conversations, or
+  ENHANCEMENTS-only a11y/i18n extras. Not yet deployed to prod.

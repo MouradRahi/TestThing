@@ -51,3 +51,14 @@ export function isValidPhone(value: string): boolean {
   const digits = value.replace(/[\s()-]/g, '')
   return /^\+?\d{7,15}$/.test(digits)
 }
+
+// Same policy for both auth collections (Users, Customers) — previously
+// staff-only (12+ chars, a letter, a number), extended to customer accounts
+// now that they hold real monetary value (store credit, loyalty points,
+// gift card balances). One shared definition so the register/reset/change
+// routes and each collection's beforeValidate backstop can't drift apart.
+export const MIN_PASSWORD_LENGTH = 12
+export function isStrongPassword(password: string): boolean {
+  return password.length >= MIN_PASSWORD_LENGTH && /[a-zA-Z]/.test(password) && /\d/.test(password)
+}
+export const PASSWORD_STRENGTH_MESSAGE = `Password must be at least ${MIN_PASSWORD_LENGTH} characters and include both a letter and a number.`
