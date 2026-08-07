@@ -4,6 +4,7 @@ import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendOrderWhatsAppAler
 import { resolveBrandCopy, getDeliveryZones, resolveVatConfig } from '../lib/site-settings'
 import { logAuditEvent } from '../lib/audit-log'
 import { generateInvoicePdf } from '../lib/invoices/invoice-pdf'
+import { resolveLoyaltyConfig, grantPoints } from '../lib/loyalty'
 
 export const Orders: CollectionConfig = {
   slug: 'orders',
@@ -188,6 +189,41 @@ export const Orders: CollectionConfig = {
           changedFields: changes.map((f) => ({ field: f, from: previousDoc[f], to: doc[f] })),
         })
       },
+      // Loyalty points + referral rewards (ROADMAP Part 6.6) — earned only
+      // on a genuine `-> delivered` transition (not on creation, not on
+      // re-entering delivered from some other status), so a cancelled-then-
+      // reinstated order can't be farmed for repeat points.
+      async ({ doc, previousDoc, req }) => {
+        if (previousDoc?.orderStatus === 'delivered' || doc?.orderStatus !== 'delivered') return
+        const customerId = typeof doc.customer === 'object' && doc.customer ? (doc.customer as { id: number }).id : doc.customer
+        if (!customerId) return
+        try {
+          let settings: Record<string, unknown> = {}
+          try {
+            settings = (await req.payload.findGlobal({ slug: 'site-settings' })) as unknown as Record<string, unknown>
+          } catch {
+            // fresh install without the global
+          }
+          const loyalty = resolveLoyaltyConfig(settings)
+          if (!loyalty.enabled) return
+
+          const earned = Math.round((Number(doc.subtotal) || 0) * loyalty.earnRatePerDollar)
+          if (earned > 0) await grantPoints(req.payload, customerId, earned)
+
+          // Referral reward — this customer's FIRST delivered order only,
+          // and only once (referralRewardGranted guards against a later
+          // status flip-flop re-triggering it).
+          const customer = await req.payload.findByID({ collection: 'customers', id: customerId, depth: 0 })
+          if (customer?.referredBy && !customer.referralRewardGranted) {
+            const referrerId = typeof customer.referredBy === 'object' ? (customer.referredBy as { id: number }).id : customer.referredBy
+            const referrerPoints = typeof settings.referralReferrerPoints === 'number' ? settings.referralReferrerPoints : 200
+            if (referrerId) await grantPoints(req.payload, referrerId, referrerPoints)
+            await req.payload.update({ collection: 'customers', id: customerId, data: { referralRewardGranted: true } })
+          }
+        } catch (err) {
+          req.payload.logger.error(`[orders] Loyalty/referral processing failed: ${String(err)}`)
+        }
+      },
     ],
   },
   fields: [
@@ -297,6 +333,29 @@ export const Orders: CollectionConfig = {
       type: 'number',
       defaultValue: 0,
       admin: { readOnly: true, description: 'Amount taken off the subtotal by the discount code.' },
+    },
+    {
+      name: 'giftCardCode',
+      type: 'text',
+      admin: { readOnly: true, description: 'Gift card code applied at checkout, if any (ROADMAP Part 6.3).' },
+    },
+    {
+      name: 'giftCardAmount',
+      type: 'number',
+      defaultValue: 0,
+      admin: { readOnly: true, description: 'Amount covered by the gift card.' },
+    },
+    {
+      name: 'storeCreditApplied',
+      type: 'number',
+      defaultValue: 0,
+      admin: { readOnly: true, description: 'Amount covered by the customer\'s store credit balance (ROADMAP Part 6.3).' },
+    },
+    {
+      name: 'pointsRedeemed',
+      type: 'number',
+      defaultValue: 0,
+      admin: { readOnly: true, description: 'Loyalty points redeemed at checkout (ROADMAP Part 6.6).' },
     },
     {
       name: 'total',

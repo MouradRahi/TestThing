@@ -1,6 +1,6 @@
 import { getPayload } from '@/lib/payload'
 import { setAuthCookie } from '@/lib/auth'
-import { clientIp } from '@/lib/api-guards'
+import { clientIp, isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '@/lib/api-guards'
 import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -28,8 +28,8 @@ export async function POST(req: NextRequest) {
   if (!currentPassword) {
     return NextResponse.json({ error: 'Enter your current password.' }, { status: 400 })
   }
-  if (newPassword.length < 8) {
-    return NextResponse.json({ error: 'New password must be at least 8 characters.' }, { status: 400 })
+  if (!isStrongPassword(newPassword)) {
+    return NextResponse.json({ error: PASSWORD_STRENGTH_MESSAGE }, { status: 400 })
   }
 
   try {

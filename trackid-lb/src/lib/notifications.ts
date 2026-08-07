@@ -343,6 +343,92 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
   }
 }
 
+// --- Return status email ---
+
+export type ReturnStatusEmailData = {
+  orderNumber: string
+  customerName: string
+  customerEmail: string
+  status: string
+  brand?: BrandCopy
+}
+
+const RETURN_STATUS_COPY: Record<string, { subject: string; body: string }> = {
+  approved: {
+    subject: 'Return approved',
+    body: 'Your return request has been approved. Ship the item(s) back and we’ll take it from there.',
+  },
+  received: {
+    subject: 'Return received',
+    body: 'We’ve received your returned item(s) and are processing them now.',
+  },
+  refunded: {
+    subject: 'Return refunded',
+    body: 'Your refund has been processed. It may take a few days to appear, depending on your payment method.',
+  },
+  rejected: {
+    subject: 'Return request declined',
+    body: 'Unfortunately we’re unable to accept this return. Reply to this email or reach us on WhatsApp if you have questions.',
+  },
+}
+
+export async function sendReturnStatusEmail(data: ReturnStatusEmailData): Promise<void> {
+  const copy = RETURN_STATUS_COPY[data.status]
+  if (!copy || !data.customerEmail) return
+
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[notifications] RESEND_API_KEY not set — skipping return status email')
+    return
+  }
+
+  const resend = new Resend(apiKey)
+  const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const brand = data.brand ?? DEFAULT_BRAND
+  const replyTo = brand.contactEmail
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${copy.subject}</title></head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;">
+    <tr><td align="center" style="padding:48px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
+        </td></tr>
+        <tr><td style="padding:36px 0 6px;">
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">${copy.subject}</h1>
+        </td></tr>
+        <tr><td style="padding-bottom:28px;">
+          <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;letter-spacing:0.15em;color:#c9a96e;">${escapeHtml(data.orderNumber)}</p>
+        </td></tr>
+        <tr><td style="padding-bottom:32px;">
+          <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(data.customerName)},<br><br>${copy.body}</p>
+        </td></tr>
+        <tr><td style="padding-top:24px;border-top:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">Questions? Reply to this email or WhatsApp us directly.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { error } = await resend.emails.send({
+      from,
+      to: data.customerEmail,
+      ...(replyTo ? { replyTo } : {}),
+      subject: `${copy.subject} — ${data.orderNumber}`,
+      html,
+    })
+    if (error) console.error('[notifications] Resend return status email error:', error)
+  } catch (err) {
+    console.error('[notifications] Failed to send return status email:', err)
+  }
+}
+
 // --- Low-stock alert ---
 
 export type LowStockAlertData = {
@@ -411,6 +497,146 @@ export async function sendLowStockAlertEmail(data: LowStockAlertData): Promise<v
     if (error) console.error('[notifications] Resend low-stock alert error:', error)
   } catch (err) {
     console.error('[notifications] Failed to send low-stock alert:', err)
+  }
+}
+
+// --- Abandoned-cart recovery ---
+
+export type AbandonedCartEmailData = {
+  customerEmail: string
+  customerName: string
+  items: Array<{ title: string; price: number; quantity: number; size?: string }>
+  cartUrl: string
+  unsubscribeUrl: string
+  brand?: BrandCopy
+}
+
+export async function sendAbandonedCartEmail(data: AbandonedCartEmailData): Promise<void> {
+  if (!data.customerEmail || data.items.length === 0) return
+
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[notifications] RESEND_API_KEY not set — skipping abandoned-cart email')
+    return
+  }
+
+  const resend = new Resend(apiKey)
+  const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const brand = data.brand ?? DEFAULT_BRAND
+  const replyTo = brand.contactEmail
+
+  const itemsHtml = data.items
+    .map(
+      (item) =>
+        `<tr><td style="padding:6px 0;border-bottom:1px solid #1e1e1e;color:#f5f0e8;">${escapeHtml(item.title)}${
+          item.size ? ` <span style="color:#666;">(${escapeHtml(item.size)})</span>` : ''
+        } × ${item.quantity}</td><td style="padding:6px 0;border-bottom:1px solid #1e1e1e;text-align:right;color:#c9a96e;">$${(item.price * item.quantity).toFixed(2)}</td></tr>`,
+    )
+    .join('')
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>You left something behind</title></head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;">
+    <tr><td align="center" style="padding:48px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
+        </td></tr>
+        <tr><td style="padding:36px 0 6px;">
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">You left something behind</h1>
+        </td></tr>
+        <tr><td style="padding-bottom:28px;">
+          <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(data.customerName)}, your cart is still saved — pick up where you left off.</p>
+        </td></tr>
+        <tr><td style="padding-bottom:28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;">${itemsHtml}</table>
+        </td></tr>
+        <tr><td style="padding-bottom:32px;">
+          <a href="${data.cartUrl}" style="display:inline-block;background-color:#c9a96e;color:#0a0a0a;padding:12px 28px;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:0.05em;">View your cart</a>
+        </td></tr>
+        <tr><td style="padding-top:24px;border-top:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">
+            <a href="${data.unsubscribeUrl}" style="color:#3a3a3a;">Unsubscribe from cart reminders</a>
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { error } = await resend.emails.send({
+      from,
+      to: data.customerEmail,
+      ...(replyTo ? { replyTo } : {}),
+      subject: `You left something behind — ${brand.storeName}`,
+      html,
+    })
+    if (error) console.error('[notifications] Resend abandoned-cart email error:', error)
+  } catch (err) {
+    console.error('[notifications] Failed to send abandoned-cart email:', err)
+  }
+}
+
+// --- Back-in-stock alert ---
+
+export type BackInStockEmailData = {
+  email: string
+  productTitle: string
+  productUrl: string
+  brand?: BrandCopy
+}
+
+export async function sendBackInStockEmail(data: BackInStockEmailData): Promise<void> {
+  if (!data.email) return
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) {
+    console.warn('[notifications] RESEND_API_KEY not set — skipping back-in-stock email')
+    return
+  }
+
+  const resend = new Resend(apiKey)
+  const from = process.env.RESEND_FROM || 'orders@trackid.lb'
+  const brand = data.brand ?? DEFAULT_BRAND
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Back in stock</title></head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;">
+    <tr><td align="center" style="padding:48px 16px;">
+      <table width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
+          <p style="margin:0;font-size:11px;letter-spacing:0.25em;color:#c9a96e;text-transform:uppercase;">${escapeHtml(brand.storeName)}</p>
+        </td></tr>
+        <tr><td style="padding:36px 0 6px;">
+          <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">Back in stock</h1>
+        </td></tr>
+        <tr><td style="padding-bottom:28px;">
+          <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">${escapeHtml(data.productTitle)} is back — grab it before it's gone again.</p>
+        </td></tr>
+        <tr><td style="padding-bottom:32px;">
+          <a href="${data.productUrl}" style="display:inline-block;background-color:#c9a96e;color:#0a0a0a;padding:12px 28px;font-size:13px;font-weight:600;text-decoration:none;letter-spacing:0.05em;">Shop now</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  try {
+    const { error } = await resend.emails.send({
+      from,
+      to: data.email,
+      subject: `Back in stock — ${data.productTitle}`,
+      html,
+    })
+    if (error) console.error('[notifications] Resend back-in-stock email error:', error)
+  } catch (err) {
+    console.error('[notifications] Failed to send back-in-stock email:', err)
   }
 }
 

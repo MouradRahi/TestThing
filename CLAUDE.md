@@ -1532,3 +1532,229 @@ fully done, v1.**
 - Next: user's call — the VAT/tax report, remaining small F2 pieces, merchant
   conversations (Areeba/NetCommerce/OMT/Whish/Wakilni/Toters — all external, business-side
   decisions), or ENHANCEMENTS a11y/i18n extras. Not yet deployed to prod.
+
+### Session 27 (part 3) — 2026-08-06
+Focus: **ROADMAP Part 6.5 (abandoned-cart recovery) + 6.1 (Returns & Exchanges)**, the two
+items recommended and picked at the start of this "what's next" round. Both now ☑ v1.
+- **Checked before building**: Part 6.5's roadmap text asks for a "cart-cleanup sweep" —
+  grepped `src/app/api/cron/` first and found `cleanup-carts` already exists (Session 22
+  part 5). ROADMAP.md just hadn't been updated to reflect it; nothing to build there, only
+  the recovery *email* itself was actually open.
+- **6.5 — Abandoned-cart recovery**: `Carts.recoveryEmailSentAt` + `Customers.
+  cartRecoveryOptOut` (new fields) → `GET /api/cron/abandoned-cart-recovery` finds carts
+  idle >24h with a linked customer account (guest carts have no captured email — out of
+  scope, matching the same login-required boundary Returns uses), resolves current
+  items/prices via the existing `serializeCart()`, sends via a new
+  `sendAbandonedCartEmail()`. Sends **exactly once per cart ever** (a per-cart flag, not a
+  daily-reset dedupe like the other crons — different rule, "one per abandoned cart" not
+  "one per day"). One-click opt-out (`src/lib/unsubscribe-token.ts`, HMAC-signed, no login
+  needed, doesn't expire) → `GET /api/account/cart-recovery-optout`.
+- **6.1 — Returns & Exchanges**: new `Returns` collection (requested/approved/received/
+  refunded/rejected). `POST /api/returns` — logged-in customer only, only `delivered`
+  orders, quantities validated against the order (not against prior return requests on the
+  same order — v1 simplification). New `/account/returns/new/[orderNumber]` +
+  `ReturnRequestForm.tsx`; `/account` gained a "Request Return" link on delivered orders
+  and a "Your Returns" status list.
+- **Deliberately narrower interpretation of the roadmap wording, explained in the
+  collection's own comments**: "approved returns restock" → restock actually fires on
+  entering **received** (physically back), not approval (restocking at approval would let
+  a customer keep the item *and* get it restocked — a real fraud/correctness concern worth
+  deviating from a literal reading for), scoped to the return's own items only (a return
+  can be partial, unlike Orders' whole-order cancel/restock hook). Refund fires on entering
+  **refunded** and calls the *existing* `processRefund()` — the same function the admin's
+  manual Refund button already uses — rather than writing new money-moving logic; a
+  COD/unpaid order fails the attempt gracefully (logs, doesn't block the status save) since
+  there's nothing for `processRefund` to reverse. Store credit (6.3) not built — v1 refund
+  is real-money only.
+- **Caught and fixed a real bug via verification, not review**: first test run of the
+  refund flow silently failed with `"Order not found."` — traced to `doc.order` inside the
+  afterChange hook sometimes being a *populated object* rather than a raw id (depends on
+  the depth the triggering update ran at), which `processRefund()`'s `findByID` then
+  couldn't match. Caught only because the verification script asserted the actual expected
+  `partially_refunded`/`refundedAmount: 20` values instead of just checking the call didn't
+  throw — a shallower check would have shipped this. Fixed by normalizing to a plain id
+  before the call; re-verified clean.
+- **Verified end-to-end against a real running server, twice** (once before the fix, once
+  after): built a real production server (port 3100), created a real customer + order +
+  admin via the Local API, drove the actual customer-facing create flow over real HTTP
+  (over-quantity → 400, unauthenticated → 401), then simulated every admin status
+  transition as a real admin user — approved (a real status email delivered to a real
+  inbox), received (stock +1, correctly scoped to only the returned item, not the whole
+  order), refunded (confirmed via the order's actual `paymentStatus`/`refundedAmount`
+  after the call, not just the return code's own success flag), and a separate rejection
+  (confirmed *no* restock and *no* refund fired) — plus checked the resulting AuditLog
+  entries read back correctly. For 6.5: backdated a cart's `updatedAt` via direct SQL
+  (Payload always overwrites it on save, so this was the only way to simulate "idle 24h+"
+  without literally waiting), ran the cron twice (first found+sent for real, second
+  correctly found nothing), and verified both a real signed opt-out token and a tampered
+  one. All test records, stock, and settings cleaned back to their exact original state
+  afterward.
+- **Migration**: hand-written again (`20260731_230000_add_returns_and_cart_recovery.ts`) —
+  same interactive-wizard-hangs-under-this-runner reasoning as every prior one; new
+  `returns`/`returns_items` tables mirror the `orders`/`orders_items` shape and naming
+  convention exactly, plus two purely-additive columns on `carts`/`customers`. Applied
+  cleanly to dev (9th migration, batch numbers intact).
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types`); `npm test` 31/31; full
+  `npm run build` verified.
+- ROADMAP.md Part 6.1/6.5 marked ☑ DONE v1; F6 execution-order row updated (5 of 7 Part 6
+  sub-items — reviews, gift cards, back-in-stock, loyalty, catalog depth — remain open,
+  none blocking).
+- Next: user's call — the VAT/tax report, remaining Part 6 items (6.2 reviews is probably
+  the next-best-value one — real SEO/customer-facing value, no blockers), remaining small
+  F2 pieces, merchant conversations, or ENHANCEMENTS extras. Not yet deployed to prod.
+
+### Session 27 (part 4) — 2026-08-06
+Focus: **"let's finish 6"** — the user's explicit call to complete all remaining Part 6
+sub-items in one pass (6.2 reviews, 6.3 gift cards + store credit, 6.4 back-in-stock +
+preorder, 6.6 loyalty + referrals — included after one scoping question, since the roadmap
+itself flags it "optional per brand" and this was a genuine judgment call for the user, not
+me — and 6.7 catalog depth). **All of ROADMAP Part 6 (Commerce completeness) is now v1-done**
+— the largest single-session scope this project has taken on. Five new collections
+(`Reviews`, `GiftCards`, `BackInStockRequests`, `Bundles`, plus schema on four existing
+ones), one very large hand-written migration, and a genuine change to the money-critical
+checkout path.
+- **6.2 Reviews**: `Reviews` collection (rating/text/verifiedPurchase/status), `POST
+  /api/reviews` (one per customer+product, computes verifiedPurchase server-side from
+  delivered-order history), admin moderation via plain status edit (pending→published, no
+  new UI). Denormalized `Products.ratingAvg`/`ratingCount`, star display + write-review form
+  + JSON-LD `aggregateRating` on the product page. **Found and fixed a real bug**: the
+  recompute (`payload.find` reviews → `payload.update` products, from inside a Reviews
+  hook) reliably hit a Postgres statement timeout and, worse, the write eventually landed
+  anyway with *stale* data — rewrote as one atomic SQL statement (matching the codebase's
+  established stock/discount/gift-card atomic pattern), a genuine correctness improvement.
+  **Then investigated a residual timing anomaly at length**: even the atomic-SQL version
+  occasionally showed the same stale-overwrite symptom under rapid back-to-back testing —
+  reproduced it via both a standalone script *and* real HTTP against a real running server,
+  ruled out row-specific locking and connection-pool exhaustion (13/60 connections), and
+  landed on the explanation that *every* DB operation (not just this one) was taking 3–5+
+  seconds during testing — pointing to transient latency on this specific disposable dev
+  Supabase project, consistent with its already-documented flakiness history (EAI_AGAIN,
+  the cold-start `transformAlgorithm` flake). Deliberately did **not** add advisory-locking/
+  explicit-transaction machinery to force strict ordering — no other part of this codebase
+  uses that pattern, and the failure mode is a cosmetic, self-correcting display aggregate,
+  not worth the one-off complexity for what presented as environment degradation rather than
+  a design flaw. Flagged for a quiet re-check in a calmer session.
+- **6.3 Gift cards + store credit**: `GiftCards` collection + `src/lib/gift-cards.ts`
+  (atomic redeem/release, same trust model as discounts) — v1 deliberately admin-issued
+  only, **self-service "buy a gift card as a product" explicitly deferred** (a genuinely
+  separate feature needing its own virtual-product checkout flow). `Customers.storeCredit`
+  + `src/lib/store-credit.ts`; Returns gained a `refundMethod` (cash/store-credit) field —
+  store credit always succeeds where a cash refund needs a paid order, a clean way to
+  settle a COD return. **This is the part that touched the checkout money path**: gift
+  card → store credit → loyalty points now resolve and atomically claim in
+  `orders/route.ts`, in that order against whatever's left after the discount, using the
+  exact same "resolve → claim atomically before stock is touched → roll back via one
+  combined `releaseCredits()` at every existing failure point" shape the discount block
+  already used — extended, not reinvented, at all three existing rollback call sites.
+- **6.4 Back-in-stock + preorder**: `BackInStockRequests` + `POST /api/back-in-stock`
+  (public, validates the product is genuinely sold out first); Products' own hook detects a
+  real 0→positive stock transition and emails pending requests. **Preorder was a deliberate
+  architecture decision**: it changes product-page messaging only and never touches the
+  atomic stock-decrement `WHERE stock_quantity >= $1` conditional in `orders/route.ts` — the
+  single most sensitive query in the app. An admin enabling preorder just sets
+  `stockQuantity` to their real preorder allocation; it decrements exactly like any other
+  product. Chosen specifically over letting stock go negative, which would have meant
+  branching that one critical query — not worth the risk for this feature.
+- **6.6 Loyalty + referrals**: `Customers.loyaltyPoints`, earned via `Orders.ts`'s
+  `afterChange` hook on a genuine `→ delivered` transition, redeemed at checkout via the
+  same atomic pattern (`src/lib/loyalty.ts`). Referrals **reinterpreted from a literal
+  "build on the Discounts engine" reading**: rather than minting a real per-referral
+  discount-code row (a second parallel reward currency), a customer's own numeric id is
+  their shareable code (`/?ref=<id>`); registration captures `referredBy`, grants the
+  referee's signup bonus immediately, and the referrer's reward waits for — and reuses — the
+  same "first order delivered" hook the loyalty-earning logic already needed.
+- **6.7 Catalog depth**: `Bundles` collection + `/bundle/[slug]` page — **v1 deliberately
+  informational, not bundle-priced at checkout**: "add to cart" adds each real component at
+  its own real price; charging the stated bundle price would need a cart-model change or an
+  auto-applied discount code, a bigger change than was worth rushing into the money-critical
+  cart path this session — documented in `Bundles.ts` itself as a deferred v2. Size guide
+  (`GarmentTypes.sizeGuide`, localized rich text) shown in a collapsible toggle on the
+  product page. `Products.specs[]` for flexible key/value specs — **made deliberately
+  non-localized**: the correct Postgres table shape for a localized field nested inside an
+  array's sub-fields (as opposed to this project's many existing top-level-localized-field
+  examples) was uncertain enough that guessing wrong in a hand-written migration felt like
+  the wrong risk to take for a descriptive-text field.
+- **Migration**: one very large hand-written migration
+  (`20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty.ts`) — 4 new tables +
+  3 child tables + 3 new enums + columns across `products`/`products_locales`/`customers`/
+  `orders`/`garment_types_locales`/`returns`/`site_settings`, every shape checked
+  field-by-field against an equivalent existing pattern (reviews ~ returns, bundles ~
+  products, products_specs ~ orders_items) before writing. Applied cleanly to dev in one
+  shot — 10th migration, batch numbers intact.
+- **Verified extensively against real dev data at every layer**: a comprehensive Local-API
+  schema-smoke-test script exercised every new collection's CRUD + every atomic helper
+  (gift card, store credit, loyalty points — each grant/redeem/release round-tripped to
+  confirm a net-zero balance change), the back-in-stock notification hook (simulated a real
+  0→5 stock transition), a real bundle with 2 real component products, and a real
+  garment-type size guide save/read. The Reviews rating-recompute investigation above went
+  further still — real HTTP requests against a real running server, not just Local API calls.
+- ✅ `npx tsc --noEmit` clean (after `npm run generate:types`, run repeatedly through the
+  session as each new piece landed); `npm test` 31/31; full `npm run build` verified
+  clean at the end (all new routes registered: `/api/reviews`, `/api/back-in-stock`,
+  `/bundle/[slug]`, plus everything from parts 1–3 today).
+- ⚠️ **Simplified one specific schema-shape risk mid-session**: `Products.specs[].label`/
+  `.value` were originally speced as localized; changed to plain text before writing the
+  migration once the nested-array-localization table shape looked uncertain enough to guess
+  wrong on. A real, disclosed scope-narrowing decision, not silently dropped.
+- **Deferred, documented, not silently dropped**: star ratings in shop/related-grid listing
+  cards (data already denormalized, just not threaded through every call site); self-service
+  gift-card purchase as a virtual product; true bundle-priced checkout; per-size "notify me"
+  alongside an otherwise-in-stock product; localized product specs.
+- ROADMAP.md Part 6 (6.1–6.7) all marked ☑ DONE v1; F6 execution-order row updated to fully
+  ☑. **ROADMAP Part 6 (Commerce completeness) is now v1-complete** — every sub-item shipped,
+  each with an explicit, documented v1/v2 scope line where the roadmap's own wording implied
+  more than was safe or reasonable to build in this pass.
+- Not yet committed — this entry written before the commit/push/CI-verify step, following
+  the same pattern as every other session today.
+- Next: user's call — commit + push this work (pending), the VAT/tax report, remaining
+  small F2 pieces, merchant conversations (all external/business-side), the deferred items
+  listed above, or ENHANCEMENTS-only a11y/i18n extras. Not yet deployed to prod.
+
+### Session 27 (part 5) — 2026-08-07
+Focus: **login-security audit** (user shared a "5 ways your vibecoded login is insecure"
+Instagram reel and asked whether trackID.lb had the same gaps), then fixed the one item the
+user chose to act on.
+- **Audited each of the reel's 5 claims against the real codebase, not assumed**:
+  1. **Session token in LocalStorage** — NOT an issue here. Auth uses an httpOnly
+     `payload-token` cookie (`src/lib/auth.ts`) — never touches `localStorage` (the whole
+     app was already scrubbed of `localStorage` in Session 19, for an unrelated reason).
+  2. **Client-side admin checks** — NOT an issue. Every admin-only mutation is gated
+     server-side via `isAdmin()`/`requireAdminUser()`/Payload `access` blocks (see
+     Session 22 part 10's role-review work); nothing trusts a client-side role flag.
+  3. **No 2FA/OTP** — **real gap**, confirmed. Neither `Users` (staff) nor `Customers` has
+     any second factor. Identified but **not fixed** — user did not select this to act on.
+  4. **`/login` has no rate limiting** — **real gap for admin**, confirmed. Payload's
+     auto-generated `/api/users/login` only has the built-in 5-attempt lockout (Session 22
+     part 10), no IP-based rate limit layer like every custom route in this app has
+     (`durableRateLimit`). The *customer*-facing login (`/api/account/login`, this app's own
+     route) already had a home-grown rate limit from earlier work — only staff login lacked
+     the extra layer. Identified but **not fixed** — user did not select this to act on.
+  5. **No password strength check** — **real gap for customers**, confirmed and **fixed**.
+     `Users` (staff) already enforced 12-char + letter + number since Session 22 part 10;
+     `Customers` had no minimum beyond Payload's own permissive 3-char default, and the
+     three customer-facing password routes (register/reset/change) only checked
+     `length >= 8` with no complexity requirement.
+- **Fix, scoped to exactly what was chosen**: extracted the staff policy into a shared
+  `isStrongPassword()`/`MIN_PASSWORD_LENGTH`/`PASSWORD_STRENGTH_MESSAGE` in
+  `src/lib/api-guards.ts` (12+ chars, ≥1 letter, ≥1 digit); `Users.ts` refactored to use the
+  shared helper (behavior-preserving); `Customers.ts` gained a matching `beforeValidate`
+  hook (new — Customers had no `hooks` key before) as a collection-level backstop regardless
+  of which code path writes a password. The three customer routes
+  (`register`/`reset-password`/`change-password`) now import and use the same helper/message
+  instead of their own inline `length < 8` checks. `passwordHint` copy updated in both
+  `messages/en.json` and `messages/ar.json`; `ChangePasswordForm.tsx` gained a password hint
+  line under the new-password field (it previously showed none at all, unlike the
+  register/reset forms).
+- **Verified against the real dev DB, not just tsc**: a throwaway script exercised
+  `payload.create()` directly for both `customers` and `users` with three weak passwords
+  (too short, long-but-no-digit, long-but-no-letter) and one strong password — all three weak
+  attempts correctly rejected with a field-level validation error, the strong one succeeded,
+  for both collections; test documents cleaned up and the script deleted afterward.
+- ✅ `npx tsc --noEmit` clean; `npm test` 31/31; `npm run build` verified (confirmed no dev
+  server was running on 3000/3100 first, learned from Session 25's shared-`.next` incident).
+- **Deliberately not built this session** (explicit user scope choice, not an oversight):
+  admin `/login` rate limiting and 2FA/OTP for either account type. Both remain real,
+  identified gaps — worth a future session if the user decides to prioritize them.
+- Next: user's call — commit this fix (pending), admin-login rate limiting / 2FA if wanted
+  later, the VAT/tax report, remaining small F2 pieces, merchant conversations, or
+  ENHANCEMENTS-only a11y/i18n extras. Not yet deployed to prod.

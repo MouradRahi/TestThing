@@ -33,6 +33,11 @@ type Props = {
   omtPaymentsEnabled?: boolean
   omtInstructions?: string
   prefill?: { name?: string; phone?: string; email?: string; addresses?: SavedAddress[] }
+  /** Store credit balance in USD, if signed in (ROADMAP Part 6.3). */
+  storeCreditAvailable?: number
+  /** Loyalty points balance, if signed in and loyalty is enabled (ROADMAP Part 6.6). */
+  loyaltyPointsAvailable?: number
+  loyaltyBurnPointsPerDollar?: number
 }
 
 export function CheckoutForm({
@@ -43,6 +48,9 @@ export function CheckoutForm({
   omtPaymentsEnabled,
   omtInstructions,
   prefill,
+  storeCreditAvailable = 0,
+  loyaltyPointsAvailable = 0,
+  loyaltyBurnPointsPerDollar = 100,
 }: Props) {
   const router = useRouter()
   const t = useTranslations('checkout')
@@ -58,6 +66,13 @@ export function CheckoutForm({
   const [codeInput, setCodeInput] = useState('')
   const [discount, setDiscount] = useState<{ code: string; type: 'percentage' | 'fixed'; value: number } | null>(null)
   const [discountMsg, setDiscountMsg] = useState('')
+  // Gift card/store credit/points (ROADMAP Part 6.3/6.6) — unlike the
+  // discount code, the gift card isn't live-validated here; the orders API
+  // resolves and applies it server-side at submit time (same "server is
+  // authoritative for money" trust model, just without a preview round trip).
+  const [giftCardCode, setGiftCardCode] = useState('')
+  const [useStoreCredit, setUseStoreCredit] = useState(false)
+  const [usePoints, setUsePoints] = useState(false)
   const [discountLoading, setDiscountLoading] = useState(false)
   const savedAddresses = prefill?.addresses ?? []
   const [form, setForm] = useState<FormState>({
@@ -145,6 +160,9 @@ export function CheckoutForm({
         body: JSON.stringify({
           ...form,
           discountCode: discount?.code,
+          giftCardCode: giftCardCode.trim() || undefined,
+          useStoreCredit,
+          usePoints,
           // Prices/titles are resolved server-side from the DB — only send what the server needs
           items: items.map((i) => ({
             productId: i.id,
@@ -413,6 +431,39 @@ export function CheckoutForm({
             )}
             {discountMsg && <p className="text-[11px] text-red-400 mt-2">{discountMsg}</p>}
           </div>
+
+          {/* Gift card (ROADMAP Part 6.3) — applied server-side at submit, no live preview here */}
+          <div className="border-t border-border pt-4">
+            <input
+              type="text"
+              value={giftCardCode}
+              onChange={(e) => setGiftCardCode(e.target.value)}
+              placeholder={t('giftCardCode')}
+              aria-label={t('giftCardCode')}
+              className="w-full bg-bg border border-border px-3 py-2 text-xs text-foreground uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal focus:border-accent outline-none"
+            />
+          </div>
+
+          {/* Store credit + loyalty points (ROADMAP Part 6.3/6.6) — only shown when there's something to use */}
+          {(storeCreditAvailable > 0 || loyaltyPointsAvailable > 0) && (
+            <div className="border-t border-border pt-4 space-y-2 text-xs">
+              {storeCreditAvailable > 0 && (
+                <label className="flex items-center gap-2 text-foreground cursor-pointer">
+                  <input type="checkbox" checked={useStoreCredit} onChange={(e) => setUseStoreCredit(e.target.checked)} />
+                  {t('useStoreCredit', { amount: formatPrice(storeCreditAvailable) })}
+                </label>
+              )}
+              {loyaltyPointsAvailable > 0 && (
+                <label className="flex items-center gap-2 text-foreground cursor-pointer">
+                  <input type="checkbox" checked={usePoints} onChange={(e) => setUsePoints(e.target.checked)} />
+                  {t('usePoints', {
+                    points: loyaltyPointsAvailable,
+                    amount: formatPrice(Math.round((loyaltyPointsAvailable / loyaltyBurnPointsPerDollar) * 100) / 100),
+                  })}
+                </label>
+              )}
+            </div>
+          )}
 
           <div className="border-t border-border pt-4 space-y-2 text-xs">
             <div className="flex justify-between text-muted">

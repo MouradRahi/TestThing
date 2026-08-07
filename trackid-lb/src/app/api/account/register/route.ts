@@ -1,8 +1,9 @@
 import { getPayload } from '@/lib/payload'
 import { setAuthCookie } from '@/lib/auth'
 import { CART_COOKIE, mergeGuestCart } from '@/lib/cart-server'
-import { clientIp, cleanString, cleanOptional, EMAIL_RE } from '@/lib/api-guards'
+import { clientIp, cleanString, cleanOptional, EMAIL_RE, isStrongPassword, PASSWORD_STRENGTH_MESSAGE } from '@/lib/api-guards'
 import { durableRateLimit } from '@/lib/durable-rate-limit'
+import { resolveLoyaltyConfig, grantPoints } from '@/lib/loyalty'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
@@ -27,23 +28,51 @@ export async function POST(req: NextRequest) {
   if (!EMAIL_RE.test(email)) {
     return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 })
   }
-  if (password.length < 8) {
-    return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 })
+  if (!isStrongPassword(password)) {
+    return NextResponse.json({ error: PASSWORD_STRENGTH_MESSAGE }, { status: 400 })
   }
 
   const normalizedEmail = email.toLowerCase()
 
+  // Referral capture (ROADMAP Part 6.6) — the referrer's own numeric
+  // customer id is the "code" (shared as a ?ref= link from their account
+  // page). Validated against a real customer here so a garbage/self-
+  // referral value never gets stored; the referee's signup bonus is granted
+  // immediately, the referrer's reward waits for this customer's first
+  // delivered order (Orders.ts's afterChange hook).
+  let referredBy: number | undefined
+  const refInput = Number(body.ref)
+  if (Number.isInteger(refInput) && refInput > 0) {
+    const referrer = await payload.findByID({ collection: 'customers', id: refInput, depth: 0 }).catch(() => null)
+    if (referrer) referredBy = refInput
+  }
+
+  let newCustomerId: number | undefined
   try {
-    await payload.create({
+    const created = await payload.create({
       collection: 'customers',
-      data: { email: normalizedEmail, password, name, ...(phone ? { phone } : {}) },
+      data: { email: normalizedEmail, password, name, ...(phone ? { phone } : {}), ...(referredBy ? { referredBy } : {}) },
     })
+    newCustomerId = Number(created.id)
   } catch {
     // Most likely a duplicate email — don't reveal which
     return NextResponse.json(
       { error: 'We couldn’t create that account. The email may already be in use.' },
       { status: 409 },
     )
+  }
+
+  if (referredBy && newCustomerId) {
+    try {
+      const settings = (await payload.findGlobal({ slug: 'site-settings' })) as unknown as Record<string, unknown>
+      const loyalty = resolveLoyaltyConfig(settings)
+      if (loyalty.enabled) {
+        const refereePoints = typeof settings.referralRefereePoints === 'number' ? settings.referralRefereePoints : 100
+        if (refereePoints > 0) await grantPoints(payload, newCustomerId, refereePoints)
+      }
+    } catch (err) {
+      console.error('[register] Referral signup bonus failed (account still created fine):', err)
+    }
   }
 
   try {

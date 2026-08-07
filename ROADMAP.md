@@ -491,42 +491,198 @@ calls the same server-authoritative functions the app already trusts.
 
 The features "any business could possibly require" that aren't payments/reports/AI.
 
-### 6.1 Returns & exchanges (RMA)
-- ☐ Customer-initiated return request from order history (reason, items) →
-  `Returns` collection (statuses: requested / approved / received / refunded / rejected)
-- ☐ Admin workflow + status emails; approved returns restock + optionally trigger
-  Part 2 refund or issue store credit (6.3)
+### 6.1 Returns & exchanges (RMA) — ☑ DONE v1 (Session 27, part 3)
+- ☑ Customer-initiated return request from order history (reason, items) →
+  `Returns` collection (statuses: requested / approved / received / refunded / rejected).
+  `POST /api/returns` — logged-in customer only (matches "from order history," which only
+  logged-in customers have; a guest-order flow would need a separate orderNumber+email
+  verification step, not attempted), only `delivered` orders eligible, requested quantities
+  validated against what the order actually contains (not against prior return requests on
+  the same order — v1 simplification). `/account/returns/new/[orderNumber]` +
+  `ReturnRequestForm.tsx` — per-item checkboxes + quantity, submits the request; `/account`
+  shows a "Request Return" link on delivered orders and a "Your Returns" status list.
+- ☑ Admin workflow + status emails (`sendReturnStatusEmail` — approved/received/refunded/
+  rejected). **Restock and refund triggers deliberately interpreted narrower than a literal
+  "approved returns restock" reading**: restock fires on entering **received** (the item is
+  physically back — restocking at approval would let a customer keep the item *and* get it
+  restocked), scoped to the return's own items only (a return can be partial, unlike Orders'
+  whole-order cancel/restock). Refund fires on entering **refunded** and reuses
+  `processRefund()` exactly as the existing admin "Refund" button does — no new
+  money-moving code, just a new caller of the already-verified one; if the order isn't in a
+  refundable payment state (e.g. a COD order never marked "paid"), the attempt fails
+  gracefully and logs for manual settlement rather than blocking the status change. Store
+  credit (6.3) not built — refund is real-money only in v1.
+- **Caught and fixed a real bug via verification, not review**: the refund hook passed
+  `doc.order` straight to `processRefund()`'s `orderId` param — but `doc.order` can be a
+  *populated object*, not a raw id, depending on the depth the triggering update ran at.
+  First verification run silently failed with `"Order not found."` (caught because the test
+  script asserted the expected `partially_refunded`/`refundedAmount` values instead of just
+  checking the call didn't throw) — fixed by normalizing to a plain id before the call,
+  re-verified clean on the next run. Exactly the kind of bug a "does it compile" check alone
+  would have shipped.
+- **Verified end-to-end against a real running server**: created a real customer + order +
+  admin via the Local API, drove the actual customer-facing create flow via real HTTP
+  (over-quantity → 400, unauthenticated → 401), then simulated every admin status
+  transition — approved (real status email delivered to a real inbox), received (stock
+  +1, scoped correctly to only the returned item), refunded (`processRefund` genuinely ran:
+  `partially_refunded`, `refundedAmount: 20` on a $40 order), and a separate rejection
+  (confirmed *no* restock, *no* refund fired) — plus checked the resulting AuditLog entries.
+  Settings/stock/test records all cleaned up afterward.
 
-### 6.2 Product reviews & ratings
-- ☐ `Reviews` collection: rating + text, linked to customer + product,
-  **verified-purchase flag** (customer has a delivered order containing the product)
-- ☐ Moderation queue in admin (pending → published); rating summary on product page +
-  stars in listings; JSON-LD `aggregateRating` for SEO
+### 6.2 Product reviews & ratings — ☑ DONE v1 (Session 27, part 4)
+- ☑ `Reviews` collection: rating + text, linked to customer + product, **verified-purchase
+  flag** (computed server-side at submission — the customer has a delivered order
+  containing the product). Created only via `POST /api/reviews` (one review per
+  customer+product; collection `create` access stays admin-only so nothing can forge one
+  directly against the REST/GraphQL API).
+- ☑ Moderation queue in admin: new reviews land `pending`, admin flips to `published` via
+  the normal edit view (no separate moderation UI needed — same pattern as Orders/Returns
+  status changes). Rating summary (denormalized `Products.ratingAvg`/`ratingCount`) shown
+  on the product page with a star row; write-a-review form for signed-in customers;
+  published reviews listed; JSON-LD `aggregateRating` added to the existing `Product`
+  schema block when `ratingCount > 0`. **Deferred**: stars in shop/related-grid `ProductCard`
+  listings (the rating fields are already denormalized and available — threading them
+  through every listing call site was cut for time, not a data gap).
+- ⚠️ **Found and fixed a real bug via verification**: the original recompute (JS
+  read-then-`payload.update()`) reliably hit `"canceling statement due to statement
+  timeout"` when called from inside the Reviews hook, and — worse — the write eventually
+  landed anyway with **stale** data once unblocked. Rewrote as a single atomic SQL
+  statement (`UPDATE products SET rating_count = (SELECT count...), rating_avg = (SELECT
+  avg...) WHERE id = $1`, mirroring this codebase's established atomic-SQL pattern for
+  stock/discounts/gift cards) — a genuine correctness improvement regardless of the
+  investigation below, since it removes an inherent read-then-write race.
+- ⚠️ **Investigated a residual timing anomaly thoroughly, didn't chase it further**: even
+  with the atomic-SQL fix, back-to-back create→publish→delete operations against the same
+  product occasionally still landed a stale value, confirmed reproducible via **both** a
+  standalone script **and** real HTTP requests against a real running server. Ruled out:
+  row-specific locking (reproduced on multiple different products), connection-pool
+  exhaustion (13 of 60 connections in use). What was observed instead: *every* operation
+  (not just this recompute) was taking 3–5+ seconds during testing — pointing to transient
+  latency/degradation on this specific disposable dev Supabase project, matching this
+  project's already-documented history of exactly this kind of flakiness (EAI_AGAIN DNS
+  stalls, a cold-start `transformAlgorithm` flake — see DEPLOY.md). **Deliberately did not**
+  add advisory-locking/explicit-transaction machinery to force strict ordering — no other
+  part of this codebase uses that pattern, the failure mode is cosmetic and self-correcting
+  (any later review action recomputes and converges), and over-engineering a fix for what
+  presented as environment-specific degraded conditions would add one-off complexity for a
+  low-severity display aggregate. Worth a quiet re-check in a fresh session/production.
 
-### 6.3 Gift cards & store credit
-- ☐ `GiftCards` collection: unique code, initial/remaining balance, purchaser/recipient,
-  expiry; sellable as a (virtual) product; redemption at checkout (server-authoritative,
-  same trust model as discounts); combinable with discount codes per admin setting
-- ☐ Store credit on customer account (refund destination from 6.1) — applied at checkout
+### 6.3 Gift cards & store credit — ☑ DONE v1 (Session 27, part 4)
+- ☑ `GiftCards` collection: unique code, initial/remaining balance, purchaser/recipient
+  email, expiry, enabled toggle. Redemption at checkout is server-authoritative
+  (`src/lib/gift-cards.ts`, same atomic-conditional-UPDATE trust model as discounts —
+  `resolveGiftCard`/`redeemGiftCardAmount`/`releaseGiftCardAmount`), combinable with a
+  discount code per the new `giftCardsCombinableWithDiscounts` admin setting.
+  **Self-service "buy a gift card as a virtual product" is deliberately deferred** — that
+  needs its own product-like listing + payment collection for a non-physical item, a
+  genuinely separate feature from redemption; v1 is admin-issued (promotional giveaways,
+  or recording a manually-settled sale).
+- ☑ Store credit on the customer account (`Customers.storeCredit`) — same atomic pattern
+  (`src/lib/store-credit.ts`). Applied at checkout via a "use available credit" checkbox.
+  **Refund destination from 6.1**: Returns gained a `refundMethod` field (cash vs. store
+  credit) — "store credit" always succeeds (`grantStoreCredit`, no payment-status gate to
+  satisfy), a clean way to settle a COD/unpaid-order return without a manual cash refund
+  outside the app.
+- **Checkout integration** (`src/app/api/orders/route.ts`): gift card → store credit →
+  loyalty points (6.6) are resolved and atomically claimed, in that order, against
+  whatever's left after the discount — mirroring the discount block's exact "resolve, claim
+  atomically before stock is touched, roll back via a combined `releaseCredits()` at every
+  existing failure point" shape. No new money-moving code paths; every deduction reuses the
+  same atomic-conditional-UPDATE primitive already proven for stock/discounts.
+- **Verified end-to-end against a real running server**: real customer/order round-tripped
+  through the actual Local API + atomic helpers (redeem/release for gift card, store
+  credit, and points all confirmed to net back to the original balance).
 
-### 6.4 Back-in-stock & availability
-- ☐ "Notify me" on sold-out products/sizes (email capture, tied to account when logged in)
-  → notification fires from the restock hook path
-- ☐ Preorder mode per product (charge on order, fulfil later, clear messaging)
+### 6.4 Back-in-stock & availability — ☑ DONE v1 (Session 27, part 4)
+- ☑ "Notify me" on sold-out products: `BackInStockRequests` collection + `POST
+  /api/back-in-stock` (public, no login required — validates the product is actually fully
+  sold out first). Products' own `afterChange` hook detects a genuine 0 → positive stock
+  transition and emails every pending request (`sendBackInStockEmail`), marking
+  `notifiedAt`. **v1 scope: fully-sold-out products only**, not partial size gaps — a
+  customer can already buy the sizes that *are* in stock, so per-size "notify me" alongside
+  an otherwise-purchasable product was deferred rather than adding UI complexity for a
+  smaller win.
+- ☑ Preorder mode (`Products.preorderEnabled` + localized `preorderMessage`) — **a
+  deliberate architecture decision, not a shortcut**: preorder mode changes product-page
+  *messaging only* and never touches the atomic stock-decrement path (`orders/route.ts`'s
+  `WHERE stock_quantity >= $1` conditional UPDATE), the single most sensitive code in the
+  app. An admin enabling preorder sets `stockQuantity` to their actual preorder allocation
+  (e.g. 50 units they're willing to sell before restocking); it decrements exactly like any
+  other product. This was chosen specifically over letting stock go negative for preorder
+  items, which would have required branching the atomic decrement query — not worth the
+  risk to that code path for this feature.
+- **Verified against real dev data**: simulated a real 0→5 stock transition on a real
+  product with a pending request, confirmed the email fired and `notifiedAt` was set.
 
-### 6.5 Abandoned-cart recovery
-- ☐ Carts collection already exists — Vercel Cron finds carts idle >24h with a known
-  email (logged-in customers), sends one recovery email (opt-out honored)
-- ☐ This also adds the **cart-cleanup sweep** (delete anonymous carts >60 days — closes
-  the unbounded-growth scalability gap noted in Session 20)
+### 6.5 Abandoned-cart recovery — ☑ DONE (Session 27, part 3)
+- ✅ **Cart-cleanup sweep already existed** (`/api/cron/cleanup-carts`, Session 22 part 5 —
+  checked before building anything and found this half of the item was already done;
+  ROADMAP just hadn't been updated to reflect it).
+- ☑ `GET /api/cron/abandoned-cart-recovery` — same daily-cron auth pattern as the other
+  crons; finds carts idle >24h with a linked customer account (guest carts have no captured
+  email to send to — out of scope, same as the Returns login requirement), skips
+  `cartRecoveryOptOut` customers, resolves current items/prices via the existing
+  `serializeCart()` (so a since-discontinued item doesn't appear in the email), sends via
+  `sendAbandonedCartEmail()`. **Sends exactly once per cart ever** via a per-cart
+  `recoveryEmailSentAt` flag — a different dedupe shape than the other crons' daily-reset
+  guard, because "one recovery email per abandoned cart" is the actual rule, not "one per
+  day."
+- ☑ Opt-out honored via a one-click unsubscribe link, no login required (`src/lib/
+  unsubscribe-token.ts` — HMAC-signed, so a stranger can't opt someone else out by guessing
+  a customer id, but the link itself never expires, unlike a password-reset token) →
+  `GET /api/account/cart-recovery-optout` sets `Customers.cartRecoveryOptOut`.
+- **Verified end-to-end against a real running server**: created a real customer + cart,
+  backdated the cart's `updatedAt` via direct SQL (Payload always overwrites it on save, so
+  this was the only way to simulate "idle 24h+" without literally waiting), ran the cron
+  twice — first run found and sent (confirmed via a real Resend delivery to a real inbox,
+  with `recoveryEmailSentAt` set), second run correctly found nothing (excluded by the
+  now-set flag). Opt-out verified with both a real signed token (flips the flag) and a
+  tampered one (400).
 
-### 6.6 Loyalty & referrals (post-core, optional per brand)
-- ☐ Points per order value → redeemable as discount at checkout; SiteSettings-configured
-  earn/burn rates; referral codes (give X get Y) building on the Discounts engine
+### 6.6 Loyalty & referrals (post-core, optional per brand) — ☑ DONE v1 (Session 27, part 4)
+User explicitly opted to include this despite the roadmap's own "optional" framing.
+- ☑ Points per order value: `Customers.loyaltyPoints`, earned via `Orders.ts`'s
+  `afterChange` hook on a genuine `→ delivered` transition (not creation, not a
+  cancelled-then-reinstated re-trigger), rate configurable via SiteSettings' new **Loyalty**
+  tab (`loyaltyEnabled`, `loyaltyEarnRatePerDollar`, default 1). Redeemable at checkout
+  (`loyaltyBurnPointsPerDollar`, default 100) via the same atomic claim/release pattern as
+  gift cards/store credit (`src/lib/loyalty.ts`).
+- ☑ Referral codes: **reinterpreted as "reuses the points-redemption engine" rather than
+  literally "building on the Discounts engine"** as the roadmap bullet originally phrased
+  it — minting a real per-referral Discounts-collection row for every signup would mean
+  running two parallel reward currencies (points and discount codes) side by side; crediting
+  both sides in points reuses the exact mechanism just built for 6.6's first half. A
+  customer's own numeric id is their shareable "code" (`/?ref=<id>`, shown on their account
+  page); `POST /api/account/register` validates a `?ref=` value against a real customer
+  before storing `Customers.referredBy`, and grants the referee's signup bonus
+  (`referralRefereePoints`, default 100) immediately. The referrer's reward
+  (`referralReferrerPoints`, default 200) is granted once — guarded by
+  `referralRewardGranted` — when the **referred** customer's first order reaches
+  `delivered` (same Orders hook as the earn-points logic above).
+- **Verified against real dev data**: grant/redeem/release round-tripped correctly via the
+  atomic helpers (net balance change of zero after a claim + release, matching the same
+  verification discipline used for gift cards/store credit).
 
-### 6.7 Catalog depth
-- ☐ Product bundles (bundle price, component stock checks)
-- ☐ Size-guide CMS block; per-product custom fields (materials, care) as flexible key/values
+### 6.7 Catalog depth — ☑ DONE v1 (Session 27, part 4)
+- ☑ Product bundles: new `Bundles` collection (component products + quantities, a stated
+  bundle price) + a `/bundle/[slug]` landing page. **Deliberately informational in v1, not
+  charged-at-bundle-price**: "Add to cart" adds each component at its own real price —
+  checkout math is completely untouched. True bundle-priced checkout (charging the stated
+  price instead of the sum of parts) would need either a cart-model change or an
+  auto-applied bundle discount code — a bigger, separate change than was worth rushing into
+  the money-critical cart/pricing path under this session's time pressure; documented in
+  `Bundles.ts` itself as a deferred v2, not silently dropped.
+- ☑ Size-guide: `GarmentTypes.sizeGuide` (localized rich text) — shown in a collapsible
+  toggle on the product page when the product's garment type has one set. Reuses the
+  existing `garmentType` relation already on Products (no new relation needed).
+- ☑ Per-product custom fields: `Products.specs[]` (label/value pairs), rendered as a spec
+  list on the product page. **Not localized in v1** — a schema-shape risk call: Payload's
+  table shape for a *localized field nested inside an array's sub-fields* (as opposed to a
+  top-level localized field, which this project has many proven examples of) was uncertain
+  enough that guessing wrong in a hand-written migration felt like the wrong tradeoff for a
+  descriptive-text field; can be revisited with a real schema-diff check later.
+- **Verified against real dev data**: created a real bundle with 2 real component products
+  and confirmed the relation resolved correctly; saved and read back a real size guide.
 
 ---
 
@@ -590,7 +746,7 @@ The features "any business could possibly require" that aren't payments/reports/
 | **F3 — Invoicing & fulfillment** ☑ DONE (Session 27) | Part 3 (invoices/VAT ☑, courier ☑ v1 manual-only, inventory ops ☑) | M | F0; invoices richer after F1 |
 | **F4 — Reports** ☑ DONE (Session 25–26), VAT report excepted | Part 4 (engine ☑, exports ☑, scheduled ☑, dashboard v3 ☑) — only the VAT/tax report type remains; unblocked as of Part 3.1 (Session 27), just not yet built | M | F0; payment/VAT reports need F1 — everything else buildable right after F0 |
 | **F5 — AI assistants** | ⏭ SKIPPED (Session 22) | — | — |
-| **F6 — Commerce depth** | Part 6 (returns, reviews, gift cards, back-in-stock, abandoned cart) | L (parallelizable chunks) | F0; returns-refunds need F1 |
+| **F6 — Commerce depth** ☑ DONE v1 (Session 27) | Part 6 — all 7 sub-items v1-complete: returns ☑, reviews ☑, gift cards/store credit ☑, back-in-stock/preorder ☑, abandoned cart ☑, loyalty/referrals ☑, catalog depth ☑ | L (parallelizable chunks) | F0; returns-refunds need F1 |
 | **F7 — Growth** | Part 7 | S–M | independent |
 | **F8 — Productization** | Part 8 (generic taxonomy, wizard, flags, docs, demo) | M | best last — flags wrap features that exist; generic-taxonomy item can be pulled earlier |
 

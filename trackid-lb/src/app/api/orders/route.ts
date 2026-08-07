@@ -6,6 +6,9 @@ import { getIdempotentResponse, saveIdempotentResponse } from '@/lib/idempotency
 import { resolveDeliveryFee, getDeliveryZones, resolveBrandCopy, resolveCurrencyDisplay, resolveVatConfig } from '@/lib/site-settings'
 import { generateInvoicePdf } from '@/lib/invoices/invoice-pdf'
 import { resolveDiscount, redeemDiscount, releaseDiscount } from '@/lib/discounts'
+import { resolveGiftCard, redeemGiftCardAmount, releaseGiftCardAmount } from '@/lib/gift-cards'
+import { redeemStoreCredit, releaseStoreCredit } from '@/lib/store-credit'
+import { resolveLoyaltyConfig, redeemPoints, releasePoints } from '@/lib/loyalty'
 import { reportServerError } from '@/lib/error-reporting'
 import { getSizes } from '@/lib/stock'
 import { safeRevalidatePath } from '@/lib/revalidate'
@@ -156,6 +159,9 @@ export async function POST(req: NextRequest) {
     const customerEmail = cleanOptional(body.customerEmail, 160)
     const notes = cleanOptional(body.notes, 1000)
     const discountCodeInput = cleanOptional(body.discountCode, 40)
+    const giftCardCodeInput = cleanOptional(body.giftCardCode, 40)
+    const useStoreCredit = body.useStoreCredit === true
+    const usePoints = body.usePoints === true
     const paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt' =
       body.paymentMethod === 'bank_transfer'
         ? 'bank_transfer'
@@ -171,7 +177,7 @@ export async function POST(req: NextRequest) {
 
     if (
       !customerName || !customerPhone || !deliveryAddress || !area ||
-      customerEmail === null || notes === null || discountCodeInput === null
+      customerEmail === null || notes === null || discountCodeInput === null || giftCardCodeInput === null
     ) {
       return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
     }
@@ -294,6 +300,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Please select a valid delivery area.' }, { status: 400 })
     }
 
+    // Link the order to the logged-in customer account, if any (guest orders
+    // have none — moved ahead of the credits block below since gift
+    // cards/store credit/points all need to know who's checking out).
+    let customerId: number | undefined
+    try {
+      const { user } = await payload.auth({ headers: req.headers })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (user && (user as any).collection === 'customers') customerId = Number(user.id)
+    } catch {
+      // not signed in — guest order
+    }
+
     // Discount is recomputed here from the DB — the client code is only a request.
     // A now-invalid code blocks checkout (before any stock is touched) with a clear message.
     // The redemption itself is claimed atomically right here (before stock, so a
@@ -319,7 +337,90 @@ export async function POST(req: NextRequest) {
       discountRedeemed = true
     }
 
-    const total = Math.max(0, subtotal - discountAmount) + deliveryFee
+    // Gift card / store credit / loyalty points (ROADMAP Part 6.3/6.6) — same
+    // "resolve, then claim atomically before stock is touched, roll back on
+    // any later failure" shape as the discount block above. Applied in this
+    // order against whatever's left after the discount: gift card, then
+    // store credit, then points — each only ever eats into the remaining
+    // balance, never goes negative, never exceeds what's actually available.
+    const amountAfterDiscount = Math.max(0, subtotal - discountAmount)
+    let remainingForCredits = amountAfterDiscount
+    let giftCardCode: string | undefined
+    let giftCardId: string | number | undefined
+    let giftCardAmount = 0
+    let giftCardRedeemed = false
+    let storeCreditApplied = 0
+    let storeCreditRedeemed = false
+    let pointsRedeemedCount = 0
+    let pointsAmount = 0
+    let pointsRedeemedFlag = false
+
+    if (giftCardCodeInput) {
+      if (discountAmount > 0 && settings.giftCardsCombinableWithDiscounts === false) {
+        if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+        return NextResponse.json({ error: 'This gift card can’t be combined with a discount code.' }, { status: 400 })
+      }
+      const result = await resolveGiftCard(payload, giftCardCodeInput)
+      if (!result.ok) {
+        if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+        return NextResponse.json({ error: result.error }, { status: 400 })
+      }
+      giftCardCode = giftCardCodeInput.trim().toUpperCase().replace(/\s+/g, '')
+      giftCardId = result.id
+      giftCardAmount = Math.round(Math.min(result.remainingBalance, remainingForCredits) * 100) / 100
+      if (giftCardAmount > 0) {
+        if (!(await redeemGiftCardAmount(payload, giftCardId, giftCardAmount))) {
+          if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+          return NextResponse.json({ error: 'This gift card’s balance changed — please try again.' }, { status: 400 })
+        }
+        giftCardRedeemed = true
+        remainingForCredits = Math.round((remainingForCredits - giftCardAmount) * 100) / 100
+      }
+    }
+
+    if (useStoreCredit && customerId != null && remainingForCredits > 0) {
+      const customerDoc = await payload.findByID({ collection: 'customers', id: customerId, depth: 0 }).catch(() => null)
+      const available = customerDoc ? Number(customerDoc.storeCredit) || 0 : 0
+      storeCreditApplied = Math.round(Math.min(available, remainingForCredits) * 100) / 100
+      if (storeCreditApplied > 0) {
+        if (await redeemStoreCredit(payload, customerId, storeCreditApplied)) {
+          storeCreditRedeemed = true
+          remainingForCredits = Math.round((remainingForCredits - storeCreditApplied) * 100) / 100
+        } else {
+          storeCreditApplied = 0 // balance changed underneath us — skip silently, not worth failing checkout over
+        }
+      }
+    }
+
+    const loyalty = resolveLoyaltyConfig(settings)
+    if (usePoints && loyalty.enabled && customerId != null && remainingForCredits > 0) {
+      const customerDoc = await payload.findByID({ collection: 'customers', id: customerId, depth: 0 }).catch(() => null)
+      const availablePoints = customerDoc ? Number(customerDoc.loyaltyPoints) || 0 : 0
+      const maxDollarsFromPoints = availablePoints / loyalty.burnPointsPerDollar
+      pointsAmount = Math.round(Math.min(maxDollarsFromPoints, remainingForCredits) * 100) / 100
+      pointsRedeemedCount = Math.round(pointsAmount * loyalty.burnPointsPerDollar)
+      if (pointsRedeemedCount > 0) {
+        if (await redeemPoints(payload, customerId, pointsRedeemedCount)) {
+          pointsRedeemedFlag = true
+          remainingForCredits = Math.round((remainingForCredits - pointsAmount) * 100) / 100
+        } else {
+          pointsRedeemedCount = 0
+          pointsAmount = 0
+        }
+      }
+    }
+
+    // Rolls back every credit claimed above, in one call — used at every
+    // failure point below (stock conflict, order-creation failure, payment-
+    // initiation failure), mirroring releaseDiscount's own rollback shape.
+    const releaseCredits = async () => {
+      if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+      if (giftCardRedeemed && giftCardId != null) await releaseGiftCardAmount(payload, giftCardId, giftCardAmount)
+      if (storeCreditRedeemed && customerId != null) await releaseStoreCredit(payload, customerId, storeCreditApplied)
+      if (pointsRedeemedFlag && customerId != null) await releasePoints(payload, customerId, pointsRedeemedCount)
+    }
+
+    const total = remainingForCredits + deliveryFee
 
     // LBP is a snapshot at purchase time, not a live conversion — a later
     // admin rate change must never retroactively change what an old order
@@ -328,22 +429,12 @@ export async function POST(req: NextRequest) {
     const exchangeRateAtPurchase =
       currencyDisplay.mode === 'both' ? currencyDisplay.exchangeRate ?? undefined : undefined
 
-    // Link the order to the logged-in customer account, if any (guest orders have none)
-    let customerId: number | undefined
-    try {
-      const { user } = await payload.auth({ headers: req.headers })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (user && (user as any).collection === 'customers') customerId = Number(user.id)
-    } catch {
-      // not signed in — guest order
-    }
-
     const decremented: StockLine[] = []
     for (const line of qtyByLine.values()) {
       const product = productById.get(line.productId)!
       if (!(await decrementStock(payload, line))) {
         await restoreStock(payload, decremented)
-        if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+        await releaseCredits()
         const label = line.size ? `"${product.title}" in size ${line.size}` : `"${product.title}"`
         return NextResponse.json(
           { error: `${label} is no longer available in the requested quantity. Please update your cart.` },
@@ -370,6 +461,10 @@ export async function POST(req: NextRequest) {
           deliveryFee,
           discountCode,
           discountAmount,
+          giftCardCode,
+          giftCardAmount,
+          storeCreditApplied,
+          pointsRedeemed: pointsRedeemedCount,
           total,
           paymentMethod,
           paymentStatus: needsPaymentSession ? 'awaiting_payment' : 'pending',
@@ -383,7 +478,7 @@ export async function POST(req: NextRequest) {
       })
     } catch (err) {
       await restoreStock(payload, decremented)
-      if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+      await releaseCredits()
       throw err
     }
 
@@ -405,7 +500,7 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         console.error('[orders] Payment initiation failed, rolling back:', err)
         await restoreStock(payload, decremented)
-        if (discountRedeemed && discountId != null) await releaseDiscount(payload, discountId)
+        await releaseCredits()
         try {
           await payload.delete({ collection: 'orders', id: order.id })
         } catch (deleteErr) {

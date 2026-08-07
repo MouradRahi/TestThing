@@ -41,6 +41,14 @@ export const Carts: CollectionConfig = {
         { name: 'quantity', type: 'number', required: true, min: 1 },
       ],
     },
+    {
+      name: 'recoveryEmailSentAt',
+      type: 'date',
+      admin: {
+        readOnly: true,
+        description: 'Set once the abandoned-cart recovery email has gone out (ROADMAP Part 6.5) — never sent twice for the same cart.',
+      },
+    },
   ],
   timestamps: true,
 }

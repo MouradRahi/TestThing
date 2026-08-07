@@ -58,6 +58,7 @@ export function ChangePasswordForm() {
         required
         autoComplete="new-password"
       />
+      <p className="text-[11px] text-muted -mt-2">{t('passwordHint')}</p>
       <Field
         label={t('confirmPassword')}
         name="confirm"
