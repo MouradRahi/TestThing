@@ -8,6 +8,7 @@ export const StatementBlock: Block = {
       name: 'text',
       type: 'text',
       required: true,
+      localized: true,
       admin: { description: 'A single impactful sentence — displayed centered in large muted text.' },
     },
     { name: 'hidden', type: 'checkbox', defaultValue: false },

@@ -9,7 +9,14 @@ const borderCls = (error?: string) => (error ? 'border-red-400/70' : 'border-bor
 
 function FieldError({ error }: { error?: string }) {
   if (!error) return null
-  return <p className="text-[11px] text-red-400 mt-1.5">{error}</p>
+  // role="alert" (implicit aria-live="assertive") — screen-reader users get
+  // the validation message the instant it appears, not just sighted users
+  // via the red border (ENHANCEMENTS E14 leftover).
+  return (
+    <p role="alert" className="text-[11px] text-red-400 mt-1.5">
+      {error}
+    </p>
+  )
 }
 
 export function SectionLabel({

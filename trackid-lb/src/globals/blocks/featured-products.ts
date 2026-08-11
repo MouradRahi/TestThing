@@ -4,8 +4,8 @@ export const FeaturedProductsBlock: Block = {
   slug: 'featured-products',
   labels: { singular: 'Featured Products', plural: 'Featured Products' },
   fields: [
-    { name: 'sectionTitle', type: 'text', defaultValue: 'Latest Drops' },
-    { name: 'viewAllLabel', type: 'text', defaultValue: 'View all →' },
+    { name: 'sectionTitle', type: 'text', localized: true, defaultValue: 'Latest Drops' },
+    { name: 'viewAllLabel', type: 'text', localized: true, defaultValue: 'View all →' },
     { name: 'viewAllHref', type: 'text', defaultValue: '/shop' },
     {
       name: 'source',

@@ -121,7 +121,11 @@ export function ReturnRequestForm({ orderId, items }: { orderId: number; items: 
         rows={4}
       />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-400">
+          {error}
+        </p>
+      )}
 
       <Button type="button" onClick={submit} disabled={loading}>
         {loading ? t('submitting') : t('submitRequest')}

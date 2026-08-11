@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
       ['sendCustomersReport', 'customers'],
       ['sendDiscountsReport', 'discounts'],
       ['sendPaymentsReport', 'payments'],
+      ['sendVatReport', 'vat'],
     ] as const
   )
     .filter(([field]) => !!settings[field])

@@ -64,7 +64,11 @@ export function WriteReviewForm({ productId }: { productId: string }) {
         placeholder={t('reviewPlaceholder')}
         className="w-full bg-bg border border-border px-3 py-2 text-xs text-foreground resize-none focus:border-accent outline-none"
       />
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      )}
       <Button type="button" variant="secondary" onClick={submit} disabled={loading}>
         {loading ? t('submitting') : t('submitReview')}
       </Button>

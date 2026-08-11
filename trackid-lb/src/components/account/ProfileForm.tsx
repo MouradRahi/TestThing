@@ -85,7 +85,11 @@ export function ProfileForm({
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-400">
+          {error}
+        </p>
+      )}
 
       <Button type="submit" disabled={saving}>
         {saving ? t('saving') : saved ? t('saved') : t('save')}

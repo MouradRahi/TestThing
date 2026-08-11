@@ -64,6 +64,11 @@ export default buildConfig({
         '/components/admin/ReportsPanel#ReportsPanel',
         '/components/admin/AnalyticsDashboardPanel#AnalyticsDashboardPanel',
       ],
+      // Opt-in staff 2FA (ROADMAP F0 §1.6 follow-up) — a fetch-interception
+      // gate that only activates for accounts with twoFactorEnabled set;
+      // see AdminTwoFactorLoginGate.tsx for why this approach over a full
+      // login-view override.
+      beforeLogin: ['/components/admin/AdminTwoFactorLoginGate#AdminTwoFactorLoginGate'],
     },
   },
   collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, Returns, Reviews, GiftCards, BackInStockRequests, Bundles, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],

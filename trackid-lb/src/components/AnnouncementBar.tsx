@@ -1,6 +1,7 @@
 import { getLocale } from 'next-intl/server'
 import { Link } from '@/i18n/navigation'
 import { getSiteSettings } from '@/lib/site-settings'
+import { ensureReadableTextColor } from '@/lib/contrast'
 
 export async function AnnouncementBar() {
   const settings = await getSiteSettings(await getLocale())
@@ -8,7 +9,10 @@ export async function AnnouncementBar() {
   if (!settings.announcementEnabled || !settings.announcementText) return null
 
   const bg = (settings.announcementBgColor as string) || '#e8d5b0'
-  const color = (settings.announcementTextColor as string) || '#0a0a0a'
+  // Auto-flips to black/white when the admin's own bg/text pick falls below
+  // WCAG AA contrast (ENHANCEMENTS E14) — never lets a bad color choice ship
+  // an unreadable bar, without needing the admin to check contrast by hand.
+  const color = ensureReadableTextColor(bg, (settings.announcementTextColor as string) || '#0a0a0a')
   const text = settings.announcementText as string
   const href = settings.announcementHref as string | undefined
 

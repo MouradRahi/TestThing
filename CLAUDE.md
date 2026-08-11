@@ -1758,3 +1758,134 @@ user chose to act on.
 - Next: user's call — commit this fix (pending), admin-login rate limiting / 2FA if wanted
   later, the VAT/tax report, remaining small F2 pieces, merchant conversations, or
   ENHANCEMENTS-only a11y/i18n extras. Not yet deployed to prod.
+
+### Session 28 — 2026-08-10
+Focus: **"let's work on those then"** — user picked up the full remaining backlog from
+Session 27 part 5's audit in one go: admin login rate limiting, opt-in staff 2FA, the
+VAT/tax report, the F2 order-timeline-UI leftover, and the two remaining ENHANCEMENTS
+a11y/i18n items (E13 homepage-block/alt localization, E14 form-error `role="alert"` +
+announcement-bar contrast). External merchant conversations (Areeba/NetCommerce/OMT/Whish/
+couriers) were named too but flagged upfront as not code-actionable — those need the user
+directly. **Every one of the code-actionable items is now done.**
+- **Admin login rate limiting**: `Users.ts` gained a `beforeOperation` hook (fires *before*
+  password verification, unlike `beforeLogin`) that rate-limits every login attempt by IP via
+  the existing `durableRateLimit()` — closes the gap where the per-account 5-attempt lockout
+  (already in place since Session 22) doesn't stop one IP from spraying many different email
+  guesses. Verified via real HTTP: 8–10 wrong-password attempts against *distinct nonexistent
+  emails* (to isolate from the separate per-account lockout) correctly 429'd.
+- **Opt-in staff TOTP 2FA** (asked first, given the "could lock out the only admin" risk —
+  user picked "build it, opt-in per account"): researched Payload's actual login internals
+  before writing any code (read `loginOperation`/`loginHandler`/`LoginView` source) rather
+  than guessing at an approach. Key findings that shaped the design: (1) `beforeLogin` fires
+  after password verification but before the JWT is issued — the right place to gate on a
+  code, and `req.data` (the REST handler's parsed body) survives into it, so an extra
+  `twoFactorCode` field in the login POST is readable there; (2) Payload's admin `/login`
+  page has **no supported way to override the actual `<LoginForm>`** in this version — its
+  `LoginView` only exposes decorative `beforeLogin`/`afterLogin` component slots, confirmed
+  by reading `@payloadcms/next`'s source rather than assuming a `views.login` override
+  existed just because the TS type permits arbitrary strings. Design landed on: `Users.ts`
+  fields (`twoFactorEnabled`/`twoFactorSecret`/`twoFactorPendingSecret`/`twoFactorEnabledAt`)
+  + `src/lib/totp.ts` (`otpauth` + `qrcode`, both server-only, zero client-bundle cost) +
+  three routes (`/api/admin/2fa/{setup,verify-setup,disable}`) + `TwoFactorField.tsx` (a `ui`
+  field on the Users edit view — QR + manual key + code confirm to enroll; a current code to
+  self-disable; an admin can force-disable a *different* account with no code, the recovery
+  path for a lost device) + `AdminTwoFactorLoginGate.tsx` (mounted via
+  `admin.components.beforeLogin`) — which intercepts same-origin `fetch()` calls to
+  `/api/users/login` (reacting only to the endpoint's public REST contract: URL + JSON
+  shapes, never DOM/CSS) and shows a code modal on the `2FA_REQUIRED`/`2FA_INVALID` marker,
+  resubmitting with the code so Payload's own form/cookie/redirect logic runs unmodified.
+  Self-disable deliberately requires a *current TOTP code*, not the password — an internal
+  `payload.login()` re-check (the customer change-password pattern) would itself trip the
+  new `beforeLogin` gate, since a local-API call has no HTTP body to carry a code through.
+  **Caught two real bugs via verification, not review**: (1) `showHiddenFields: true` was
+  missing from the `findByID` calls reading `twoFactorSecret`/`twoFactorPendingSecret` —
+  Payload strips `hidden: true` fields from every read regardless of `select` unless this
+  flag is set, so verify-setup/disable both 400'd with "no pending code found" until fixed;
+  (2) the admin recovery-disable path silently fell through to the wrong branch because
+  `targetUserId` arrived as a JSON *number* (Payload IDs are numeric) but was validated with
+  a string-only `cleanString()` helper — fixed to accept either type. Verified end-to-end
+  against the real dev DB + a live built server (not just Local API scripts): rate limiting,
+  enrollment (wrong/correct code), the login gate (no code/wrong code/correct code, with
+  real TOTP codes computed from the actual stored secret via `otpauth`), self-disable, and
+  the cross-account admin recovery path (403 for non-admin, 200 for admin) all confirmed.
+- **VAT/tax report** (`src/lib/reports/vat.ts`): the one report type Session 25's engine
+  left unbuilt, unblocked since Session 27 part 1 added `SiteSettings.vatRate`/`vatEnabled`.
+  Per-period (day/week/month) net/VAT/gross breakdown over non-cancelled orders, using the
+  existing `computeVatBreakdown()` against the site's *current* VAT rate — flagged in the
+  file (not silently assumed away) that there's no per-order rate snapshot, so a rate change
+  mid-period recomputes past orders at the new rate. Clean "VAT disabled" empty state when
+  off, rather than a zeroed-out report. Registered in `registry.ts` + `ReportsExplorer.tsx`
+  (reused the existing groupBy control) + a new `sendVatReport` toggle on the scheduled-email
+  digest (off by default, same pattern as Discounts/Payments/Customers). Verified via real
+  HTTP against the actual admin route: every row's net+vat reconciles to gross to the cent
+  against real order data, the disabled state, all three export formats (CSV/XLSX/PDF —
+  confirmed valid magic bytes), and the unauthenticated-403 path.
+- **F2 order-timeline UI** (the one leftover from Session 24's refunds/reconciliation work):
+  `OrderTimelineField.tsx` — a collapsible `ui` field on Orders, next to the existing
+  invoice-download field — merges a new `GET /api/admin/orders/[id]/timeline` route's output:
+  this order's Payment records (attempt created/status changes/webhook `rawEvents`) plus its
+  AuditLog rows (admin-driven status/refund changes), sorted chronologically. Pure read-side
+  merge of data both collections already record — no new writes, no new schema. Verified
+  against a real order from this project's own F2 testing history (order 21's OMT-confirm →
+  partial-refund → full-refund sequence, still in the dev DB from Session 24) via real HTTP.
+- **E13 — homepage-block text + product-image alt localization** (deferred since Session
+  10/18): `localized: true` added to `products.images[].alt` and the copy fields on all 7
+  homepage/page section blocks (hero, slideshow slides, featured-products, image-text,
+  statement, rich-text, cta-banner) — hrefs/colors/selects stay unlocalized. **De-risked
+  before writing the migration**: checked whether nested-array localization (the exact
+  pattern Session 27 part 4 called "uncertain shape" and deliberately avoided for
+  `products.specs[]`) was actually safe here by finding `Navigation.ts`'s
+  `headerLinks[].label`/`footerColumns[].links[].label` — already localized, already working,
+  since Session 18, proving arrays (even nested two levels) with localized sub-fields are a
+  known-good pattern in this exact codebase. Hand-written, data-preserving migration
+  (`20260810_120000_localize_blocks_and_image_alt.ts`) follows MIGRATIONS.md's recipe
+  exactly for all 16 affected tables (8 block types × Homepage + Pages, which share the
+  identical block configs and so need identical treatment) — create each `_locales` table,
+  copy existing values into `en` *before* dropping the old column, never after (the Session
+  18 incident this recipe exists to prevent). Verified against the real dev DB: post-migration
+  row counts match pre-migration counts exactly for every affected table, and every existing
+  English value landed correctly in the `en` locale (spot-checked hero/statement/products-
+  images locale tables). No storefront component changes needed — locale was already
+  threaded through every block-rendering query since Session 18. Full production build
+  prerenders `/en` and `/ar` clean. **Learned along the way**: `generateTypes` returning
+  with no "Types written to" message and an unchanged file isn't a bug — it diffs the newly
+  compiled types against the existing file and no-ops when identical, which is *correct*
+  here since `localized: true` doesn't change a field's generated TypeScript shape at all
+  (Payload always returns a flat value for whichever locale was requested, never a per-locale
+  map) — worth remembering before chasing a phantom "silent failure" on a future localization
+  change.
+- **E14 — form-error `aria-live` + announcement-bar contrast**: `role="alert"` (implicit
+  `aria-live="assertive"`) added to `FormField.tsx`'s shared `FieldError` (covers every
+  field-level error for free) plus every standalone top-level error banner across the
+  customer-facing forms (auth/password/profile/returns/checkout incl. the discount-code
+  message/custom-request/add-to-cart/notify-me/write-review). New `src/lib/contrast.ts`
+  (pure WCAG 2.x relative-luminance/contrast-ratio math, `ensureReadableTextColor()`, 9 unit
+  tests) wired into `AnnouncementBar.tsx` — auto-flips the admin-picked text color to
+  black/white (whichever contrasts better) whenever the admin's own bg/text pick falls below
+  the 4.5:1 WCAG AA threshold, closing the long-flagged "owner might pick unreadable colors"
+  risk in code rather than leaving it as a process/judgment risk. Field description updated
+  so the behavior doesn't read as ignored/broken from the admin side.
+- **External merchant conversations** (Areeba/NetCommerce, OMT B2B agreement, Whish,
+  Wakilni/Toters) — explicitly out of scope for this session, same as always: these are
+  business-side actions only the user can take, not something to build.
+- ✅ `npx tsc --noEmit` clean; `npm test` 40/40 (was 31 — +9 new contrast tests); `npm run
+  build` verified (all new routes registered: `/api/admin/2fa/*`, `/api/admin/orders/[id]/
+  timeline`); `npm run test:e2e` 1/1 (Chromium binary had to be reinstalled first — missing
+  from this machine, unrelated to any code change — then the full COD checkout flow passed
+  clean, confirming none of this session's changes broke it); `npm run migrate:status` shows
+  all 12 migrations applied on dev, batch numbers intact.
+- ROADMAP.md updated: F0 §1.6 (rate limit + 2FA), Part 2 §2.6 (order-timeline UI ☑), Part 4
+  §4.1 (VAT ☑, stale "still pending"/"blocking" references corrected). ENHANCEMENTS.md E13/
+  E14 marked ☑ DONE, execution-order table rows 6–7 updated. **Every item from Session 27
+  part 5's security audit is now either fixed (password strength, rate limiting, 2FA) or was
+  never a real gap (localStorage, client-side admin checks) — nothing outstanding from that
+  audit.**
+- Not yet committed at the time of writing this entry — commit/push/CI-verify follows,
+  same close-out pattern as every other session.
+- Next: user's call. Remaining backlog is genuinely thin now: 2.3's real card-gateway
+  decision (blocked on Areeba/NetCommerce merchant onboarding — external), 2.4's real OMT API
+  confirmation (blocked on the B2B agreement — external), courier vendor integration (needs a
+  vendor decision — external), Part 8 productization (generic taxonomy, onboarding wizard —
+  large, multi-session), or a first deploy of everything shipped since the last confirmed
+  prod deploy (F1/F2 payments + Session 25's report engine, per Session 26 part 1's note —
+  substantial functionality is sitting on the branch, not live). Not yet deployed to prod.
