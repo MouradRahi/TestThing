@@ -4,12 +4,17 @@ export const HeroBlock: Block = {
   slug: 'hero',
   labels: { singular: 'Hero Section', plural: 'Hero Sections' },
   fields: [
-    { name: 'eyebrow', type: 'text', admin: { description: 'Small label above headline, e.g. "Lebanon · Hand-painted"' } },
-    { name: 'headline', type: 'text' },
-    { name: 'subline', type: 'text' },
-    { name: 'ctaLabel', type: 'text', admin: { description: 'Primary button text, e.g. "Shop Now"' } },
+    {
+      name: 'eyebrow',
+      type: 'text',
+      localized: true,
+      admin: { description: 'Small label above headline, e.g. "Lebanon · Hand-painted"' },
+    },
+    { name: 'headline', type: 'text', localized: true },
+    { name: 'subline', type: 'text', localized: true },
+    { name: 'ctaLabel', type: 'text', localized: true, admin: { description: 'Primary button text, e.g. "Shop Now"' } },
     { name: 'ctaHref', type: 'text', admin: { description: 'Primary button link, e.g. /shop' } },
-    { name: 'secondaryCtaLabel', type: 'text' },
+    { name: 'secondaryCtaLabel', type: 'text', localized: true },
     { name: 'secondaryCtaHref', type: 'text' },
     {
       name: 'bgImageMedia',

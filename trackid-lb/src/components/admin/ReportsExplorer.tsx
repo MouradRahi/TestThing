@@ -9,6 +9,7 @@ const REPORT_TYPES = [
   { key: 'customers', label: 'Customers' },
   { key: 'discounts', label: 'Discounts' },
   { key: 'payments', label: 'Payments' },
+  { key: 'vat', label: 'VAT' },
 ] as const
 type ReportType = (typeof REPORT_TYPES)[number]['key']
 
@@ -69,6 +70,7 @@ export function ReportsExplorer() {
       sp.set('dimension', dimension)
       if (dimension === 'period') sp.set('groupBy', groupBy)
     }
+    if (reportType === 'vat') sp.set('groupBy', groupBy)
     return sp.toString()
   }
 
@@ -138,7 +140,7 @@ export function ReportsExplorer() {
           </div>
         )}
 
-        {reportType === 'sales' && dimension === 'period' && (
+        {((reportType === 'sales' && dimension === 'period') || reportType === 'vat') && (
           <div>
             <div style={labelStyle}>Group by</div>
             <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={inputStyle}>

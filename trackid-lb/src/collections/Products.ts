@@ -152,6 +152,7 @@ export const Products: CollectionConfig = {
         {
           name: 'alt',
           type: 'text',
+          localized: true,
         },
       ],
     },

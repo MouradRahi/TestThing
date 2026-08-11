@@ -48,7 +48,11 @@ export function NotifyMeForm({ productId }: { productId: string }) {
           {loading ? '…' : t('notifyMe')}
         </Button>
       </div>
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      )}
     </form>
   )
 }

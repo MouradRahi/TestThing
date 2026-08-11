@@ -4,7 +4,7 @@ export const RichTextBlock: Block = {
   slug: 'rich-text',
   labels: { singular: 'Rich Text', plural: 'Rich Text Sections' },
   fields: [
-    { name: 'content', type: 'richText' },
+    { name: 'content', type: 'richText', localized: true },
     { name: 'hidden', type: 'checkbox', defaultValue: false },
   ],
 }

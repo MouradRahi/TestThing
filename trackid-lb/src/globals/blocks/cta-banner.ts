@@ -4,9 +4,9 @@ export const CTABannerBlock: Block = {
   slug: 'cta-banner',
   labels: { singular: 'CTA Banner', plural: 'CTA Banners' },
   fields: [
-    { name: 'headline', type: 'text' },
-    { name: 'subline', type: 'text' },
-    { name: 'ctaLabel', type: 'text' },
+    { name: 'headline', type: 'text', localized: true },
+    { name: 'subline', type: 'text', localized: true },
+    { name: 'ctaLabel', type: 'text', localized: true },
     { name: 'ctaHref', type: 'text' },
     {
       name: 'bgImageMedia',

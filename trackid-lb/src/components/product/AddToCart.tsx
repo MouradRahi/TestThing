@@ -99,7 +99,11 @@ export function AddToCart({ id, slug, title, price, imageUrl, outOfStock, maxQua
               )
             })}
           </div>
-          {sizeError && <p className="text-xs text-red-400">{t('pickSize')}</p>}
+          {sizeError && (
+            <p role="alert" className="text-xs text-red-400">
+              {t('pickSize')}
+            </p>
+          )}
         </div>
       )}
 

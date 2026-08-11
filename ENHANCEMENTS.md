@@ -90,19 +90,48 @@ The order page prints the status as a word. Render the pipeline (Pending → Con
 
 ## D. i18n / SEO / A11y / Perf polish
 
-### E13 ◐ 🟡 SEO/i18n correctness batch (companions to bugs B9/B10/B16)
+### E13 ☑ DONE 🟡 SEO/i18n correctness batch (companions to bugs B9/B10/B16)
 - ☑ hreflang `alternates.languages` + locale-aware canonicals everywhere (B9) — Session 22, part 11
 - ☑ Localized product meta pattern via Copy tab (B10) — Session 22, part 11
 - ☑ Arabic-capable font option + `preload: false` on unused fonts (B20) — Session 22, part 13
-- ☐ Homepage-block text + product-image alt localization (Session 18 deferred)
-- Files: all `generateMetadata` sites, `site-settings.ts`, `SiteSettings.ts`, block configs (`localized: true` on text fields — ⚠️ localize-migration rules apply, see MIGRATIONS.md).
+- ☑ Homepage-block text + product-image alt localization (Session 18 deferred) — Session 27
+  part 6. `localized: true` added to `products.images[].alt` and the copy fields on all 7
+  homepage/page section blocks (hero, slideshow slides, featured-products, image-text,
+  statement, rich-text, cta-banner) — hrefs/colors/selects stay unlocalized. Hand-written,
+  data-preserving migration (`20260810_120000_localize_blocks_and_image_alt.ts`, following
+  MIGRATIONS.md's recipe exactly — create `_locales` table, copy existing values into `en`
+  *before* dropping the old column) covers both `homepage_blocks_*` and `pages_blocks_*`
+  (Pages shares the identical block configs, so needs the identical treatment). De-risked
+  by checking first: `Navigation.ts`'s `headerLinks[].label`/`footerColumns[].links[].label`
+  already prove arrays (even nested two levels deep) with localized sub-fields work
+  correctly in this exact codebase since Session 18 — the same "uncertain nested shape"
+  concern that led Session 27 part 4 to defer `products.specs[]` localization didn't apply
+  here. No storefront component code changes needed — locale was already threaded through
+  every block-rendering query. Verified against the real dev DB: post-migration row counts
+  match pre-migration counts exactly, and every existing English value landed correctly in
+  the `en` locale (spot-checked `homepage_blocks_hero_locales`, `_statement_locales`,
+  `products_images_locales`); full production build prerenders `/en` and `/ar` clean.
+- Files: `Products.ts`, `src/globals/blocks/*.ts`, new migration.
 
-### E14 ◐ 🟢 A11y batch (companions to bugs B17/B18)
+### E14 ☑ DONE 🟢 A11y batch (companions to bugs B17/B18)
 - ☑ Focus trap in drawer (new `useFocusTrap` hook) + mobile menu Esc-to-close with focus return (B17) — Session 22, part 13
 - ☑ `prefers-reduced-motion` respected — slideshow autoplay (new `useReducedMotion` hook) + a global CSS rule killing transitions/animations/smooth-scroll site-wide (B18) — Session 22, part 13
-- ☐ Form errors get `role="alert"`/`aria-live`
-- ☐ Announcement-bar contrast: compute contrast of admin-picked colors in the AnnouncementBar RSC; below 4.5:1 → auto-flip text to black/white (kills the long-deferred "owner might pick unreadable colors" risk in code, not process)
-- Files: `src/lib/useFocusTrap.ts` (new), `src/lib/useReducedMotion.ts` (new), `CartDrawer.tsx`, `Nav.tsx`, `SlideshowSection.tsx`, `globals.css`, `FormField.tsx`, `AnnouncementBar.tsx`.
+- ☑ Form errors get `role="alert"` (implicit `aria-live="assertive"`) — Session 27 part 6.
+  Added to `FormField.tsx`'s shared `FieldError` (covers every field-level error site for
+  free) plus every standalone top-level error banner across the customer-facing forms
+  (AuthForm, ChangePasswordForm, ForgotPasswordForm, ProfileForm, ResetPasswordForm,
+  ReturnRequestForm, CheckoutForm — both the general error banner and the discount-code
+  message, CustomRequestForm, AddToCart's size-required note, NotifyMeForm, WriteReviewForm).
+- ☑ Announcement-bar contrast — Session 27 part 6. New `src/lib/contrast.ts`
+  (`contrastRatio`/`ensureReadableTextColor`, pure WCAG 2.x luminance math, 9 unit tests) —
+  `AnnouncementBar.tsx` now auto-flips the admin-picked text color to black/white
+  (whichever contrasts better) whenever the admin's own bg/text pick falls below the 4.5:1
+  WCAG AA threshold, rather than trusting the admin to check by eye. Field description
+  updated to document the behavior so it doesn't look broken/ignored from the admin side.
+- Files: `src/lib/useFocusTrap.ts`, `src/lib/useReducedMotion.ts`, `CartDrawer.tsx`, `Nav.tsx`,
+  `SlideshowSection.tsx`, `globals.css`, `FormField.tsx`, `AnnouncementBar.tsx`,
+  `src/lib/contrast.ts` (new) + `contrast.test.ts` (new), `SiteSettings.ts`, and every
+  customer-facing form component listed above.
 
 ---
 
@@ -148,8 +177,8 @@ Upstash Redis / Vercel KV behind the existing `rateLimit()` signature (in-memory
 | 3 | **Cart/checkout conversion** | E1, E2, E4, E3; F3 hardening (☑ B4 done Session 22 part 5, ☑ B12 done Session 22 part 11, ☑ B14 done Session 22 part 6) | The money path; toast (E4) unblocks proper B6 fix |
 | 4 | **Discovery** | E5 (description first), E6, E7, E8 | Catalog is growing; product storytelling is the brand |
 | 5 | **Order experience** | E11, B3 verify, E12 (adds `locale` field — migration) | Post-purchase trust; groundwork for repeat customers |
-| 6 | **SEO/i18n batch** | E13 ◐ (☑ B9, ☑ B10, ☑ B20 done — parts 11 + 13; homepage-block/alt localization still open), sitemap sanity pass | Arabic side is currently invisible to Google — fix before content marketing starts |
-| 7 | **A11y batch** | E14 ◐ (☑ B17, B18, B19, B21 done part 13; form-error `role="alert"` + announcement-bar contrast still open) | Bundled — cheap together, disruptive apart |
+| 6 | **SEO/i18n batch** ☑ DONE (Session 27 part 6) | E13 ☑ (B9, B10, B20, homepage-block/alt localization all done) | Arabic side is currently invisible to Google — fix before content marketing starts |
+| 7 | **A11y batch** ☑ DONE (Session 27 part 6) | E14 ☑ (B17, B18, B19, B21, form-error `role="alert"`, announcement-bar contrast all done) | Bundled — cheap together, disruptive apart |
 | 8 | **Growth & admin** | F1 newsletter, F2 admin ergonomics, F4 weekly summary, E9 recently-viewed | Post-stabilization leverage |
 | — | *Parked* | F5 versions/preview, F7 KV rate-limit, F6 keys | Trigger-based, not scheduled |
 

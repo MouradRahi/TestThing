@@ -15,6 +15,8 @@ import * as migration_20260731_190000_add_vat_settings from './20260731_190000_a
 import * as migration_20260731_210000_add_courier_and_low_stock_alert from './20260731_210000_add_courier_and_low_stock_alert';
 import * as migration_20260731_230000_add_returns_and_cart_recovery from './20260731_230000_add_returns_and_cart_recovery';
 import * as migration_20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty from './20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty';
+import * as migration_20260807_000000_add_2fa_and_login_rate_limit from './20260807_000000_add_2fa_and_login_rate_limit';
+import * as migration_20260810_120000_localize_blocks_and_image_alt from './20260810_120000_localize_blocks_and_image_alt';
 
 export const migrations = [
   {
@@ -66,5 +68,15 @@ export const migrations = [
     up: migration_20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty.up,
     down: migration_20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty.down,
     name: '20260806_000000_add_reviews_gift_cards_bin_stock_bundles_loyalty',
+  },
+  {
+    up: migration_20260807_000000_add_2fa_and_login_rate_limit.up,
+    down: migration_20260807_000000_add_2fa_and_login_rate_limit.down,
+    name: '20260807_000000_add_2fa_and_login_rate_limit',
+  },
+  {
+    up: migration_20260810_120000_localize_blocks_and_image_alt.up,
+    down: migration_20260810_120000_localize_blocks_and_image_alt.down,
+    name: '20260810_120000_localize_blocks_and_image_alt',
   },
 ];

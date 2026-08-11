@@ -310,7 +310,10 @@ export const SiteSettings: GlobalConfig = {
               name: 'announcementTextColor',
               type: 'text',
               defaultValue: '#0a0a0a',
-              admin: { description: 'Text hex color, e.g. #0a0a0a' },
+              admin: {
+                description:
+                  'Text hex color, e.g. #0a0a0a. If this doesn’t contrast enough against the background, the storefront automatically shows black or white instead — whichever reads better — so the bar can never render unreadable.',
+              },
             },
             {
               name: 'announcementHref',
@@ -683,6 +686,15 @@ export const SiteSettings: GlobalConfig = {
               type: 'checkbox',
               defaultValue: false,
               admin: { condition: (data) => !!data?.reportsEmailEnabled },
+            },
+            {
+              name: 'sendVatReport',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                description: 'Only produces data when VAT is enabled (Commerce tab).',
+                condition: (data) => !!data?.reportsEmailEnabled,
+              },
             },
             {
               name: 'reportsEmailLastSentAt',

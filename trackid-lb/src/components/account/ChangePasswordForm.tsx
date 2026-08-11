@@ -69,7 +69,11 @@ export function ChangePasswordForm() {
         autoComplete="new-password"
       />
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-400">
+          {error}
+        </p>
+      )}
 
       <Button type="submit" disabled={saving}>
         {saving ? t('changingPassword') : saved ? t('passwordChanged') : t('changePasswordCta')}

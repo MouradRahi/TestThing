@@ -1129,6 +1129,10 @@ export interface AnalyticsCounter {
 export interface User {
   id: number;
   role: 'admin' | 'editor';
+  twoFactorEnabled?: boolean | null;
+  twoFactorSecret?: string | null;
+  twoFactorPendingSecret?: string | null;
+  twoFactorEnabledAt?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -1865,6 +1869,10 @@ export interface AnalyticsCountersSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   role?: T;
+  twoFactorEnabled?: T;
+  twoFactorSecret?: T;
+  twoFactorPendingSecret?: T;
+  twoFactorEnabledAt?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -2196,6 +2204,10 @@ export interface SiteSetting {
   sendCustomersReport?: boolean | null;
   sendDiscountsReport?: boolean | null;
   sendPaymentsReport?: boolean | null;
+  /**
+   * Only produces data when VAT is enabled (Commerce tab).
+   */
+  sendVatReport?: boolean | null;
   /**
    * Set automatically — prevents sending twice in the same period.
    */
@@ -2550,6 +2562,7 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   sendCustomersReport?: T;
   sendDiscountsReport?: T;
   sendPaymentsReport?: T;
+  sendVatReport?: T;
   reportsEmailLastSentAt?: T;
   loyaltyEnabled?: T;
   loyaltyEarnRatePerDollar?: T;

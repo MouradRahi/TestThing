@@ -25,7 +25,11 @@ export function rateLimit(key: string, limit: number, windowMs: number): boolean
   return true
 }
 
-export function clientIp(req: Request): string {
+// Structural rather than `Request` itself — PayloadRequest (used by the
+// Users.ts login-rate-limit hook) isn't nominally assignable to `Request`
+// (an optional vs. required `cache` property mismatch) despite having a
+// real `.headers.get()`, which is all this needs.
+export function clientIp(req: { headers: Pick<Headers, 'get'> }): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown'
 }
 

@@ -57,7 +57,11 @@ export function ForgotPasswordForm() {
       <form onSubmit={submit} className="space-y-5">
         <Field label={t('email')} name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
 
-        {error && <p className="text-sm text-red-400 border border-red-400/30 px-3 py-2">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-red-400 border border-red-400/30 px-3 py-2">
+            {error}
+          </p>
+        )}
 
         <Button type="submit" fullWidth disabled={loading}>
           {loading ? t('sending') : t('forgotPasswordCta')}

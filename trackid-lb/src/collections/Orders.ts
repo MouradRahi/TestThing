@@ -243,6 +243,13 @@ export const Orders: CollectionConfig = {
       },
     },
     {
+      name: 'orderTimeline',
+      type: 'ui',
+      admin: {
+        components: { Field: '/components/admin/OrderTimelineField#OrderTimelineField' },
+      },
+    },
+    {
       name: 'customerName',
       type: 'text',
       required: true,

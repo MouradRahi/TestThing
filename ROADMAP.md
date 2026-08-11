@@ -91,8 +91,11 @@ create them for real, same as any normal migration.
 ### 1.5 Audit log — ☑ DONE (Session 22, part 10)
 - ☑ `AuditLog` collection (`src/collections/AuditLog.ts`, `src/lib/audit-log.ts`) — logs who changed what, when. Wired into three `afterChange`/`afterDelete` hooks: **Orders** (orderStatus/paymentStatus transitions, with before→after values — orders are only ever updated from admin, the storefront API only creates, so this cleanly captures "admin changed a status"), **Discounts** (create/update/delete — `usageCount` bumps via raw SQL bypass Payload's hooks entirely, so this only ever fires for genuine admin edits, never the automatic per-order redemption), **SiteSettings** (which top-level fields changed). Uses a shallow top-level-key diff (`changedTopLevelFields()`) rather than a deep/rich-text-aware diff — enough to know *what* was touched, not a full value history. `logAuditEvent()` silently no-ops if there's no authenticated staff user on the request (never blocks the underlying save over a logging concern) and snapshots the admin's email (survives that user account later being deleted). Verified against the real dev DB: simulated an admin-driven order status change, a discount create+update, and two SiteSettings updates — all four produced correct, correctly-worded audit rows.
 
-### 1.6 Admin account security — ☑ DONE (Session 22, part 10)
-- ☑ **Login-attempt lockout** — turned out to need zero new code. Payload's `auth: true` default (used by `Users.ts` all along) already sets `maxLoginAttempts: 5` / `lockTime: 10min` unless explicitly overridden, which nobody had. Verified end-to-end with a throwaway staff account: 5 failed logins locked the account, and the 6th attempt was rejected *even with the correct password*. Full TOTP 2FA (the roadmap's stronger alternative) stays a real future upgrade if this ever proves insufficient, but the roadmap's own "or at minimum" bar is met.
+### 1.6 Admin account security — ☑ DONE (Session 22, part 10; rate limit + 2FA added Session 27 part 6)
+- ☑ **Login-attempt lockout** — turned out to need zero new code. Payload's `auth: true` default (used by `Users.ts` all along) already sets `maxLoginAttempts: 5` / `lockTime: 10min` unless explicitly overridden, which nobody had. Verified end-to-end with a throwaway staff account: 5 failed logins locked the account, and the 6th attempt was rejected *even with the correct password*.
+- ☑ **IP-based login rate limiting** (Session 27 part 6, prompted by a login-security audit): the per-account lockout above doesn't stop one IP from spraying many different email guesses. `Users.ts` `beforeOperation` hook — fires before password verification even runs — calls `durableRateLimit()` keyed by IP, same durable Postgres-backed limiter every other route in this app uses. Verified: 8–10 wrong-password attempts against distinct nonexistent emails correctly 429'd, isolated from the separate per-account lockout by testing with emails other than the real account under test.
+- ☑ **Opt-in staff TOTP 2FA** (Session 27 part 6, same audit — chosen over skipping it: opt-in per account, so nobody is forced in and there's no lockout risk to existing access). `Users.ts` gained `twoFactorEnabled`/`twoFactorSecret`/`twoFactorPendingSecret`/`twoFactorEnabledAt` + a `beforeLogin` hook that, when enabled, requires a valid `twoFactorCode` in the login request's raw JSON body (`req.data` — confirmed by reading Payload's own login source that extra body fields survive through to this hook) or throws a distinguishable `2FA_REQUIRED`/`2FA_INVALID` `APIError`. Enrollment/disable via `src/lib/totp.ts` (`otpauth` + `qrcode`, both server-only — never reach a client bundle) + `POST /api/admin/2fa/{setup,verify-setup,disable}` + a `TwoFactorField.tsx` `ui` field on the Users edit view (QR code, manual key, code confirmation). **Admin login page itself was NOT overridden** — Payload's built-in `<LoginForm>` has no supported swap-out in this version (confirmed by reading `@payloadcms/next`'s `LoginView` source: only decorative `beforeLogin`/`afterLogin` component slots exist). Instead, `AdminTwoFactorLoginGate.tsx` (mounted via `admin.components.beforeLogin`) intercepts same-origin `fetch()` calls to `/api/users/login` — reacting only to the endpoint's public REST contract (URL, JSON shapes), never DOM/CSS internals — and shows a code modal on the `2FA_REQUIRED`/`2FA_INVALID` marker, resubmitting with the code so Payload's own form sees a normal response and handles the cookie/redirect itself. **Recovery path**: an admin can disable 2FA on a *different* staff account with no code required (`targetUserId`, admin-role-gated) — the self-disable path requires a current TOTP code instead of the password (an internal `payload.login()` re-check would itself trip the new `beforeLogin` gate, since a local-API call has no HTTP body to carry a code through). Both disable paths audit-logged. Verified end-to-end against the real dev DB + a live server: enrollment (wrong code rejected, correct accepted), the login gate (no code → 401, wrong code → 401, correct code → 200 + cookie), self-disable, and the cross-account admin recovery path (403 for a non-admin, 200 for an admin) all confirmed via real HTTP with real TOTP codes computed from the actual stored secret.
+- Full TOTP 2FA was the roadmap's stated "stronger alternative" to lockout — now done, not just deferred.
 - ☑ **Enforced strong passwords** — Payload's own default password `minLength` is a permissive 3 characters with no complexity check, and there's no built-in collection-level override for it. Added a `beforeValidate` hook on `Users.ts`: staff passwords must be ≥12 characters and include both a letter and a number (stricter than the storefront's 8-char customer minimum, since a compromised staff account is higher-stakes). Verified: `short1`, an 18-char letters-only string, and a 12-digit-only string were all correctly rejected; a 22-char mixed password was correctly accepted.
 - ☑ **Role review (the 1.11 leftover)** — Products, Pages, Categories, Artists had *no access block at all* (Payload's actual default, confirmed by reading its source, is `Boolean(user)` — any authenticated user of *any* auth collection, not gated by role at all); GarmentTypes/Media only specified public `read`. Editors still need to manage the catalog day-to-day, so `create`/`update` stay open to any staff — only `delete` is now admin-only on all six (mirrors the Orders/Users pattern already fixed in Session 9). **SiteSettings** (the "Settings" the roadmap explicitly named) went further: `update` itself is admin-only, since it governs money-relevant config (delivery zones, bank transfer instructions) that isn't routine editorial work the way product/page edits are. Verified against the real dev DB with a throwaway editor account: editor could update a product but not delete it, could not update SiteSettings at all; an admin could do both.
 
@@ -234,10 +237,15 @@ one adapter against the 2.1 interface — nothing else in the plan depends on it
   selection anyway), audit-logged. Provider-side `refund()` is an optional interface method
   for when a real gateway supports it — mock/OMT both fall back to recording the refund
   without sending it anywhere, which is the honest state today.
-- ☐ Order timeline UI in admin: every payment event on the order (initiated, webhook
-  received, paid, refunded) with timestamps and provider refs — the Payments collection's
-  own `rawEvents` field is a de facto per-payment audit trail already viewable in admin;
-  a dedicated on-order timeline view is deferred.
+- ☑ Order timeline UI (Session 27 part 6): `OrderTimelineField.tsx` — a collapsible `ui`
+  field on Orders (next to the invoice-download field) that merges this order's Payment
+  records (attempt created/status changes/webhook `rawEvents`) with its AuditLog rows
+  (admin-driven status/refund changes) into one chronological list via a new
+  `GET /api/admin/orders/[id]/timeline` route. Pure read-side merge of data both
+  collections already record — no new writes, no new schema. Verified against a real order
+  from this project's own F2 testing history (order 21's OMT-confirm → partial-refund →
+  full-refund sequence) via real HTTP with an admin JWT: entries render chronologically,
+  an order with no events returns an empty (not erroring) list, unauthenticated is 403'd.
 - Verified: partial refund → `partially_refunded`, remaining-amount refund → `refunded`,
   over-refund correctly rejected, refund on a non-paid order correctly rejected, refund +
   restock on a **COD** order (no Payment record at all) correctly updates the order alone.
@@ -337,7 +345,7 @@ Turns the existing dashboard into accounting-grade output. All reads go through
 SQL aggregation (`payload.db.pool`) so it stays fast at volume — this also retires
 the dashboard's "JS aggregation at scale" deferred item.
 
-### 4.1 Report engine — ☑ DONE (Session 25); VAT/tax report still ☐, no longer blocked (Session 27)
+### 4.1 Report engine — ☑ DONE, including VAT/tax (Session 25, VAT added Session 27 part 5)
 - ☑ `src/lib/reports/` — parameterized report definitions (date range, filters, dimension) →
   tabular result, one SQL round trip per breakdown via `payload.db.pool` (`src/lib/db-pool.ts`).
   Types built:
@@ -355,9 +363,15 @@ the dashboard's "JS aggregation at scale" deferred item.
     top customers by spend in range
   - **Discounts** (`discounts.ts`): usage + revenue impact per code in range, joined against
     the code's all-time `usageCount`/`usageLimit`
-  - **VAT/tax**: still not built, but Part 3.1 (Session 27) added the `vatEnabled`/`vatRate`
-    fields this needed — no longer blocked, just not yet done. Small follow-up: a report
-    grouping `computeVatBreakdown()` over orders in range would be the whole task.
+  - **VAT** (`vat.ts`) — ☑ DONE (Session 27 part 5): per-period (day/week/month) net/VAT/
+    gross breakdown over non-cancelled orders in range, using `computeVatBreakdown()` against
+    SiteSettings' *current* `vatRate` (no per-order rate snapshot exists — flagged in the file
+    rather than silently assumed away; a rate change mid-period recomputes past orders at the
+    new rate). Returns a clean "VAT disabled" empty state when SiteSettings.vatEnabled is off,
+    rather than a zeroed-out report. Verified against real dev data via the actual HTTP route
+    (not just the Local API): every row's net+vat reconciles to gross to the cent; disabled
+    state, CSV/XLSX/PDF exports, and the unauthenticated-403 path all confirmed. Also wired
+    into §4.2's scheduled email digest as a `sendVatReport` toggle (off by default).
 - ☑ Export: `export-csv.ts` (same escaping convention as the existing payments CSV route),
   `export-xlsx.ts` via **`write-excel-file`** (not exceljs — exceljs pulls in an outdated
   archiver/archiver-utils chain with a high-severity `brace-expansion` DoS advisory and no
@@ -373,10 +387,9 @@ the dashboard's "JS aggregation at scale" deferred item.
   format=csv|xlsx|pdf` — both admin-gated via the existing `requireAdminUser` guard.
 - Audience note: reports serve three parties — **owner** (sales/AOV by period, product,
   category, area; discount performance; top customers), **accountant** (payments summaries,
-  CSV/XLSX — VAT still pending 3.1), **operations** (inventory value, low stock, sell-through)
-- Sequencing note confirmed correct in practice: sales/inventory/customer/discount/payments
-  reports needed only F0 + the F1 mock provider (already done) — no payments work was
-  blocking, only VAT is (and only VAT, deliberately deferred)
+  VAT breakdown, CSV/XLSX), **operations** (inventory value, low stock, sell-through)
+- Sequencing note confirmed correct in practice: every report type, including VAT, needed
+  only F0 + the F1 mock provider — no payments work ever actually blocked this part.
 
 ### 4.2 Scheduled reports — ☑ DONE (Session 26)
 - ☑ Vercel Cron (`vercel.json`, daily at 06:00) → `GET /api/cron/scheduled-reports`: builds

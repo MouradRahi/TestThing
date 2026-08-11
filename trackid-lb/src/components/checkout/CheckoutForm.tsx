@@ -349,7 +349,9 @@ export function CheckoutForm({
           />
 
           {error && (
-            <p className="text-sm text-red-400 border border-red-400/30 px-3 py-2">{error}</p>
+            <p role="alert" className="text-sm text-red-400 border border-red-400/30 px-3 py-2">
+              {error}
+            </p>
           )}
 
           <Button type="submit" fullWidth disabled={loading} className="mt-2">
@@ -429,7 +431,11 @@ export function CheckoutForm({
                 </button>
               </div>
             )}
-            {discountMsg && <p className="text-[11px] text-red-400 mt-2">{discountMsg}</p>}
+            {discountMsg && (
+              <p role="alert" className="text-[11px] text-red-400 mt-2">
+                {discountMsg}
+              </p>
+            )}
           </div>
 
           {/* Gift card (ROADMAP Part 6.3) — applied server-side at submit, no live preview here */}
