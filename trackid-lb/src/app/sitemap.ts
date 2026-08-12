@@ -5,7 +5,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const payload = await getPayload()
 
-  const [{ docs: products }, { docs: artists }, { docs: pages }] = await Promise.all([
+  const [{ docs: products }, { docs: artists }, { docs: pages }, { docs: bundles }] = await Promise.all([
     payload.find({
       collection: 'products',
       where: { status: { equals: 'published' } },
@@ -23,11 +23,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       limit: 200,
       select: { slug: true, updatedAt: true },
     }),
+    payload.find({
+      collection: 'bundles',
+      where: { status: { equals: 'published' } },
+      limit: 200,
+      select: { slug: true, updatedAt: true },
+    }),
   ])
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${siteUrl}/`, lastModified: new Date(), changeFrequency: 'weekly', priority: 1 },
     { url: `${siteUrl}/shop`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.9 },
+    { url: `${siteUrl}/bundles`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.7 },
     { url: `${siteUrl}/custom-request`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.7 },
   ]
 
@@ -52,9 +59,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.5,
   }))
 
+  const bundleRoutes: MetadataRoute.Sitemap = bundles.map((b) => ({
+    url: `${siteUrl}/bundle/${b.slug}`,
+    lastModified: new Date(b.updatedAt as string),
+    changeFrequency: 'weekly',
+    priority: 0.6,
+  }))
+
   // English (default) is unprefixed; add an /ar variant of every URL for the
   // Arabic locale (mirrors localePrefix: 'as-needed' in src/i18n/routing.ts).
-  const enRoutes = [...staticRoutes, ...productRoutes, ...artistRoutes, ...pageRoutes]
+  const enRoutes = [...staticRoutes, ...productRoutes, ...artistRoutes, ...pageRoutes, ...bundleRoutes]
   const arRoutes = enRoutes.map((r) => ({ ...r, url: r.url.replace(siteUrl, `${siteUrl}/ar`) }))
   return [...enRoutes, ...arRoutes]
 }

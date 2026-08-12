@@ -696,6 +696,21 @@ User explicitly opted to include this despite the roadmap's own "optional" frami
   descriptive-text field; can be revisited with a real schema-diff check later.
 - **Verified against real dev data**: created a real bundle with 2 real component products
   and confirmed the relation resolved correctly; saved and read back a real size guide.
+- ⚠️ **Discovery-path gap found post-deploy (Session 28 part 2)**: bundles had a working
+  collection + individual `/bundle/[slug]` pages but nothing anywhere ever linked to one —
+  no nav item, no homepage block, no index page. Fixed: new `/bundles` index page (ISR,
+  same visual language as the shop grid — each tile uses the first component product's
+  image since Bundles has no image field of its own), a matching `revalidatePath('/bundles')`
+  added alongside the existing per-bundle revalidation, bundle URLs added to `sitemap.ts`,
+  and "Bundles" added to both the Nav's `DEFAULT_LINKS` fallback and the Footer's fallback
+  column — **note for the live site specifically**: those two fallbacks only render when the
+  Navigation global has no `headerLinks`/`footerColumns` configured; if the real Navigation
+  global already has real links (likely, given the site is live), add `Bundles → /bundles`
+  there yourself in Payload admin for it to show in the actual header. Verified against the
+  real dev DB + a live server: created a bundle via real HTTP through the running server (not
+  the offline migration-script config loader, whose stubbed `next/cache` would silently no-op
+  `revalidatePath` and give a false read) and confirmed `/bundles` and `/ar/bundles` both
+  picked it up immediately.
 
 ---
 

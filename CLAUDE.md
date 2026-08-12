@@ -1889,3 +1889,42 @@ directly. **Every one of the code-actionable items is now done.**
   large, multi-session), or a first deploy of everything shipped since the last confirmed
   prod deploy (F1/F2 payments + Session 25's report engine, per Session 26 part 1's note —
   substantial functionality is sitting on the branch, not live). Not yet deployed to prod.
+
+### Session 28 (part 2) — 2026-08-11
+Focus: **user confirmed a prod deploy has happened** (exact commit/date not stated), then
+asked where a customer actually finds gift cards and bundles on the live site — surfaced a
+real discovery-path gap for bundles.
+- **Audited both against the real code, not assumed**: gift cards are working as designed —
+  admin-issued only (Payload admin → Commerce → Gift Cards), no self-service purchase page,
+  customer just enters a code they were given at checkout's "Gift card code" field. **Bundles
+  had a real gap**: a working `Bundles` collection and individual `/bundle/[slug]` pages
+  existed (Session 27 part 4), but nothing on the storefront ever linked to one — no nav
+  item, no homepage block, no index page, not even in the sitemap. Direct-URL-only.
+- **Fixed**: new `/bundles` index page (`src/app/[locale]/(frontend)/bundles/page.tsx`, ISR
+  like the homepage) listing published bundles as tiles — each using the *first component
+  product's* image, since Bundles has no image field of its own (reused, not added, to avoid
+  an unnecessary schema change). `Bundles.ts`'s `afterChange`/`afterDelete` hooks now also
+  call `safeRevalidatePath('/bundles')` alongside the existing per-bundle path. Bundle URLs
+  added to `sitemap.ts` (was completely absent). "Bundles" added to `NavWrapper.tsx`'s
+  `DEFAULT_LINKS` and `Footer.tsx`'s fallback column — flagged clearly to the user that these
+  fallbacks only render when the Navigation global itself has no configured links, so the
+  live site (which likely has a real Navigation already) needs the link added by hand in
+  admin for it to actually show in the header; the code change mainly matters for a fresh/
+  reseeded install. New `bundles` message namespace (en/ar) + a `footer.bundles` key.
+- **Caught and correctly diagnosed a false negative during verification**: the offline
+  migration-script config loader (`scripts/bundle-config.mjs`) stubs `next/cache` (including
+  `revalidatePath`) as a no-op for the migrate/generate-types scripts, which don't run inside
+  a real Next process. Creating a throwaway bundle through that loader appeared to leave
+  `/bundles` stale — correctly recognized as a testing-methodology artifact, not a real bug,
+  and re-verified the right way: logged in as a real admin over real HTTP and created the
+  bundle via `POST /api/bundles` against the actual running server, confirming `/bundles` and
+  `/ar/bundles` both picked it up immediately once the *real* (non-stubbed) revalidation hook
+  ran. Also noted, not fixed (pre-existing, applies equally to products/artists/pages, not
+  something introduced here): `sitemap.ts` has no `export const revalidate`, so it's fully
+  static at build time — a bundle created between deploys won't appear in the sitemap until
+  the next build, same as every other entity type there already.
+- ✅ `npx tsc --noEmit` clean; `npm test` 40/40; full production build (`/[locale]/bundles`
+  registered, prerendered ● for both `/en` and `/ar`, revalidate 3600); verified via real HTTP
+  against a live built server as described above.
+- ROADMAP.md Part 6.7 updated with the discovery-path fix.
+- Not yet committed at the time of writing this entry.
