@@ -25,8 +25,18 @@ export const Bundles: CollectionConfig = {
     delete: ({ req }) => isAdmin(req.user),
   },
   hooks: {
-    afterChange: [({ doc }) => doc?.slug && safeRevalidatePath(`/bundle/${doc.slug}`)],
-    afterDelete: [({ doc }) => doc?.slug && safeRevalidatePath(`/bundle/${doc.slug}`)],
+    afterChange: [
+      ({ doc }) => {
+        if (doc?.slug) safeRevalidatePath(`/bundle/${doc.slug}`)
+        safeRevalidatePath('/bundles')
+      },
+    ],
+    afterDelete: [
+      ({ doc }) => {
+        if (doc?.slug) safeRevalidatePath(`/bundle/${doc.slug}`)
+        safeRevalidatePath('/bundles')
+      },
+    ],
   },
   fields: [
     { name: 'title', type: 'text', required: true, localized: true },

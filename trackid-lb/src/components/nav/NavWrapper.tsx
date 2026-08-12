@@ -4,6 +4,7 @@ import { getSiteSettings, getNavigation } from '@/lib/site-settings'
 
 const DEFAULT_LINKS: NavLink[] = [
   { label: 'Shop', href: '/shop' },
+  { label: 'Bundles', href: '/bundles' },
   { label: 'Custom', href: '/custom-request' },
 ]
 

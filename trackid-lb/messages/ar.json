@@ -163,6 +163,7 @@
   "footer": {
     "explore": "استكشف",
     "shop": "المتجر",
+    "bundles": "الحزم",
     "customRequest": "طلب مخصّص",
     "trackOrder": "تتبّع الطلب"
   },
@@ -265,6 +266,11 @@
     "noPhoto": "لا توجد صورة",
     "browseAll": "تصفّح كل قطع {name}",
     "pieces": "قطع — {name}"
+  },
+  "bundles": {
+    "title": "الحزم",
+    "noBundles": "لا توجد حزم متاحة بعد.",
+    "bundleCount": "{count} {count, plural, one {حزمة} other {حزم}}"
   },
   "track": {
     "metaTitle": "تتبّع الطلب",

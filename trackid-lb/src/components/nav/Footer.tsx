@@ -129,6 +129,11 @@ export async function Footer() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/bundles" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
+                    {t('bundles')}
+                  </Link>
+                </li>
+                <li>
                   <Link href="/custom-request" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
                     {t('customRequest')}
                   </Link>
