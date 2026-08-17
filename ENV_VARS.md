@@ -69,19 +69,22 @@ Session 21. Keep dev and prod either both-configured or both-unconfigured.
 |---|---|
 | `RESEND_API_KEY` | From resend.com — without it, every email send is skipped with a console warning (orders/checkout still work, no email arrives) |
 | `RESEND_FROM` | Sender address. Use `onboarding@resend.dev` for testing (only delivers to your own Resend account email); switch to a verified-domain address (e.g. `orders@yourbrand.com`) once that domain is added + verified in the Resend dashboard |
+| `RESEND_AUDIENCE_ID` | (ROADMAP Part 7) Id of a Resend Audience/Segment — newsletter signups get added to it, and the admin broadcast panel sends drop announcements to it. Unset = the newsletter capture forms (footer + optional homepage/page block) and the admin broadcast panel don't render at all — not a broken feature, just off |
 
 ---
 
-## WhatsApp Cloud API — order alerts to staff
+## WhatsApp Cloud API — order alerts to staff + customer status updates
 
-All three are required together; if any is missing the WhatsApp send is
-skipped (console warning, order still completes normally).
+`WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` are shared by both features
+below; each feature additionally needs its own destination/template setting.
 
 | Variable | What it's for |
 |---|---|
 | `WHATSAPP_TOKEN` | Meta WhatsApp Cloud API access token |
 | `WHATSAPP_PHONE_NUMBER_ID` | The Cloud API phone number ID sending the message |
-| `WHATSAPP_RECIPIENT_NUMBER` | Staff number to notify, international format (e.g. `+9611234567`) |
+| `WHATSAPP_RECIPIENT_NUMBER` | Staff number to notify on new orders, international format (e.g. `+9611234567`) — required for the staff alert |
+| `WHATSAPP_STATUS_TEMPLATE_NAME` | Name of an **approved** WhatsApp message template (ROADMAP Part 7) used to message the *customer* on order-status changes (confirmed/shipped/delivered/…). Business-initiated messages outside a 24h customer-service window must use a pre-approved template — Meta will reject plain text. Submit a Utility-category template with a 2-variable body, e.g. `"Update on your order {{1}}: {{2}}."` ({{1}} = order number, {{2}} = status). Unset = feature off (silent no-op), same as everything else here. |
+| `WHATSAPP_STATUS_TEMPLATE_LANG` | Template language code (default `en`) — must match what the template was approved under |
 
 Blocked on Meta business verification as of this writing — leave blank until
 that's done; nothing else depends on it.

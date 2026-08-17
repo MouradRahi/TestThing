@@ -54,10 +54,13 @@ Small dependency-free toast (aria-live polite, auto-dismiss, theme-colored) used
 Search only exists buried on /shop. Add a search icon in the nav (desktop + mobile) opening a minimal overlay with one input that submits to `/shop?q=` (locale-aware — bug B8's helper). Zero new backend.
 - Files: `Nav.tsx`, small `SearchOverlay.tsx` client component, `messages/*`.
 
-### E8 ☐ 🟢 Breadcrumbs + structured data
-- Product page breadcrumb grows Category link (`Shop / Hoodies / Piece`); artist page already has one
-- `BreadcrumbList` JSON-LD on product/artist; `Organization` + `WebSite` (with `potentialAction` SearchAction) JSON-LD in the layout — all reads existing settings
-- Files: `product/[slug]/page.tsx`, `(frontend)/layout.tsx`.
+### E8 ☑ DONE 🟢 Breadcrumbs + structured data (done as part of ROADMAP Part 7, Session 28)
+- ☑ Product page breadcrumb grows a Category link (`Shop / Hoodies / Piece`)
+- ☑ `BreadcrumbList` JSON-LD on product/artist/bundle/blog-post pages; `Organization` +
+  `WebSite` (with `potentialAction` SearchAction) JSON-LD site-wide in the layout — all
+  reads existing settings (storeName, logoUrl, social links)
+- Files: `src/lib/structured-data.ts` (new), `product/[slug]/page.tsx`, `artist/[slug]/
+  page.tsx`, `bundle/[slug]/page.tsx`, `blog/[slug]/page.tsx`, `(frontend)/layout.tsx`.
 
 ### E9 ☐ 🟡 Recently-viewed strip (no localStorage — mandate)
 Cookie-based: product page fires a tiny client effect → `POST /api/recently-viewed` appends the id to an httpOnly cookie (last 8 ids, no DB). Product page + cart empty state render the strip server-side from the cookie. Honors the "no localStorage, ever" rule without a schema change.

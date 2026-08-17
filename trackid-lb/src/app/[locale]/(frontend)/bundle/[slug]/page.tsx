@@ -4,6 +4,8 @@ import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
 import { AddBundleToCart } from '@/components/product/AddBundleToCart'
 import { formatPrice } from '@/lib/format'
+import { buildBreadcrumbJsonLd } from '@/lib/structured-data'
+import { routing } from '@/i18n/routing'
 
 export const revalidate = 3600
 
@@ -13,6 +15,7 @@ export default async function BundlePage({ params }: Props) {
   const { locale, slug } = await params
   const payload = await getPayload()
   const t = await getTranslations('product')
+  const tBundles = await getTranslations('bundles')
 
   const { docs } = await payload.find({
     collection: 'bundles',
@@ -45,8 +48,18 @@ export default async function BundlePage({ params }: Props) {
 
   const sumOfParts = resolved.reduce((sum, p) => sum + p.price * p.quantity, 0)
 
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(
+    [{ name: tBundles('title'), path: '/bundles' }, { name: bundle.title }],
+    locale,
+    routing.defaultLocale,
+  )
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-16">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <h1 className="text-3xl font-bold text-foreground mb-3">{bundle.title}</h1>
       {bundle.description && <p className="text-sm text-muted mb-8 max-w-xl">{bundle.description}</p>}
 

@@ -3,7 +3,7 @@ import type { ReportParams, ReportResult } from './types'
 import { resolveDateRange, money } from './params'
 
 const GROUP_BY: Record<string, string> = { day: 'day', week: 'week', month: 'month' }
-const DIMENSIONS = ['product', 'artist', 'category', 'area', 'payment_method'] as const
+const DIMENSIONS = ['product', 'artist', 'category', 'area', 'payment_method', 'campaign'] as const
 type Dimension = (typeof DIMENSIONS)[number]
 
 type Row = { [k: string]: unknown }
@@ -71,7 +71,17 @@ export async function buildSalesReport(pool: PgPool, params: ReportParams): Prom
   }
 
   const sql = dimensionQuery(dimension)
-  const { rows } = await pool.query(sql, [from.toISOString(), to.toISOString(), locale])
+  // Postgres's extended query protocol (what node-postgres always uses for
+  // parameterized queries) rejects bind calls that supply MORE params than
+  // the statement actually references — passing a 3rd (locale) param to a
+  // 2-placeholder query 500s with "bind message supplies 3 parameters, but
+  // prepared statement requires 2". Only `category` joins a `_locales` table
+  // and needs it; every other dimension gets exactly the 2 it uses. (This was
+  // a real, pre-existing bug affecting artist/area/payment_method too —
+  // caught while adding `campaign` and verifying it against the real DB,
+  // not assumed fixed by review alone.)
+  const queryParams = dimension === 'category' ? [from.toISOString(), to.toISOString(), locale] : [from.toISOString(), to.toISOString()]
+  const { rows } = await pool.query(sql, queryParams)
 
   return {
     title: `Sales — by ${dimension.replace('_', ' ')}`,
@@ -102,6 +112,7 @@ function dimensionLabel(d: Dimension): string {
     case 'category': return 'Category'
     case 'area': return 'Area'
     case 'payment_method': return 'Payment method'
+    case 'campaign': return 'Campaign (utm_source / utm_campaign)'
   }
 }
 
@@ -175,5 +186,19 @@ function dimensionQuery(d: Dimension): string {
         where o.order_status <> 'cancelled' and o.created_at >= $1 and o.created_at <= $2
         group by o.payment_method
         order by revenue desc`
+    case 'campaign':
+      // No attribution cookie present (direct/organic traffic, or a visit
+      // that predates this feature) groups under 'Direct / organic' rather
+      // than a blank row — matches the area/product 'Unknown' convention.
+      return `
+        select coalesce(nullif(o.utm_source, '') || coalesce('/' || nullif(o.utm_campaign, ''), ''), 'Direct / organic') as label,
+               null::int as qty,
+               count(*)::int as orders,
+               sum(o.total)::numeric as revenue
+        from orders o
+        where o.order_status <> 'cancelled' and o.created_at >= $1 and o.created_at <= $2
+        group by 1
+        order by revenue desc
+        limit 50`
   }
 }

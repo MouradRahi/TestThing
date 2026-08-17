@@ -252,6 +252,8 @@ export type StatusEmailData = {
   /** Shown on the "shipped" email when set (ROADMAP Part 3.2) */
   courierName?: string
   trackingRef?: string
+  /** Only needed by sendOrderStatusWhatsApp — the email itself doesn't use it. */
+  customerPhone?: string
 }
 
 const STATUS_EMAIL_COPY: Record<string, { subject: string; body: string }> = {
@@ -772,5 +774,74 @@ export async function sendOrderWhatsAppAlert(order: OrderNotificationData): Prom
     }
   } catch (err) {
     console.error('[notifications] Failed to send WhatsApp alert:', err)
+  }
+}
+
+// Order-status WhatsApp messages to the CUSTOMER (ROADMAP Part 7 — distinct
+// from sendOrderWhatsAppAlert above, which pings the TEAM's fixed number on
+// every new order). This one is business-initiated and proactive — the
+// customer hasn't necessarily messaged first, so it's outside WhatsApp's
+// 24-hour "customer service window" and Meta's Cloud API will reject a plain
+// free-text message to them. It MUST use a pre-approved message template
+// (`type: 'template'`), which needs to be created and approved in Meta
+// Business Manager before this can send anything for real — a business
+// process step, not a code one. WHATSAPP_STATUS_TEMPLATE_NAME documents the
+// expected template shape below and gates this on/off; unset (the default)
+// means this function is a silent no-op, same convention as every other
+// optional integration in this codebase.
+//
+// Expected template (submit for approval in Meta Business Manager, category
+// "Utility"): body text with two variables, e.g.
+//   "Update on your order {{1}}: {{2}}."
+// {{1}} = order number, {{2}} = the same human status label the status email
+// uses (STATUS_EMAIL_COPY[status].subject) — kept in sync automatically since
+// both read from the same map.
+export async function sendOrderStatusWhatsApp(data: StatusEmailData): Promise<void> {
+  const copy = STATUS_EMAIL_COPY[data.status]
+  if (!copy || !data.customerPhone) return
+
+  const token = process.env.WHATSAPP_TOKEN
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const templateName = process.env.WHATSAPP_STATUS_TEMPLATE_NAME
+  const templateLang = process.env.WHATSAPP_STATUS_TEMPLATE_LANG || 'en'
+
+  if (!token || !phoneNumberId || !templateName) {
+    // Not an error — this integration is fully optional until the business
+    // has both API keys AND an approved template.
+    return
+  }
+
+  const to = data.customerPhone.replace(/[^\d+]/g, '').replace(/^\+/, '')
+  if (!to) return
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: templateLang },
+          components: [
+            {
+              type: 'body',
+              parameters: [{ type: 'text', text: data.orderNumber }, { type: 'text', text: copy.subject }],
+            },
+          ],
+        },
+      }),
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      console.error('[notifications] WhatsApp status template error:', text)
+    }
+  } catch (err) {
+    console.error('[notifications] Failed to send WhatsApp status message:', err)
   }
 }

@@ -74,6 +74,7 @@ export interface Config {
     orders: Order;
     'custom-requests': CustomRequest;
     pages: Page;
+    posts: Post;
     media: Media;
     'garment-types': GarmentType;
     discounts: Discount;
@@ -103,6 +104,7 @@ export interface Config {
     orders: OrdersSelect<false> | OrdersSelect<true>;
     'custom-requests': CustomRequestsSelect<false> | CustomRequestsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'garment-types': GarmentTypesSelect<false> | GarmentTypesSelect<true>;
     discounts: DiscountsSelect<false> | DiscountsSelect<true>;
@@ -448,6 +450,12 @@ export interface Order {
   }[];
   subtotal: number;
   deliveryFee: number;
+  /**
+   * Campaign attribution (ROADMAP Part 7) — from ?utm_source= on the visitor's first landing, first-touch.
+   */
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
   /**
    * Discount code applied at checkout (if any).
    */
@@ -811,6 +819,18 @@ export interface Page {
             blockName?: string | null;
             blockType: 'cta-banner';
           }
+        | {
+            heading?: string | null;
+            subtext?: string | null;
+            /**
+             * Hex background color, e.g. #e8d5b0. Leave blank for the default page background.
+             */
+            bgColor?: string | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'newsletter';
+          }
       )[]
     | null;
   seo?: {
@@ -821,6 +841,253 @@ export interface Page {
      */
     ogImage?: string | null;
   };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  title: string;
+  /**
+   * Auto-generated from the title if left empty.
+   */
+  slug: string;
+  /**
+   * Shown on /blog and used as the meta description when set.
+   */
+  excerpt?: string | null;
+  /**
+   * Pick from the Media library or upload an image. Fills the URL below automatically on save.
+   */
+  featuredImageMedia?: (number | null) | Media;
+  /**
+   * Auto-filled from the image above, or paste a Supabase Storage public URL.
+   */
+  featuredImage?: string | null;
+  featuredImageAlt?: string | null;
+  author?: string | null;
+  publishedDate?: string | null;
+  /**
+   * Draft posts are hidden from /blog and the sitemap.
+   */
+  status: 'draft' | 'published';
+  /**
+   * Simple article body. Ignored when "Sections" below has visible blocks.
+   */
+  content?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Optional — build this post from full-width sections (same blocks as Pages/Homepage) instead of a plain article body.
+   */
+  sections?:
+    | (
+        | {
+            /**
+             * Small label above headline, e.g. "Lebanon · Hand-painted"
+             */
+            eyebrow?: string | null;
+            headline?: string | null;
+            subline?: string | null;
+            /**
+             * Primary button text, e.g. "Shop Now"
+             */
+            ctaLabel?: string | null;
+            /**
+             * Primary button link, e.g. /shop
+             */
+            ctaHref?: string | null;
+            secondaryCtaLabel?: string | null;
+            secondaryCtaHref?: string | null;
+            /**
+             * Pick or upload a full-bleed background image. Fills the URL below.
+             */
+            bgImageMedia?: (number | null) | Media;
+            /**
+             * Auto-filled from the image above, or paste a Supabase Storage public URL.
+             */
+            bgImage?: string | null;
+            /**
+             * Hex background color, e.g. #0a0a0a (shown behind/instead of image)
+             */
+            bgColor?: string | null;
+            /**
+             * Black overlay over bg image 0–100 (use 30–60 to ensure text is readable)
+             */
+            overlayOpacity?: number | null;
+            textAlign?: ('left' | 'center' | 'right') | null;
+            minHeight?: ('50vh' | '70vh' | '80vh' | '100vh') | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'hero';
+          }
+        | {
+            /**
+             * Each slide is a full-screen panel. Add at least one.
+             */
+            slides?:
+              | {
+                  /**
+                   * Pick or upload a slide background. Fills the URL below.
+                   */
+                  bgImageMedia?: (number | null) | Media;
+                  /**
+                   * Auto-filled from the image above, or paste a Supabase Storage public URL.
+                   */
+                  bgImage?: string | null;
+                  /**
+                   * Hex fallback color shown behind/instead of image
+                   */
+                  bgColor?: string | null;
+                  /**
+                   * Black overlay 0–100 for text legibility
+                   */
+                  overlayOpacity?: number | null;
+                  eyebrow?: string | null;
+                  headline?: string | null;
+                  subline?: string | null;
+                  ctaLabel?: string | null;
+                  ctaHref?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            height?: ('60vh' | '70vh' | '80vh' | '100vh') | null;
+            /**
+             * Milliseconds between auto-advance (default: 5000 = 5s). Set to 0 to disable.
+             */
+            autoplayInterval?: number | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'slideshow';
+          }
+        | {
+            sectionTitle?: string | null;
+            viewAllLabel?: string | null;
+            viewAllHref?: string | null;
+            source?: ('latest' | 'manual') | null;
+            /**
+             * How many products to show
+             */
+            limit?: number | null;
+            /**
+             * Pick the exact products to feature
+             */
+            products?: (number | Product)[] | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'featured-products';
+          }
+        | {
+            /**
+             * Pick or upload the section image. Fills the URL below.
+             */
+            imageMedia?: (number | null) | Media;
+            /**
+             * Auto-filled from the image above, or paste a Supabase Storage public URL.
+             */
+            image?: string | null;
+            imageAlt?: string | null;
+            eyebrow?: string | null;
+            heading?: string | null;
+            body?: string | null;
+            ctaLabel?: string | null;
+            ctaHref?: string | null;
+            imagePosition?: ('left' | 'right') | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'image-text';
+          }
+        | {
+            /**
+             * A single impactful sentence — displayed centered in large muted text.
+             */
+            text: string;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'statement';
+          }
+        | {
+            content?: {
+              root: {
+                type: string;
+                children: {
+                  type: any;
+                  version: number;
+                  [k: string]: unknown;
+                }[];
+                direction: ('ltr' | 'rtl') | null;
+                format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+                indent: number;
+                version: number;
+              };
+              [k: string]: unknown;
+            } | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'rich-text';
+          }
+        | {
+            headline?: string | null;
+            subline?: string | null;
+            ctaLabel?: string | null;
+            ctaHref?: string | null;
+            /**
+             * Pick or upload an optional full-bleed background. Fills the URL below.
+             */
+            bgImageMedia?: (number | null) | Media;
+            /**
+             * Auto-filled from the image above, or paste a Supabase Storage public URL.
+             */
+            bgImage?: string | null;
+            /**
+             * Hex background color, e.g. #e8d5b0. Defaults to accent color.
+             */
+            bgColor?: string | null;
+            overlayOpacity?: number | null;
+            /**
+             * Hex text color. Defaults to on-accent (auto from theme).
+             */
+            textColor?: string | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'cta-banner';
+          }
+        | {
+            heading?: string | null;
+            subtext?: string | null;
+            /**
+             * Hex background color, e.g. #e8d5b0. Leave blank for the default page background.
+             */
+            bgColor?: string | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'newsletter';
+          }
+      )[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1201,6 +1468,10 @@ export interface PayloadLockedDocument {
         value: number | Page;
       } | null)
     | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
         relationTo: 'media';
         value: number | Media;
       } | null)
@@ -1415,6 +1686,9 @@ export interface OrdersSelect<T extends boolean = true> {
       };
   subtotal?: T;
   deliveryFee?: T;
+  utmSource?: T;
+  utmMedium?: T;
+  utmCampaign?: T;
   discountCode?: T;
   discountAmount?: T;
   giftCardCode?: T;
@@ -1567,6 +1841,16 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        newsletter?:
+          | T
+          | {
+              heading?: T;
+              subtext?: T;
+              bgColor?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   seo?:
     | T
@@ -1574,6 +1858,142 @@ export interface PagesSelect<T extends boolean = true> {
         metaTitle?: T;
         metaDescription?: T;
         ogImage?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  excerpt?: T;
+  featuredImageMedia?: T;
+  featuredImage?: T;
+  featuredImageAlt?: T;
+  author?: T;
+  publishedDate?: T;
+  status?: T;
+  content?: T;
+  sections?:
+    | T
+    | {
+        hero?:
+          | T
+          | {
+              eyebrow?: T;
+              headline?: T;
+              subline?: T;
+              ctaLabel?: T;
+              ctaHref?: T;
+              secondaryCtaLabel?: T;
+              secondaryCtaHref?: T;
+              bgImageMedia?: T;
+              bgImage?: T;
+              bgColor?: T;
+              overlayOpacity?: T;
+              textAlign?: T;
+              minHeight?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        slideshow?:
+          | T
+          | {
+              slides?:
+                | T
+                | {
+                    bgImageMedia?: T;
+                    bgImage?: T;
+                    bgColor?: T;
+                    overlayOpacity?: T;
+                    eyebrow?: T;
+                    headline?: T;
+                    subline?: T;
+                    ctaLabel?: T;
+                    ctaHref?: T;
+                    id?: T;
+                  };
+              height?: T;
+              autoplayInterval?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'featured-products'?:
+          | T
+          | {
+              sectionTitle?: T;
+              viewAllLabel?: T;
+              viewAllHref?: T;
+              source?: T;
+              limit?: T;
+              products?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'image-text'?:
+          | T
+          | {
+              imageMedia?: T;
+              image?: T;
+              imageAlt?: T;
+              eyebrow?: T;
+              heading?: T;
+              body?: T;
+              ctaLabel?: T;
+              ctaHref?: T;
+              imagePosition?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        statement?:
+          | T
+          | {
+              text?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'rich-text'?:
+          | T
+          | {
+              content?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'cta-banner'?:
+          | T
+          | {
+              headline?: T;
+              subline?: T;
+              ctaLabel?: T;
+              ctaHref?: T;
+              bgImageMedia?: T;
+              bgImage?: T;
+              bgColor?: T;
+              overlayOpacity?: T;
+              textColor?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        newsletter?:
+          | T
+          | {
+              heading?: T;
+              subtext?: T;
+              bgColor?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
   updatedAt?: T;
   createdAt?: T;
@@ -2051,7 +2471,7 @@ export interface SiteSetting {
    */
   announcementBgColor?: string | null;
   /**
-   * Text hex color, e.g. #0a0a0a
+   * Text hex color, e.g. #0a0a0a. If this doesn’t contrast enough against the background, the storefront automatically shows black or white instead — whichever reads better — so the bar can never render unreadable.
    */
   announcementTextColor?: string | null;
   /**
@@ -2470,6 +2890,18 @@ export interface Homepage {
             blockName?: string | null;
             blockType: 'cta-banner';
           }
+        | {
+            heading?: string | null;
+            subtext?: string | null;
+            /**
+             * Hex background color, e.g. #e8d5b0. Leave blank for the default page background.
+             */
+            bgColor?: string | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'newsletter';
+          }
       )[]
     | null;
   updatedAt?: string | null;
@@ -2712,6 +3144,16 @@ export interface HomepageSelect<T extends boolean = true> {
               bgColor?: T;
               overlayOpacity?: T;
               textColor?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        newsletter?:
+          | T
+          | {
+              heading?: T;
+              subtext?: T;
+              bgColor?: T;
               hidden?: T;
               id?: T;
               blockName?: T;

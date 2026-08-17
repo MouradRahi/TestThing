@@ -18,6 +18,7 @@ import * as migration_20260806_000000_add_reviews_gift_cards_bin_stock_bundles_l
 import * as migration_20260807_000000_add_2fa_and_login_rate_limit from './20260807_000000_add_2fa_and_login_rate_limit';
 import * as migration_20260810_120000_localize_blocks_and_image_alt from './20260810_120000_localize_blocks_and_image_alt';
 import * as migration_20260811_140000_add_send_vat_report from './20260811_140000_add_send_vat_report';
+import * as migration_20260817_100000_add_utm_newsletter_block_and_posts from './20260817_100000_add_utm_newsletter_block_and_posts';
 
 export const migrations = [
   {
@@ -84,5 +85,10 @@ export const migrations = [
     up: migration_20260811_140000_add_send_vat_report.up,
     down: migration_20260811_140000_add_send_vat_report.down,
     name: '20260811_140000_add_send_vat_report',
+  },
+  {
+    up: migration_20260817_100000_add_utm_newsletter_block_and_posts.up,
+    down: migration_20260817_100000_add_utm_newsletter_block_and_posts.down,
+    name: '20260817_100000_add_utm_newsletter_block_and_posts',
   },
 ];

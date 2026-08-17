@@ -8,6 +8,7 @@ import { ImageTextBlock } from './blocks/image-text'
 import { StatementBlock } from './blocks/statement'
 import { RichTextBlock } from './blocks/rich-text-block'
 import { CTABannerBlock } from './blocks/cta-banner'
+import { NewsletterBlock } from './blocks/newsletter'
 
 export const Homepage: GlobalConfig = {
   slug: 'homepage',
@@ -37,6 +38,7 @@ export const Homepage: GlobalConfig = {
         StatementBlock,
         RichTextBlock,
         CTABannerBlock,
+        NewsletterBlock,
       ],
       admin: {
         initCollapsed: true,

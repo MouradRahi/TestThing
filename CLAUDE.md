@@ -1968,3 +1968,102 @@ right after the part-2 bundles deploy.
   "does a migration exist for this column" check before considering the work done, not just
   "did dev accept it."
 - Next: user's call. No other known outstanding issues from this session's work.
+
+### Session 28 (part 4) — 2026-08-17
+Focus: **"let's do f7"** — ROADMAP Part 7 (Growth & Marketing), all 5 code-actionable
+sub-items in one pass (Instagram embed stays blocked on a handle, unchanged).
+- **Structured-data audit** (also closes ENHANCEMENTS E8): new `src/lib/structured-data.ts`
+  — site-wide Organization + WebSite/SearchAction JSON-LD in the frontend layout (`sameAs`
+  from SiteSettings social links), plus a reusable `buildBreadcrumbJsonLd()` wired into
+  product (gained a Category breadcrumb level too), artist, bundle, and the new blog-post
+  pages.
+- **WhatsApp order-status messages**: `sendOrderStatusWhatsApp()` in `notifications.ts`,
+  wired into the existing Orders status-change hook as an independent channel alongside the
+  status email (email needs `customerEmail`, which is optional — a guest order with no
+  email now still gets a WhatsApp update if configured). Deliberately built as a **template**
+  message, not plain text — researched WhatsApp Cloud API's actual constraints first: a
+  business-initiated message outside the 24h customer-service window is rejected unless it
+  uses a pre-approved template. `WHATSAPP_STATUS_TEMPLATE_NAME`/`_LANG` env vars document
+  the exact template shape to submit for Meta approval (a business step, not a code one) —
+  unset means the feature is a silent no-op, same convention as every other optional
+  integration here.
+- **Newsletter**: `POST /api/newsletter` (rate-limited, honeypot, degrades gracefully) adds
+  signups to a Resend "segment" — checked the installed SDK's actual types before building
+  and found `audienceId` is now deprecated in favor of `segmentId`; kept `RESEND_AUDIENCE_ID`
+  as the env var name (matches the roadmap wording and Resend's own dashboard/docs
+  terminology) but pass it through as `segmentId` to the non-deprecated API. Capture form
+  (`NewsletterForm.tsx`) in the Footer (env-gated — doesn't even render when unconfigured,
+  dynamically resizing the footer's grid column count) plus a new `newsletter` block added
+  to both the Homepage and Pages block builders. Admin **drop-announcement broadcast**:
+  `NewsletterBroadcastPanel.tsx` + `POST /api/admin/newsletter/broadcast` — defaults to
+  creating a Resend **draft** for final review; "Send immediately" is an explicit,
+  client-confirmed opt-in, not the default, matching how every other bulk/money-adjacent
+  admin action in this codebase (RefundButton, mock-payment simulate) requires deliberate
+  confirmation rather than a one-click blast to the whole list.
+- **Campaign links + UTM surfacing**: `middleware.ts` sets a first-touch httpOnly `utm_data`
+  cookie from `?utm_source=/utm_medium=/utm_campaign=` (never overwrites once set, so a
+  later direct/organic visit before checkout doesn't lose the campaign that actually brought
+  the customer); `POST /api/orders` reads it and snapshots `utmSource`/`utmMedium`/
+  `utmCampaign` onto the order (new indexed columns). Surfaced as a new `campaign` dimension
+  on the existing Sales report, grouping by `utm_source/utm_campaign` with a "Direct /
+  organic" fallback bucket. **Caught and fixed a real pre-existing bug while verifying this
+  against the real dev DB**: Postgres's extended query protocol (what `node-postgres` always
+  uses for parameterized queries) rejects bind calls supplying more params than the SQL
+  statement references. The sales-report dimension call site always passed 3 params
+  (`from`, `to`, `locale`), but only the `category` dimension's SQL actually references
+  `$3` — `artist`/`area`/`payment_method` (built in Session 25, apparently never exercised
+  via real HTTP since) were silently 500ing, and my new `campaign` dimension inherited the
+  identical bug. Fixed by only including the locale param for `category`; verified all 6
+  dimensions individually via real HTTP afterward, not just the one I added.
+- **Blog/editorial**: new `Posts` collection — deliberately "Pages' exact block builder
+  (same 8 blocks, including the new Newsletter one) plus different top-level fields"
+  (excerpt, featured image, author, published date) rather than reusing Pages itself, since
+  a post has different fields and different storefront surfaces. `/blog` index + `/blog/
+  [slug]` (block-vs-plain-article fallback, mirrors the existing `/[slug]` Pages renderer
+  exactly) + `BlogPosting` JSON-LD + sitemap inclusion + "Blog" added to the Nav/Footer
+  fallback links (same caveat as the Session 28 part 2 Bundles fix: only renders when the
+  Navigation global itself has no configured links).
+- **Migration**: one large hand-written migration
+  (`20260817_100000_add_utm_newsletter_block_and_posts.ts`) covering the Orders UTM columns,
+  the Newsletter block's tables on both Homepage and Pages, and the *entire* Posts collection
+  schema (9 block-type tables × block + locales, `posts`/`posts_locales`/`posts_rels`) —
+  every table shape queried directly from the real dev DB's current (post-localization)
+  `pages_blocks_*` equivalents rather than trusted from memory or the older baseline
+  migration file, since several of those tables' shapes changed in the Session 28 part 1
+  localization migration. **Hit the same push-mode auto-sync gap the `send_vat_report`
+  incident (part 3) was caused by**: by the time this migration ran, `npm run generate:types`
+  had already silently auto-created the *entire* schema in dev via push mode — spot-checked
+  the auto-created shape against the migration's intent (matched exactly, since Payload's
+  push generates DDL straight from the same collection/global config), then used
+  `npm run migrate:mark` instead of executing the SQL a second time (which would have
+  failed on every already-existing object). Prod, which never auto-pushes, will run the
+  real DDL for real on next deploy.
+- **Verified extensively against a real running server**: a real blog post created via
+  real HTTP correctly appeared on `/blog` + `/blog/[slug]` (one genuine first-request
+  cache-population flake on the very first-ever hit to the brand-new route, self-resolved
+  on retry — same class of cold-start quirk already documented elsewhere in this project,
+  not chased further since it didn't reproduce on 3 subsequent clean attempts); newsletter
+  signup's graceful-skip-when-unconfigured path and its email-format validation; the full
+  UTM-cookie-to-order-attribution round trip end to end (real landing hit → cookie set →
+  real order created → all three UTM fields correctly persisted on it); all 6 sales-report
+  dimensions individually (confirming the param-count fix, not just the one dimension that
+  surfaced it); site-wide Organization/SearchAction JSON-LD present on the homepage. Test
+  stock consumed by the one real order placed during verification was restored to its exact
+  prior value afterward.
+- ✅ `npx tsc --noEmit` clean; `npm test` 40/40; full production build (all new routes +
+  `/blog`, `/blog/[slug]` registered, prerendered for both locales); `npm run migrate:status`
+  shows all 15 migrations applied on dev; `npm run test:e2e` 1/1 — the COD checkout flow
+  still passes clean. **Hit a genuine environment stall getting there**: Playwright's own
+  `npm run build && npm run start` webServer step hung indefinitely (no output, port bound
+  but unresponsive) well past the documented cold-start-flake pattern; basic Windows
+  process-management commands (`taskkill`, `tasklist`) started timing out too, pointing to
+  the machine itself being under heavy resource contention rather than anything in this
+  session's code. Recovered by killing the stuck process via Node's `process.kill()`
+  (worked instantly when `taskkill.exe` itself wouldn't respond), starting the server
+  manually from an already-fresh build, and running `npx playwright test` directly against
+  it (`reuseExistingServer` picks it up) — passed immediately once given a responsive
+  server, confirming this was environmental, not a regression from this session's changes.
+- ROADMAP.md Part 7 marked ☑ DONE v1 (Instagram excepted, external blocker unchanged).
+  ENHANCEMENTS.md E8 marked ☑ DONE (folded into this work).
+- Not yet committed at the time of writing this entry — commit/push/CI-verify follows,
+  same close-out pattern as every other session.
