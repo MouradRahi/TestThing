@@ -1927,4 +1927,44 @@ real discovery-path gap for bundles.
   registered, prerendered ● for both `/en` and `/ar`, revalidate 3600); verified via real HTTP
   against a live built server as described above.
 - ROADMAP.md Part 6.7 updated with the discovery-path fix.
-- Not yet committed at the time of writing this entry.
+- Committed (`12d4549`), pushed, CI verified green.
+
+### Session 28 (part 3) — 2026-08-11 — production incident: admin + logo down
+Focus: **live incident response.** User reported the admin Site Settings global 404'ing
+("Nothing found") and the storefront logo silently disappearing from both Nav and Footer,
+right after the part-2 bundles deploy.
+- **Root cause, self-inflicted this session**: `sendVatReport` was added to
+  `SiteSettings.ts`'s Reports tab back in the big Session 28 (part 1) commit, but no
+  migration was ever written for its column. **Dev's push-mode silently auto-created the
+  column**, which is exactly why every bit of testing that session passed clean — but prod
+  never auto-pushes, so `site_settings.send_vat_report` never existed there. The moment that
+  commit deployed, every `payload.findGlobal({ slug: 'site-settings' })` call on prod started
+  throwing on the missing column.
+- **Why it took out the logo too, not just admin**: `getSiteSettings()` in
+  `site-settings.ts` wraps its query in a try/catch that deliberately swallows *any* error and
+  returns `{}` — by design, so a fresh install with unconfigured globals still renders via
+  hardcoded fallbacks. That same fallback silently absorbed the missing-column error on
+  every storefront page: no logo (falls back to text store name), and likely other Site
+  Settings values (theme, announcement bar, tagline) quietly reverted too, with zero visible
+  error anywhere on the storefront. The **admin** Site Settings view has no such fallback, so
+  it surfaced the same underlying failure as a hard "Nothing found" 404 — same root cause,
+  two very different-looking symptoms, diagnosed by reading `getSiteSettings()`'s actual
+  error handling rather than guessing from the symptoms alone.
+- **Fix**: `src/migrations/20260811_140000_add_send_vat_report.ts` — `ADD COLUMN IF NOT
+  EXISTS` (dev already silently had it) / `DROP COLUMN IF EXISTS` on the way down. Applied
+  and verified on dev. **Gave the user the equivalent one-line `ALTER TABLE` to run directly
+  in prod's Supabase SQL Editor for an immediate unblock** — no prod DB access in this
+  session, by design, same boundary as every other prod-touching moment in this project.
+- **Audited for other similarly-missed fields from the same session's work**, not just
+  patched the one reported symptom: diffed every `name:`/`type:` field addition across the
+  whole session's commit range against the migration files that should cover them (2FA
+  fields on Users, all the `localized: true` block/image-alt fields) — all accounted for.
+  `sendVatReport` was the only gap.
+- Committed (`3426528`), pushed, CI verified green.
+- **Lesson for future sessions, worth remembering**: adding a field to a Payload
+  collection/global config and only testing against dev is not sufficient proof a migration
+  isn't needed — dev's push-mode auto-creates missing columns silently, so a forgotten
+  migration produces zero local symptoms. Every new/changed field needs an explicit
+  "does a migration exist for this column" check before considering the work done, not just
+  "did dev accept it."
+- Next: user's call. No other known outstanding issues from this session's work.
