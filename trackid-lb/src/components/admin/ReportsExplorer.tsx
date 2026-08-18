@@ -20,6 +20,7 @@ const DIMENSIONS = [
   { key: 'category', label: 'By category' },
   { key: 'area', label: 'By area' },
   { key: 'payment_method', label: 'By payment method' },
+  { key: 'campaign', label: 'By campaign (UTM)' },
 ] as const
 
 const GROUP_BYS = [

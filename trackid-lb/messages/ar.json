@@ -164,6 +164,7 @@
     "explore": "استكشف",
     "shop": "المتجر",
     "bundles": "الحزم",
+    "blog": "المدوّنة",
     "customRequest": "طلب مخصّص",
     "trackOrder": "تتبّع الطلب"
   },
@@ -271,6 +272,18 @@
     "title": "الحزم",
     "noBundles": "لا توجد حزم متاحة بعد.",
     "bundleCount": "{count} {count, plural, one {حزمة} other {حزم}}"
+  },
+  "blog": {
+    "title": "المدوّنة",
+    "noPosts": "لا توجد تدوينات بعد."
+  },
+  "newsletter": {
+    "heading": "ابقَ على اطلاع",
+    "subtext": "إصدارات جديدة، عودة للمخزون، وأحيانًا كود خصم — بدون إزعاج.",
+    "emailPlaceholder": "بريدك الإلكتروني",
+    "subscribe": "اشترك",
+    "subscribed": "تم تسجيلك ✓",
+    "genericError": "حدث خطأ ما. حاول مرة أخرى."
   },
   "track": {
     "metaTitle": "تتبّع الطلب",

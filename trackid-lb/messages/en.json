@@ -164,6 +164,7 @@
     "explore": "Explore",
     "shop": "Shop",
     "bundles": "Bundles",
+    "blog": "Blog",
     "customRequest": "Custom Request",
     "trackOrder": "Track Order"
   },
@@ -271,6 +272,18 @@
     "title": "Bundles",
     "noBundles": "No bundles available yet.",
     "bundleCount": "{count} {count, plural, one {bundle} other {bundles}}"
+  },
+  "blog": {
+    "title": "Blog",
+    "noPosts": "No posts yet."
+  },
+  "newsletter": {
+    "heading": "Stay in the loop",
+    "subtext": "New drops, restocks, and the occasional discount code — no spam.",
+    "emailPlaceholder": "Your email",
+    "subscribe": "Subscribe",
+    "subscribed": "You're on the list ✓",
+    "genericError": "Something went wrong. Please try again."
   },
   "track": {
     "metaTitle": "Track Order",

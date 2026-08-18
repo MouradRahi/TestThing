@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/Button'
 import { resolveAlt } from '@/lib/image'
 import { getSiteSettings, resolveStoreName } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
+import { buildBreadcrumbJsonLd } from '@/lib/structured-data'
+import { routing } from '@/i18n/routing'
 
 export const revalidate = 3600
 
@@ -95,8 +97,18 @@ export default async function ArtistPage({
     locale: locale as 'en' | 'ar',
   })
 
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(
+    [{ name: t('shop'), path: '/shop' }, { name: artist.name }],
+    locale,
+    routing.defaultLocale,
+  )
+
   return (
     <div>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       {/* Artist hero */}
       <div className="max-w-6xl mx-auto px-6 py-16">
         <nav className="flex gap-2 text-[10px] uppercase tracking-widest text-muted mb-10">

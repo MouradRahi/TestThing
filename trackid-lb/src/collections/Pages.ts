@@ -10,6 +10,7 @@ import { ImageTextBlock } from '../globals/blocks/image-text'
 import { StatementBlock } from '../globals/blocks/statement'
 import { RichTextBlock } from '../globals/blocks/rich-text-block'
 import { CTABannerBlock } from '../globals/blocks/cta-banner'
+import { NewsletterBlock } from '../globals/blocks/newsletter'
 
 // A page serves at both /p/<slug> and the clean /<slug> — revalidate both.
 function revalidatePage(slug?: string) {
@@ -103,6 +104,7 @@ export const Pages: CollectionConfig = {
         StatementBlock,
         RichTextBlock,
         CTABannerBlock,
+        NewsletterBlock,
       ],
       admin: {
         initCollapsed: true,

@@ -5,6 +5,7 @@ import { ImageTextSection } from './ImageTextSection'
 import { StatementSection } from './StatementSection'
 import { RichTextSection } from './RichTextSection'
 import { CTABannerSection } from './CTABannerSection'
+import { NewsletterSection } from './NewsletterSection'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Block = Record<string, any> & { blockType: string; hidden?: boolean }
@@ -76,6 +77,9 @@ export function BlockRenderer({
 
           case 'cta-banner':
             return <CTABannerSection key={i} {...block} />
+
+          case 'newsletter':
+            return <NewsletterSection key={i} heading={block.heading} subtext={block.subtext} bgColor={block.bgColor} />
 
           default:
             return null

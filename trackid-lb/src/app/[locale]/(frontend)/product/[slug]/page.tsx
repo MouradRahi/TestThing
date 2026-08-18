@@ -23,6 +23,8 @@ import {
   DEFAULT_PRODUCT_META_TAGLINE,
 } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
+import { buildBreadcrumbJsonLd } from '@/lib/structured-data'
+import { routing } from '@/i18n/routing'
 
 export const revalidate = 3600
 
@@ -170,6 +172,18 @@ export default async function ProductPage({
       : {}),
   }
 
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd(
+    [
+      { name: t('shop'), path: '/shop' },
+      ...(category && 'name' in category && 'slug' in category
+        ? [{ name: category.name as string, path: `/shop?category=${category.slug}` }]
+        : []),
+      { name: product.title },
+    ],
+    locale,
+    routing.defaultLocale,
+  )
+
   // Two related strips: (1) more from the same artist, (2) more of the same
   // garment type. Each is independent and only renders if it has results — so a
   // lone product from an artist never shows another artist's piece under "More from".
@@ -244,9 +258,21 @@ export default async function ProductPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       {/* Breadcrumb */}
       <nav className="flex gap-2 text-[10px] uppercase tracking-widest text-muted mb-10">
         <Link href="/shop" className="hover:text-foreground transition-colors">{t('shop')}</Link>
+        {category && 'name' in category && 'slug' in category && (
+          <>
+            <span>/</span>
+            <Link href={`/shop?category=${category.slug}`} className="hover:text-foreground transition-colors">
+              {category.name}
+            </Link>
+          </>
+        )}
         <span>/</span>
         <span className="text-foreground">{product.title}</span>
       </nav>

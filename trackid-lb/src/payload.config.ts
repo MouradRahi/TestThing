@@ -12,6 +12,7 @@ import { Categories } from './collections/Categories'
 import { Orders } from './collections/Orders'
 import { CustomRequests } from './collections/CustomRequests'
 import { Pages } from './collections/Pages'
+import { Posts } from './collections/Posts'
 import { Media } from './collections/Media'
 import { GarmentTypes } from './collections/GarmentTypes'
 import { Discounts } from './collections/Discounts'
@@ -63,6 +64,7 @@ export default buildConfig({
         '/components/admin/PaymentsOpsPanel#PaymentsOpsPanel',
         '/components/admin/ReportsPanel#ReportsPanel',
         '/components/admin/AnalyticsDashboardPanel#AnalyticsDashboardPanel',
+        '/components/admin/NewsletterBroadcastPanel#NewsletterBroadcastPanel',
       ],
       // Opt-in staff 2FA (ROADMAP F0 §1.6 follow-up) — a fetch-interception
       // gate that only activates for accounts with twoFactorEnabled set;
@@ -71,7 +73,7 @@ export default buildConfig({
       beforeLogin: ['/components/admin/AdminTwoFactorLoginGate#AdminTwoFactorLoginGate'],
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Media, GarmentTypes, Discounts, Payments, Customers, Carts, Returns, Reviews, GiftCards, BackInStockRequests, Bundles, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],
+  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Posts, Media, GarmentTypes, Discounts, Payments, Customers, Carts, Returns, Reviews, GiftCards, BackInStockRequests, Bundles, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],
   // Content localization — mirrors the storefront locales (src/i18n/routing.ts).
   // Fields marked `localized: true` store a value per locale; everything else is
   // shared. Add a locale here + in routing.ts + a messages/<locale>.json to grow.

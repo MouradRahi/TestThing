@@ -714,14 +714,63 @@ User explicitly opted to include this despite the roadmap's own "optional" frami
 
 ---
 
-## Part 7 — Growth & marketing
+## Part 7 — Growth & marketing — ☑ DONE v1 (Session 28), Instagram excepted (external blocker)
 
-- ☐ **Newsletter** — capture block (footer + CMS block) → Resend Audiences; drop-announcement broadcast from admin
-- ☐ **Campaign links + UTM surfacing** in the dashboard (which campaign drove orders)
-- ☐ **Blog/editorial** — `Posts` collection reusing the Pages block builder + RichText (SEO content engine)
-- ☐ **WhatsApp order-status messages** (extends Session 10 code once keys active)
-- ☐ **Structured-data audit** — Organization, BreadcrumbList, SearchAction schemas
-- ☐ Instagram feed embed (blocked on handle)
+- ☑ **Newsletter** — capture block (footer + CMS/homepage block) → Resend "segment" (the
+  API's current non-deprecated primitive; `RESEND_AUDIENCE_ID` keeps the more recognizable
+  name since that's still how Resend's own dashboard/docs commonly refer to it) via
+  `POST /api/newsletter` (rate-limited, honeypot, degrades gracefully — forms don't even
+  render — when unconfigured). Drop-announcement broadcast from a new admin panel
+  (`NewsletterBroadcastPanel.tsx` + `POST /api/admin/newsletter/broadcast`) — defaults to
+  creating a **draft** in Resend for final review; "Send immediately" is an explicit,
+  confirmed opt-in checkbox, not the default, mirroring how every other bulk/money-adjacent
+  admin action in this codebase (refunds, mock-payment simulate) requires deliberate
+  confirmation rather than a one-click blast.
+- ☑ **Campaign links + UTM surfacing** — `middleware.ts` sets a first-touch, httpOnly
+  `utm_data` cookie from `?utm_source=/utm_medium=/utm_campaign=` on any real navigation
+  (never overwrites once set, so a later direct/organic visit before checkout doesn't lose
+  the campaign that actually brought the customer); `POST /api/orders` reads it and
+  snapshots `utmSource`/`utmMedium`/`utmCampaign` onto the order. Surfaced in the dashboard
+  as a new `campaign` dimension on the existing Sales report (`?dimension=campaign`),
+  grouping by `utm_source/utm_campaign` with a "Direct / organic" fallback bucket for
+  attribution-less orders. **Caught and fixed a real pre-existing bug while verifying this
+  against the real DB**: Postgres's extended query protocol rejects bind calls that supply
+  more parameters than the SQL statement references — the sales report's dimension query
+  call site always passed 3 params (`from`, `to`, `locale`) but only the `category`
+  dimension's SQL actually references `$3`; `artist`/`area`/`payment_method` (and now the
+  new `campaign`) were silently 500ing whenever exercised via real HTTP, which nothing had
+  done before. Fixed by only including the locale param for `category`.
+- ☑ **Blog/editorial** — new `Posts` collection, deliberately "Pages' exact block builder
+  (same 8 blocks incl. the new Newsletter block) + different top-level fields" (excerpt,
+  featured image, author, published date) rather than reusing Pages itself, since a post
+  has different fields and different storefront surfaces (`/blog` index, not a bare slug).
+  `/blog` (index) + `/blog/[slug]` (block-vs-plain-article fallback, same pattern as the
+  `/[slug]` Pages renderer) + `BlogPosting` JSON-LD + breadcrumb JSON-LD + sitemap inclusion.
+- ☑ **WhatsApp order-status messages** — `sendOrderStatusWhatsApp()` in `notifications.ts`,
+  wired into the existing Orders status-change hook alongside the status email (now
+  independent channels — email requires `customerEmail`, which is optional, so a guest
+  checkout with no email still gets a WhatsApp update if configured). **Correctly built as
+  a template message, not plain text**: business-initiated messages outside WhatsApp's 24h
+  customer-service window are rejected by Meta's Cloud API unless using a pre-approved
+  template — `WHATSAPP_STATUS_TEMPLATE_NAME` documents the exact template shape to submit
+  for approval in Meta Business Manager (a business process step, not a code one).
+- ☑ **Structured-data audit** (also closes ENHANCEMENTS E8) — new `src/lib/structured-data.ts`:
+  site-wide Organization + WebSite/SearchAction graph (layout-level, `sameAs` from
+  SiteSettings social links) + a reusable `buildBreadcrumbJsonLd()` wired into product
+  (now with a Category breadcrumb level too), artist, bundle, and blog-post pages.
+- ⏭ Instagram feed embed — still blocked on a handle, external, unchanged since it was
+  first deferred.
+- **Verified extensively against a real running server, not just reasoned about**:
+  created a real blog post via real HTTP and confirmed `/blog` + `/blog/[slug]` pick it up
+  (plus a genuine first-request cache-population flake on the very first ever hit to a
+  brand-new route, self-resolved on retry — same class of cold-start quirk already
+  documented elsewhere in this project, not chased further); newsletter signup's
+  graceful-skip path with no `RESEND_AUDIENCE_ID` configured, and its email-format
+  validation; the full UTM-cookie-to-order-attribution round trip (real landing hit →
+  cookie set → real order created → `utmSource`/`utmMedium`/`utmCampaign` correctly
+  persisted); all 6 sales-report dimensions (confirming the param-count fix); site-wide
+  Organization/SearchAction JSON-LD present on the homepage. Dev data (one unit of test
+  stock) restored to its exact prior state afterward.
 
 ---
 

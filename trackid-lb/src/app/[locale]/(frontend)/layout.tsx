@@ -20,6 +20,7 @@ import {
   DEFAULT_EMPTY_CART_MESSAGE,
 } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
+import { buildSiteJsonLd } from '@/lib/structured-data'
 import './globals.css'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -118,10 +119,14 @@ export default async function FrontendLayout({
     '--font-body': resolveFontStack(settings.bodyFont, locale),
   } as React.CSSProperties
 
+  const siteJsonLd = buildSiteJsonLd(settings, locale, routing.defaultLocale)
+
   return (
     <html lang={locale} dir={isRtl(locale) ? 'rtl' : 'ltr'}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
+        {/* Site-wide Organization + WebSite/SearchAction graph (ROADMAP Part 7) */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
       </head>
       <body className={fontVariables} style={fontVars}>
         <NextIntlClientProvider>

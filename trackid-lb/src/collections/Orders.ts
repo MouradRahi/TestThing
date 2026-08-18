@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { isAdmin } from '../lib/access'
-import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendOrderWhatsAppAlert } from '../lib/notifications'
+import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendOrderWhatsAppAlert, sendOrderStatusWhatsApp } from '../lib/notifications'
 import { resolveBrandCopy, getDeliveryZones, resolveVatConfig } from '../lib/site-settings'
 import { logAuditEvent } from '../lib/audit-log'
 import { generateInvoicePdf } from '../lib/invoices/invoice-pdf'
@@ -23,29 +23,50 @@ export const Orders: CollectionConfig = {
     afterChange: [
       // Tell the customer when their order moves forward (shipped, delivered…).
       // Skipped on creation — the confirmation email already covers that.
+      // Email and WhatsApp are independent channels (WhatsApp doesn't need
+      // customerEmail to exist — customerPhone is the only required contact
+      // field on an order — so a guest checkout with no email still gets a
+      // WhatsApp status update if the business has that integration configured).
       async ({ doc, previousDoc, req }) => {
         const prev = previousDoc?.orderStatus
         const next = doc?.orderStatus
-        if (!prev || prev === next || !doc?.customerEmail) return
+        if (!prev || prev === next) return
+
+        let brand
         try {
-          let brand
+          const settings = await req.payload.findGlobal({ slug: 'site-settings' })
+          brand = resolveBrandCopy(settings as unknown as Record<string, unknown>)
+        } catch {
+          // fresh install without the global — notifications.ts applies defaults
+        }
+
+        if (doc?.customerEmail) {
           try {
-            const settings = await req.payload.findGlobal({ slug: 'site-settings' })
-            brand = resolveBrandCopy(settings as unknown as Record<string, unknown>)
-          } catch {
-            // fresh install without the global — notifications.ts applies defaults
+            await sendOrderStatusEmail({
+              orderNumber: doc.orderNumber,
+              customerName: doc.customerName,
+              customerEmail: doc.customerEmail,
+              status: next,
+              brand,
+              courierName: doc.courierName ?? undefined,
+              trackingRef: doc.trackingRef ?? undefined,
+            })
+          } catch (err) {
+            console.error('[orders] Status email failed:', err)
           }
-          await sendOrderStatusEmail({
+        }
+
+        try {
+          await sendOrderStatusWhatsApp({
             orderNumber: doc.orderNumber,
             customerName: doc.customerName,
-            customerEmail: doc.customerEmail,
+            customerEmail: doc.customerEmail ?? '',
+            customerPhone: doc.customerPhone,
             status: next,
             brand,
-            courierName: doc.courierName ?? undefined,
-            trackingRef: doc.trackingRef ?? undefined,
           })
         } catch (err) {
-          console.error('[orders] Status email failed:', err)
+          console.error('[orders] Status WhatsApp message failed:', err)
         }
       },
       // Cancelling an order returns its items to stock; un-cancelling takes
@@ -329,6 +350,23 @@ export const Orders: CollectionConfig = {
       type: 'number',
       required: true,
       defaultValue: 0,
+    },
+    {
+      name: 'utmSource',
+      type: 'text',
+      index: true,
+      admin: { readOnly: true, description: 'Campaign attribution (ROADMAP Part 7) — from ?utm_source= on the visitor\'s first landing, first-touch.', position: 'sidebar' },
+    },
+    {
+      name: 'utmMedium',
+      type: 'text',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
+      name: 'utmCampaign',
+      type: 'text',
+      index: true,
+      admin: { readOnly: true, position: 'sidebar' },
     },
     {
       name: 'discountCode',

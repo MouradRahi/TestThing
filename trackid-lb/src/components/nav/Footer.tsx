@@ -1,6 +1,7 @@
 import { getTranslations, getLocale } from 'next-intl/server'
 import { Link } from '@/i18n/navigation'
 import { getSiteSettings, getNavigation, resolveCopyright } from '@/lib/site-settings'
+import { NewsletterForm } from '@/components/NewsletterForm'
 
 const SOCIAL_LABELS: Record<string, string> = {
   instagram: 'Instagram',
@@ -26,7 +27,15 @@ const SOCIAL_ICON_PATHS: Record<string, string> = {
 
 export async function Footer() {
   const locale = await getLocale()
-  const [settings, nav, t] = await Promise.all([getSiteSettings(locale), getNavigation(locale), getTranslations('footer')])
+  const [settings, nav, t, tNewsletter] = await Promise.all([
+    getSiteSettings(locale),
+    getNavigation(locale),
+    getTranslations('footer'),
+    getTranslations('newsletter'),
+  ])
+  // Env-gated, not a SiteSettings toggle — matches every other optional
+  // integration in this codebase (WhatsApp button, S3 storage, analytics).
+  const newsletterEnabled = Boolean(process.env.RESEND_AUDIENCE_ID)
 
   const storeName = (settings.storeName as string) || 'trackID.lb'
   const logoUrl = (settings.logoUrl as string) || ''
@@ -44,7 +53,7 @@ export async function Footer() {
   return (
     <footer className="border-t border-border mt-24 px-6 py-14">
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-[1fr_repeat(var(--footer-cols,2),auto)] gap-12"
-        style={{ '--footer-cols': Math.max(footerColumns.length, 1) } as React.CSSProperties}>
+        style={{ '--footer-cols': Math.max(footerColumns.length, 1) + (newsletterEnabled ? 1 : 0) } as React.CSSProperties}>
 
         {/* Brand */}
         <div>
@@ -134,6 +143,11 @@ export async function Footer() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/blog" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
+                    {t('blog')}
+                  </Link>
+                </li>
+                <li>
                   <Link href="/custom-request" className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest">
                     {t('customRequest')}
                   </Link>
@@ -146,6 +160,14 @@ export async function Footer() {
               </ul>
             </div>
         }
+
+        {newsletterEnabled && (
+          <div className="max-w-[220px]">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-muted mb-4">{tNewsletter('heading')}</p>
+            <p className="text-xs text-muted/80 mb-4">{tNewsletter('subtext')}</p>
+            <NewsletterForm />
+          </div>
+        )}
 
       </div>
 

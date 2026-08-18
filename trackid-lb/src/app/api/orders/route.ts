@@ -142,6 +142,24 @@ export async function POST(req: NextRequest) {
       if (cached) return NextResponse.json(cached.body, { status: cached.status })
     }
 
+    // Campaign attribution (ROADMAP Part 7) — first-touch cookie set by
+    // middleware.ts, snapshotted onto the order at creation. Malformed/absent
+    // cookie is not an error — attribution is a nice-to-have, never blocks checkout.
+    let utmSource: string | undefined
+    let utmMedium: string | undefined
+    let utmCampaign: string | undefined
+    try {
+      const raw = req.cookies.get('utm_data')?.value
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        utmSource = typeof parsed.utm_source === 'string' ? parsed.utm_source.slice(0, 100) : undefined
+        utmMedium = typeof parsed.utm_medium === 'string' ? parsed.utm_medium.slice(0, 100) : undefined
+        utmCampaign = typeof parsed.utm_campaign === 'string' ? parsed.utm_campaign.slice(0, 100) : undefined
+      }
+    } catch {
+      // malformed cookie — ignore, no attribution recorded for this order
+    }
+
     const body = await req.json().catch(() => null)
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
@@ -472,6 +490,9 @@ export async function POST(req: NextRequest) {
             ? { paymentExpiresAt: paymentExpiryDate(paymentMethod === 'omt' ? OMT_RESERVATION_HOURS * 60 : PAYMENT_EXPIRY_MINUTES) }
             : {}),
           ...(exchangeRateAtPurchase != null ? { exchangeRateAtPurchase } : {}),
+          ...(utmSource ? { utmSource } : {}),
+          ...(utmMedium ? { utmMedium } : {}),
+          ...(utmCampaign ? { utmCampaign } : {}),
           orderStatus: 'pending',
           notes,
         },
