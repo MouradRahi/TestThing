@@ -2065,5 +2065,94 @@ sub-items in one pass (Instagram embed stays blocked on a handle, unchanged).
   server, confirming this was environmental, not a regression from this session's changes.
 - ROADMAP.md Part 7 marked ☑ DONE v1 (Instagram excepted, external blocker unchanged).
   ENHANCEMENTS.md E8 marked ☑ DONE (folded into this work).
-- Not yet committed at the time of writing this entry — commit/push/CI-verify follows,
-  same close-out pattern as every other session.
+- Committed (`3b94673`), pushed, CI verified green.
+
+### Session 28 (part 5) — 2026-08-17
+Focus: **user asked for XSS protection.** Real audit first (not from memory) — grepped
+every `dangerouslySetInnerHTML` and `href={...}` in the codebase rather than assuming
+React's default escaping covered everything.
+- **What was already safe, confirmed not re-litigated**: React/JSX auto-escapes virtually
+  all rendered content (names, notes, addresses, reviews, titles) — the primary defense,
+  already solid. `notifications.ts` already escapes customer input in email HTML.
+- **Four real gaps found and fixed**:
+  1. **JSON-LD `</script>` breakout** — 6 pages injected `JSON.stringify(data)` raw into
+     `<script type="application/ld+json">`; a value containing `</script>` breaks out of
+     the tag. New `src/lib/sanitize.ts → jsonLdScript()` escapes `<` to `<` (valid,
+     semantically identical JSON) before every one of those 6 sites.
+  2. **Theme `<style>` tag CSS injection** — `buildThemeCssVars()` interpolated raw,
+     unvalidated admin custom-color strings into a `dangerouslySetInnerHTML` `<style>` tag;
+     a value containing `</style>` broke out and could inject a live `<script>`. Fixed at
+     the root, not just sanitized around: `buildThemeCssVars()` now returns a plain object
+     spread onto `<html style={...}>` instead of a `<style>` element string — a `style="..."`
+     *attribute* can't be broken out of by embedded `</style>` the way an element's text
+     content can, so this closes the vector outright. (`sanitizeCssColor()` still validates
+     each value too, as defense in depth.)
+  3. **`javascript:` href injection** — every staff-entered URL field (CTA buttons,
+     announcement bar, rich-text links, nav/footer links) rendered straight into `href`
+     with zero protocol validation. New `safeHref()` (allowlist: relative paths, `#`, `?`,
+     `http(s):`, `mailto:`, `tel:` — falls back to `#`) applied at all ~10 call sites.
+  4. **No security headers at all** — added `X-Content-Type-Options`, `Referrer-Policy`,
+     `X-Frame-Options`, `Permissions-Policy` (next.config.ts, applies everywhere incl.
+     `/admin`/`/api`) and a Content-Security-Policy (`middleware.ts`, storefront pages only).
+- **The CSP took real investigation, not a copy-paste template** — three findings changed
+  the design along the way, each verified with a real headless-browser test rather than
+  assumed:
+  - `<script type="application/ld+json">` is **not governed by CSP's script-src at all**
+    (confirmed: a strict nonce-only script-src correctly blocked a real inline `<script>`
+    sitting right next to an un-nonced JSON-LD block, and reported zero violation for the
+    JSON-LD one — browsers never execute that MIME type as JS). This meant the 6 JSON-LD
+    sites needed no CSP accommodation whatsoever, just the escaping fix above.
+  - Attempted a full nonce-based CSP first (the "correct" gold-standard approach) and
+    solved the hard part — forwarding a per-request nonce from `middleware.ts` to Server
+    Components without breaking next-intl's own locale-routing response, by replicating
+    Next's own `x-middleware-request-*` header convention (read straight from
+    `node_modules/next`'s source rather than guessing) on top of next-intl's response.
+  - That plumbing turned out to be moot: verified directly in Next's source
+    (`getScriptNonceFromHeader` in `app-render.js`) that Next.js's own internal hydration/
+    streaming scripts (`self.__next_f.push(...)`) *require* a nonce or `'unsafe-inline'` to
+    run, and — confirmed via a live test that produced 107 real CSP violations, all from
+    those framework-internal scripts, none from anything this app wrote — a nonce-based CSP
+    is fundamentally incompatible with ISR/static rendering (Next's own docs: adopting a
+    nonce forces the whole app into dynamic rendering, since cached HTML can't hold a fresh
+    per-request value). That directly contradicted this project's "RSC + ISR, Non-Negotiable"
+    performance architecture, so this wasn't a call to make unilaterally — asked the user
+    directly (keep ISR + scoped `'unsafe-inline'` for script-src vs. full nonce + sacrifice
+    ISR everywhere vs. defer script-src entirely); user chose keeping ISR.
+  - **Two of the three remaining `'unsafe-inline'`-needing pieces were eliminated instead of
+    worked around**: the theme `<style>` tag was removed entirely (see fix #2 above), and
+    `Analytics.tsx` (GA4/Meta Pixel) was rewritten from an inline `<script>` body to a
+    `'use client'` component that sets `window.dataLayer`/`gtag`/`fbq` as real bundled JS in
+    a `useEffect` — same-origin, needs no CSP accommodation — with `next/script` used only
+    to load the external `gtag.js`/`fbevents.js` files by URL (host-allowlisted, not inline).
+    This mirrors `@vercel/analytics`'s own script-injection pattern in this app (confirmed
+    by reading its source: `document.createElement('script'); script.src = ...`, never an
+    inline string) — an established, already-proven-safe pattern, not a new one invented
+    for this fix. The *only* thing left needing `'unsafe-inline'` in script-src is Next's
+    own hydration scripts — disclosed explicitly in `csp.ts`'s comments, not hidden. `style-src`
+    keeps `'unsafe-inline'` too, for an unrelated, unavoidable reason: React's `style={{}}`
+    prop compiles to a real `style="..."` HTML attribute, and CSP has no nonce mechanism for
+    attributes at all (only `<style>` elements/`<link>` stylesheets can carry one).
+  - `connect-src`'s Sentry host is derived from the actual configured `NEXT_PUBLIC_SENTRY_DSN`
+    at module load (`o<org>.ingest.<region>.sentry.io`) rather than a guessed wildcard.
+- **Verified everything against a real running server + real browser, not assumed**: a
+  genuine `</script><script>window.__xss=true</script>` breakout attempt via a real blog
+  post title, created through the actual REST API — confirmed it did NOT execute
+  (`window.__xss` stayed `false`) and the literal escaped text rendered instead. A real
+  `javascript:alert(document.cookie)` CTA href on a real Page — confirmed the rendered HTML
+  contains `href="#"`, never the raw payload. Zero genuine CSP violations across `/`, `/shop`,
+  `/blog`, `/bundles`, `/track`, `/custom-request`, `/p/about` (a `netstat`/`Vercel Insights
+  404` red herring in the first pass, correctly re-diagnosed as unrelated — same benign
+  local-dev-only 404 already explained to the user earlier this session — not a CSP issue).
+  Confirmed the browser can still reach the Sentry ingest host under the new `connect-src`
+  (a real `fetch()` from within a live page, zero violations, non-CSP 401 as expected for an
+  unsigned test payload). Confirmed the theme still resolves correctly (`--color-bg`,
+  `--font-heading` both read back correctly via `getComputedStyle` in a real browser).
+  Confirmed product/artist/bundle/blog/homepage are all still `●` statically prerendered in
+  the build output — zero ISR regression, the entire point of the earlier architectural
+  investigation. Hit two genuine environment crashes along the way (a build worker
+  `VirtualAlloc failed`, matching this machine's documented occasional resource-pressure
+  flakiness) — both resolved on a clean retry, not a code issue.
+- ✅ `npx tsc --noEmit` clean; `npm test` 56/56 (+16 new: `sanitize.test.ts`, `csp.test.ts`);
+  full production build (all pages, including static ones, build clean); `npm run test:e2e`
+  1/1 — the COD checkout flow still passes under the new CSP.
+- Not yet committed at the time of writing this entry.

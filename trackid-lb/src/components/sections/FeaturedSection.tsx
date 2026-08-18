@@ -4,6 +4,7 @@ import { getPayload } from '@/lib/payload'
 import { ProductCard } from '@/components/product/ProductCard'
 import { totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
+import { safeHref } from '@/lib/sanitize'
 
 type Props = {
   sectionTitle?: string
@@ -48,7 +49,7 @@ export async function FeaturedSection({
       <div className="flex items-baseline justify-between mb-10">
         <h2 className="text-xs uppercase tracking-[0.25em] text-muted">{sectionTitle}</h2>
         {viewAllHref && (
-          <Link href={viewAllHref} className="text-xs uppercase tracking-[0.2em] text-muted hover:text-accent transition-colors">
+          <Link href={safeHref(viewAllHref)} className="text-xs uppercase tracking-[0.2em] text-muted hover:text-accent transition-colors">
             {viewAllLabel}
           </Link>
         )}

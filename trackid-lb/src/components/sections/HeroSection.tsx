@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
+import { safeHref } from '@/lib/sanitize'
 
 type Props = {
   eyebrow?: string
@@ -66,9 +67,9 @@ export function HeroSection({
         )}
         {(ctaLabel && ctaHref) && (
           <div className="flex flex-wrap gap-4">
-            <Button href={ctaHref}>{ctaLabel}</Button>
+            <Button href={safeHref(ctaHref)}>{ctaLabel}</Button>
             {secondaryCtaLabel && secondaryCtaHref && (
-              <Button href={secondaryCtaHref} variant="secondary">{secondaryCtaLabel}</Button>
+              <Button href={safeHref(secondaryCtaHref)} variant="secondary">{secondaryCtaLabel}</Button>
             )}
           </div>
         )}

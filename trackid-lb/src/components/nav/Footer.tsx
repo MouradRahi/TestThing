@@ -2,6 +2,7 @@ import { getTranslations, getLocale } from 'next-intl/server'
 import { Link } from '@/i18n/navigation'
 import { getSiteSettings, getNavigation, resolveCopyright } from '@/lib/site-settings'
 import { NewsletterForm } from '@/components/NewsletterForm'
+import { safeHref } from '@/lib/sanitize'
 
 const SOCIAL_LABELS: Record<string, string> = {
   instagram: 'Instagram',
@@ -116,7 +117,7 @@ export async function Footer() {
                   {(col.links || []).map((link, li: number) => (
                     <li key={link.href ?? li}>
                       <Link
-                        href={link.href}
+                        href={safeHref(link.href)}
                         target={link.openInNewTab ? '_blank' : undefined}
                         rel={link.openInNewTab ? 'noopener noreferrer' : undefined}
                         className="text-xs text-foreground/70 hover:text-accent transition-colors uppercase tracking-widest"

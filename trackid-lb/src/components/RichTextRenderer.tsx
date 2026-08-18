@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Image from 'next/image'
+import { safeHref } from '@/lib/sanitize'
 
 type LexicalUploadValue = {
   id?: string | number
@@ -96,7 +97,7 @@ function serialize(node: LexicalNode, key: number): ReactNode {
       return <li key={key}>{serializeChildren(node.children ?? [])}</li>
 
     case 'link': {
-      const url = node.fields?.url ?? node.url ?? '#'
+      const url = safeHref((node.fields?.url ?? node.url) as string | undefined)
       const newTab = node.fields?.newTab
       return (
         <a

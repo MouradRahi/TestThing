@@ -8,6 +8,7 @@ import { BlockRenderer } from '@/components/sections/BlockRenderer'
 import { Link } from '@/i18n/navigation'
 import { localizedAlternates } from '@/lib/seo'
 import { buildBreadcrumbJsonLd } from '@/lib/structured-data'
+import { jsonLdScript } from '@/lib/sanitize'
 import { routing } from '@/i18n/routing'
 import { getSiteSettings, resolveStoreName } from '@/lib/site-settings'
 
@@ -93,8 +94,8 @@ export default async function BlogPostPage({
 
   return (
     <div>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(articleJsonLd) }} />
 
       {hasSections ? (
         <BlockRenderer sections={sections} />

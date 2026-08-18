@@ -1,5 +1,6 @@
 import createMiddleware from 'next-intl/middleware'
 import { routing } from './i18n/routing'
+import { CSP_HEADER } from './lib/csp'
 import type { NextFetchEvent, NextRequest } from 'next/server'
 
 const intlMiddleware = createMiddleware(routing)
@@ -22,6 +23,18 @@ export default function middleware(request: NextRequest, event: NextFetchEvent) 
   }
 
   const response = intlMiddleware(request)
+
+  // Content-Security-Policy (XSS defense-in-depth) — static, no per-request
+  // nonce. Nothing this app renders needs one: verified with a real browser
+  // (Playwright) that CSP's script-src doesn't even govern
+  // `<script type="application/ld+json">` tags (browsers never execute them
+  // as JS), and the only two genuinely-inline *executable* scripts
+  // (GA4/Meta Pixel bootstrapping, Analytics.tsx) were rewritten to run as
+  // real same-origin bundled JS instead of inline HTML — so there's nothing
+  // left that would require sacrificing ISR/static rendering (product,
+  // artist, bundle, blog, homepage) to thread a per-request value through
+  // `headers()`. See src/lib/csp.ts for the full policy + reasoning.
+  if (response) response.headers.set('Content-Security-Policy', CSP_HEADER)
 
   // Campaign attribution (ROADMAP Part 7) — first-touch: only set once per
   // visitor, so a later direct/organic visit before checkout never overwrites

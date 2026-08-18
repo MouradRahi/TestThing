@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
 import { useReducedMotion } from '@/lib/useReducedMotion'
+import { safeHref } from '@/lib/sanitize'
 
 type Slide = {
   bgImage?: string
@@ -76,7 +77,7 @@ export function SlideshowSection({ slides, height = '80vh', autoplayInterval = 5
                 <p className="text-muted text-base max-w-sm mb-12">{slide.subline}</p>
               )}
               {slide.ctaLabel && slide.ctaHref && (
-                <Button href={slide.ctaHref}>{slide.ctaLabel}</Button>
+                <Button href={safeHref(slide.ctaHref)}>{slide.ctaLabel}</Button>
               )}
             </div>
           </div>
