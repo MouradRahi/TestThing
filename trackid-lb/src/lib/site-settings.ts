@@ -1,6 +1,7 @@
 import { unstable_cache } from 'next/cache'
 import { getPayload } from './payload'
 import { RTL_LOCALES } from '../i18n/routing'
+import { sanitizeCssColor } from './sanitize'
 
 // ── Color scheme presets ─────────────────────────────────────────────────────
 
@@ -113,27 +114,40 @@ export function resolveColorTokens(settings: AnyRecord): ColorTokens {
 
 // Border-radius presets override Tailwind's radius scale at runtime, so every
 // `rounded-*` utility (except `rounded-full`) follows the chosen brand shape.
-const RADIUS_PRESETS: Record<string, string[]> = {
-  sharp: ['--radius:0px', '--radius-xs:0px', '--radius-sm:0px', '--radius-md:0px', '--radius-lg:0px', '--radius-xl:0px', '--radius-2xl:0px'],
+const RADIUS_PRESETS: Record<string, Record<string, string>> = {
+  sharp: { '--radius': '0px', '--radius-xs': '0px', '--radius-sm': '0px', '--radius-md': '0px', '--radius-lg': '0px', '--radius-xl': '0px', '--radius-2xl': '0px' },
   // soft = Tailwind defaults (no overrides)
-  round: ['--radius:0.5rem', '--radius-xs:0.25rem', '--radius-sm:0.5rem', '--radius-md:0.625rem', '--radius-lg:0.875rem', '--radius-xl:1.125rem', '--radius-2xl:1.5rem'],
+  round: { '--radius': '0.5rem', '--radius-xs': '0.25rem', '--radius-sm': '0.5rem', '--radius-md': '0.625rem', '--radius-lg': '0.875rem', '--radius-xl': '1.125rem', '--radius-2xl': '1.5rem' },
 }
 
-export function buildThemeCssVars(settings: AnyRecord): string {
+/**
+ * Theme CSS custom properties as a plain object, meant to be spread directly
+ * into a React `style` prop (on `<html>`, so they cascade as `:root` vars
+ * would) — not a `<style>` element string. That's a deliberate choice, not
+ * just a styling preference: a `style="..."` *attribute* can't be broken out
+ * of by a value containing `</style>` the way a `<style>` *element's* text
+ * content can, so this closes the CSS-injection vector outright rather than
+ * merely sanitizing around it (the `sanitizeCssColor()` calls below still
+ * apply too, as defense in depth). It also means these theme vars need no
+ * `dangerouslySetInnerHTML` and no CSP `style-src-elem` nonce — see
+ * src/lib/csp.ts for how that simplifies the CSP.
+ */
+export function buildThemeCssVars(settings: AnyRecord): Record<string, string> {
   const t = resolveColorTokens(settings)
-  const vars = [
-    `--color-bg:${t.bg}`,
-    `--color-surface:${t.surface}`,
-    `--color-border:${t.border}`,
-    `--color-foreground:${t.foreground}`,
-    `--color-muted:${t.muted}`,
-    `--color-accent:${t.accent}`,
-    `--color-accent-hover:${t.accentHover}`,
-    `--color-on-accent:${t.onAccent}`,
-  ]
+  const fallback = COLOR_SCHEMES.dark
+  const vars: Record<string, string> = {
+    '--color-bg': sanitizeCssColor(t.bg, fallback.bg),
+    '--color-surface': sanitizeCssColor(t.surface, fallback.surface),
+    '--color-border': sanitizeCssColor(t.border, fallback.border),
+    '--color-foreground': sanitizeCssColor(t.foreground, fallback.foreground),
+    '--color-muted': sanitizeCssColor(t.muted, fallback.muted),
+    '--color-accent': sanitizeCssColor(t.accent, fallback.accent),
+    '--color-accent-hover': sanitizeCssColor(t.accentHover, fallback.accentHover),
+    '--color-on-accent': sanitizeCssColor(t.onAccent, fallback.onAccent),
+  }
   const radius = RADIUS_PRESETS[(settings.borderRadius as string) ?? 'soft']
-  if (radius) vars.push(...radius)
-  return vars.join(';')
+  if (radius) Object.assign(vars, radius)
+  return vars
 }
 
 // ── Commerce helpers ─────────────────────────────────────────────────────────

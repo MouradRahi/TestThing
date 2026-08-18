@@ -25,6 +25,27 @@ const nextConfig: NextConfig = {
     ],
     formats: ['image/avif', 'image/webp'],
   },
+  // The nonce-based Content-Security-Policy (the strong, per-request part of
+  // the XSS defense-in-depth work — see src/lib/csp.ts) is set in
+  // middleware.ts, scoped to storefront pages only, since it deliberately
+  // doesn't cover /admin (Payload's own panel, unaudited for CSP compat) or
+  // /api. These four are static, need no per-request nonce, and are safe to
+  // apply everywhere including admin/API responses.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          // Modern equivalent of frame-ancestors, kept for browsers that
+          // don't understand CSP's frame-ancestors directive.
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+    ]
+  },
 }
 
 const baseConfig = withPayload(withNextIntl(nextConfig))

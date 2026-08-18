@@ -21,6 +21,7 @@ import {
 } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
 import { buildSiteJsonLd } from '@/lib/structured-data'
+import { jsonLdScript } from '@/lib/sanitize'
 import './globals.css'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
@@ -113,8 +114,13 @@ export default async function FrontendLayout({
   setRequestLocale(locale)
 
   const [settings, tCommon] = await Promise.all([getSiteSettings(locale), getTranslations('common')])
-  const cssVars = buildThemeCssVars(settings)
-  const fontVars = {
+  // Both the theme colors and the font stack are CSS custom properties, so
+  // they can share one `style` prop on <html> — a real HTML attribute (not
+  // an injected <style> element), which is what lets us skip
+  // dangerouslySetInnerHTML for this entirely (see buildThemeCssVars' own
+  // comment for why that matters for CSP + injection risk).
+  const rootStyle = {
+    ...buildThemeCssVars(settings),
     '--font-heading': resolveFontStack(settings.headingFont, locale),
     '--font-body': resolveFontStack(settings.bodyFont, locale),
   } as React.CSSProperties
@@ -122,13 +128,12 @@ export default async function FrontendLayout({
   const siteJsonLd = buildSiteJsonLd(settings, locale, routing.defaultLocale)
 
   return (
-    <html lang={locale} dir={isRtl(locale) ? 'rtl' : 'ltr'}>
+    <html lang={locale} dir={isRtl(locale) ? 'rtl' : 'ltr'} style={rootStyle}>
       <head>
-        <style dangerouslySetInnerHTML={{ __html: `:root{${cssVars}}` }} />
         {/* Site-wide Organization + WebSite/SearchAction graph (ROADMAP Part 7) */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(siteJsonLd) }} />
       </head>
-      <body className={fontVariables} style={fontVars}>
+      <body className={fontVariables}>
         <NextIntlClientProvider>
           <CartProvider
             emptyCartMessage={(settings.emptyCartMessage as string) || DEFAULT_EMPTY_CART_MESSAGE}

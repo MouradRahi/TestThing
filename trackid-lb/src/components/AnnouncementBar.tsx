@@ -2,6 +2,7 @@ import { getLocale } from 'next-intl/server'
 import { Link } from '@/i18n/navigation'
 import { getSiteSettings } from '@/lib/site-settings'
 import { ensureReadableTextColor } from '@/lib/contrast'
+import { safeHref } from '@/lib/sanitize'
 
 export async function AnnouncementBar() {
   const settings = await getSiteSettings(await getLocale())
@@ -14,7 +15,7 @@ export async function AnnouncementBar() {
   // an unreadable bar, without needing the admin to check contrast by hand.
   const color = ensureReadableTextColor(bg, (settings.announcementTextColor as string) || '#0a0a0a')
   const text = settings.announcementText as string
-  const href = settings.announcementHref as string | undefined
+  const href = settings.announcementHref ? safeHref(settings.announcementHref as string) : undefined
 
   const inner = (
     <p className="text-center text-[11px] uppercase tracking-[0.2em] py-2.5 px-4">

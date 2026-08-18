@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
+import { safeHref } from '@/lib/sanitize'
 
 type Props = {
   headline?: string
@@ -43,7 +44,7 @@ export function CTABannerSection({
           <p className="text-sm mb-8 max-w-sm mx-auto text-on-accent opacity-70">{subline}</p>
         )}
         {ctaLabel && ctaHref && (
-          <Button href={ctaHref} variant="secondary">{ctaLabel}</Button>
+          <Button href={safeHref(ctaHref)} variant="secondary">{ctaLabel}</Button>
         )}
       </div>
     </section>

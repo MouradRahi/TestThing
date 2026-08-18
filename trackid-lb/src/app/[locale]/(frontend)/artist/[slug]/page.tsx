@@ -10,6 +10,7 @@ import { resolveAlt } from '@/lib/image'
 import { getSiteSettings, resolveStoreName } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
 import { buildBreadcrumbJsonLd } from '@/lib/structured-data'
+import { jsonLdScript } from '@/lib/sanitize'
 import { routing } from '@/i18n/routing'
 
 export const revalidate = 3600
@@ -107,7 +108,7 @@ export default async function ArtistPage({
     <div>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd) }}
       />
       {/* Artist hero */}
       <div className="max-w-6xl mx-auto px-6 py-16">

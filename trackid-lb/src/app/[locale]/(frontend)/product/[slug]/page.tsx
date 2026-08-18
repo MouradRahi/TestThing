@@ -24,6 +24,7 @@ import {
 } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
 import { buildBreadcrumbJsonLd } from '@/lib/structured-data'
+import { jsonLdScript } from '@/lib/sanitize'
 import { routing } from '@/i18n/routing'
 
 export const revalidate = 3600
@@ -256,11 +257,11 @@ export default async function ProductPage({
     <div className="max-w-6xl mx-auto px-6 py-12">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbJsonLd) }}
       />
       {/* Breadcrumb */}
       <nav className="flex gap-2 text-[10px] uppercase tracking-widest text-muted mb-10">

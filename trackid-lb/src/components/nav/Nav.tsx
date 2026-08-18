@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { useCart } from '@/components/cart/CartContext'
 import { LocaleSwitcher } from '@/components/nav/LocaleSwitcher'
+import { safeHref } from '@/lib/sanitize'
 
 export type NavLink = {
   label: string
@@ -96,7 +97,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
         {links.map((link) => (
           <Link
             key={link.href}
-            href={link.href}
+            href={safeHref(link.href)}
             target={link.openInNewTab ? '_blank' : undefined}
             rel={link.openInNewTab ? 'noopener noreferrer' : undefined}
             className="hover:text-foreground transition-colors"
@@ -139,7 +140,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
           {links.map((link) => (
             <Link
               key={link.href}
-              href={link.href}
+              href={safeHref(link.href)}
               target={link.openInNewTab ? '_blank' : undefined}
               rel={link.openInNewTab ? 'noopener noreferrer' : undefined}
               onClick={() => setMenuOpen(false)}

@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
+import { safeHref } from '@/lib/sanitize'
 
 type Props = {
   image?: string
@@ -49,7 +50,7 @@ export function ImageTextSection({
             <p className="text-muted text-sm leading-relaxed mb-8 max-w-sm">{body}</p>
           )}
           {ctaLabel && ctaHref && (
-            <Button href={ctaHref} size="md" className="self-start">{ctaLabel}</Button>
+            <Button href={safeHref(ctaHref)} size="md" className="self-start">{ctaLabel}</Button>
           )}
         </div>
       </div>
