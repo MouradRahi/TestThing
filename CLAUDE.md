@@ -2209,4 +2209,28 @@ right after deploying the F7 + XSS/CSP work.
   `payload_locked_documents_rels` column — two separate additions, easy to do one and forget
   the other exactly like this session did. Worth a quick grep-for-the-pattern sanity check
   before considering any "add a new collection" migration done.
-- Not yet committed at the time of writing this entry.
+- Committed (`aa90022`), pushed — CI came back **red** on this commit's E2E job (unit tests
+  passed). Diagnosed, not just re-run blindly: pulled the real GitHub Actions log (job
+  artifacts weren't uploaded — `playwright-report/` mismatches where Playwright actually
+  writes output, a pre-existing workflow-config gap, not investigated further this session)
+  and found `locator.click: Test timeout … waiting for getByRole('button', { name: 'Add to
+  Cart' })`. Reproduced locally against the same dev DB rather than guessing from the CI log
+  alone: the E2E suite's "first shop product" (`Vinyl Enamel Pin`) had genuinely sold out
+  (`stock_quantity: 0`) — expected drift after many sessions' worth of real orders placed
+  against this catalog during verification, exactly the kind of thing `MIGRATIONS.md`
+  already flags the dev DB for. **Fixed properly, not by restocking one product by hand**:
+  rewrote `e2e/checkout.spec.ts` to walk the shop's product list (up to 10) and use whichever
+  one is actually purchasable, instead of assuming the first is — this class of drift will
+  keep recurring as the dev catalog keeps getting exercised.
+  - **That rewrite introduced a second, self-inflicted bug**, caught by re-running locally
+    rather than trusting the fix on read-through: used `.isVisible()` in the per-product
+    check, which — unlike `.click()`/`expect(...).toBeVisible()` — checks the DOM
+    synchronously with **no polling**, so it fired before the client-rendered buy box had
+    even hydrated and false-negatived on every single product (confirmed via temporary debug
+    logging: `hasSizes=false`/`addToCartVisible=false` across all 6, with the buy box
+    genuinely absent from the DOM yet at query time). Fixed with a `waitFor({ state:
+    'visible', timeout })`-based `isVisibleSoon()` helper, which actually polls; verified
+    green locally afterward (23s, real order placed and confirmed) before considering it
+    fixed. Debug logging removed before commit.
+- ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run test:e2e` 1/1 (verified locally,
+  not just assumed from the spec-file diff).
