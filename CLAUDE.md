@@ -2155,4 +2155,82 @@ React's default escaping covered everything.
 - ✅ `npx tsc --noEmit` clean; `npm test` 56/56 (+16 new: `sanitize.test.ts`, `csp.test.ts`);
   full production build (all pages, including static ones, build clean); `npm run test:e2e`
   1/1 — the COD checkout flow still passes under the new CSP.
-- Not yet committed at the time of writing this entry.
+- Committed (`b1f3555`), pushed, CI verified green.
+
+### Session 28 (part 6) — 2026-08-18 — production incident: admin down (again)
+Focus: **live incident response.** User reported `/admin` throwing "Something went wrong"
+right after deploying the F7 + XSS/CSP work.
+- **Ruled out the CSP first, correctly, before chasing it**: the new middleware's CSP only
+  applies via `matcher: ['/((?!api|admin|_next|_vercel|.*\\..*).*)']` — `/admin` is
+  explicitly excluded — and the browser showed a 500 (server-side), not a CSP violation
+  (client-side console warning). Confirmed by reading the matcher directly rather than
+  assuming.
+- **Schema-completeness check came back clean, unlike the prior two incidents**: ran the
+  same `information_schema`-diff diagnostic pattern as Sessions 23/28-part-3 — every object
+  from the F7 migration (`posts` table, `orders.utm_source/medium/campaign`,
+  `homepage_blocks_newsletter`, `pages_blocks_newsletter`) existed on prod, and
+  `payload_migrations` showed all 15 migrations applied including the F7 one. This time the
+  migration genuinely *had* run for real on prod.
+- **Root cause, found from the actual Vercel runtime log** (asked the user for it directly,
+  rather than keep guessing among admin-panel candidates blind): `column
+  payload_locked_documents__rels.posts_id does not exist`. Payload's admin dashboard shell
+  queries `payload_locked_documents_rels` — an internal edit-lock-tracking table — completely
+  unconditionally, and that table needs one nullable relationship column *per registered
+  collection*. Every prior migration that added a new collection in this project's history
+  had correctly included `ALTER TABLE payload_locked_documents_rels ADD COLUMN
+  "<slug>_id"` + its FK + index (confirmed by grepping all prior migrations for the pattern —
+  rate_limit_counters, idempotency_keys, audit_log, payments, analytics_counters, returns,
+  reviews, gift_cards, back_in_stock_requests, bundles all have one) — the F7 migration
+  built the `posts` table itself but was the first to skip this step for a new collection.
+  Same failure shape as the earlier `rate_limit_counters` incident (Session 23 part 2): one
+  missing column on this specific shared table takes down the *entire* `/admin`, not just
+  the new collection's own pages, because the dashboard shell queries it regardless of which
+  page you're on.
+- **Why dev never caught it**: confirmed directly (queried dev's `information_schema`) that
+  dev silently already had the column — push-mode auto-creates it as a side effect of the
+  Posts collection existing in the config, so this class of gap produces zero local symptoms,
+  the same lesson already written down after the `send_vat_report` incident.
+- **Fix**: `src/migrations/20260818_120000_fix_missing_posts_locked_documents_rels.ts` — adds
+  the column, FK constraint, and index, matching the exact shape every other collection's
+  addition already used (checked against `returns_id`'s migration line-by-line before
+  writing). Guarded with `IF NOT EXISTS`/an exception-swallowing `DO $$` block so it's safe
+  to actually *run* (not just mark) on dev, where the column already existed — applied for
+  real via `npm run migrate`, then verified all three pieces (column/constraint/index)
+  independently via a direct query, not assumed from a clean exit code. Audited the rest of
+  the F7 migration for any other collections added the same incomplete way — `posts` was the
+  only new top-level collection it introduced, so no further gaps of this kind.
+- ✅ `npx tsc --noEmit` clean; `npm test` 56/56; full production build verified (confirmed no
+  dev server was running first).
+- **Gave the user the exact one-line SQL to run in prod's Supabase SQL Editor for an
+  immediate unblock** — no prod DB access in this session, by design, same boundary as
+  every other prod-touching incident in this project.
+- **New standing lesson, worth checking explicitly on every future new-collection
+  migration**: adding a collection needs the DDL for *that collection's own tables* AND a
+  `payload_locked_documents_rels` column — two separate additions, easy to do one and forget
+  the other exactly like this session did. Worth a quick grep-for-the-pattern sanity check
+  before considering any "add a new collection" migration done.
+- Committed (`aa90022`), pushed — CI came back **red** on this commit's E2E job (unit tests
+  passed). Diagnosed, not just re-run blindly: pulled the real GitHub Actions log (job
+  artifacts weren't uploaded — `playwright-report/` mismatches where Playwright actually
+  writes output, a pre-existing workflow-config gap, not investigated further this session)
+  and found `locator.click: Test timeout … waiting for getByRole('button', { name: 'Add to
+  Cart' })`. Reproduced locally against the same dev DB rather than guessing from the CI log
+  alone: the E2E suite's "first shop product" (`Vinyl Enamel Pin`) had genuinely sold out
+  (`stock_quantity: 0`) — expected drift after many sessions' worth of real orders placed
+  against this catalog during verification, exactly the kind of thing `MIGRATIONS.md`
+  already flags the dev DB for. **Fixed properly, not by restocking one product by hand**:
+  rewrote `e2e/checkout.spec.ts` to walk the shop's product list (up to 10) and use whichever
+  one is actually purchasable, instead of assuming the first is — this class of drift will
+  keep recurring as the dev catalog keeps getting exercised.
+  - **That rewrite introduced a second, self-inflicted bug**, caught by re-running locally
+    rather than trusting the fix on read-through: used `.isVisible()` in the per-product
+    check, which — unlike `.click()`/`expect(...).toBeVisible()` — checks the DOM
+    synchronously with **no polling**, so it fired before the client-rendered buy box had
+    even hydrated and false-negatived on every single product (confirmed via temporary debug
+    logging: `hasSizes=false`/`addToCartVisible=false` across all 6, with the buy box
+    genuinely absent from the DOM yet at query time). Fixed with a `waitFor({ state:
+    'visible', timeout })`-based `isVisibleSoon()` helper, which actually polls; verified
+    green locally afterward (23s, real order placed and confirmed) before considering it
+    fixed. Debug logging removed before commit.
+- ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run test:e2e` 1/1 (verified locally,
+  not just assumed from the spec-file diff).
