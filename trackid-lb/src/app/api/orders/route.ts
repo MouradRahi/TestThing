@@ -1,5 +1,5 @@
 import { getPayload } from '@/lib/payload'
-import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert } from '@/lib/notifications'
+import { sendOrderConfirmationEmail, sendOrderWhatsAppAlert, sendOrderConfirmationWhatsApp } from '@/lib/notifications'
 import { clientIp, cleanString, cleanOptional, isValidPhone, EMAIL_RE } from '@/lib/api-guards'
 import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { getIdempotentResponse, saveIdempotentResponse } from '@/lib/idempotency'
@@ -609,6 +609,7 @@ export async function POST(req: NextRequest) {
         await Promise.allSettled([
           sendOrderConfirmationEmail({ ...notificationData, invoicePdf }),
           sendOrderWhatsAppAlert(notificationData),
+          sendOrderConfirmationWhatsApp(notificationData),
         ])
       })
     }

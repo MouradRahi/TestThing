@@ -2317,4 +2317,60 @@ favicon**. Both requested directly by the user; no roadmap item.
     logo — all four checked directly via `curl`, not assumed from the code.
   - ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified (after the DNS
     retry) with live HTTP verification of every new surface.
-- Not yet committed at the time of writing this entry — commit/push/CI-verify follows.
+- Committed (`ef5f323`), pushed, CI verified green.
+
+### Session 29 (part 2) — 2026-08-24
+Focus: **WhatsApp Cloud API setup**, walked the user through Meta's dashboard live and
+wired real credentials — surfaced and fixed a genuine bug in the existing staff-alert
+feature along the way (never caught before because it was never actually tested against
+a real recipient until this session).
+- **Meta app setup walkthrough**: guided the user through claiming a WhatsApp test number,
+  generating a temporary access token, and verifying a test recipient in Meta's dashboard.
+- **First real test order placed against dev, live**: order created fine, but the staff
+  WhatsApp alert failed — `(#131030) Recipient phone number not in allowed list)` — because
+  the recipient hadn't been added as a verified test recipient yet (required while the app
+  is unpublished). User added it, retried — order succeeded, **no error logged this time**,
+  which was **wrongly read as success** (see below).
+- **User reported nothing actually arrived.** Rather than re-assert the "no error = success"
+  read, called Meta's Graph API directly with a throwaway script and printed the *full raw
+  response body* regardless of status — it came back 200 OK with a real `wamid.` message ID
+  and a matching `wa_id`, proving the send layer (credentials, phone number ID, recipient)
+  was genuinely correct. The mystery was resolved when the user found the actual delivery
+  webhook payload: **`status: "failed"`, error 131047 "Re-engagement message" — "more than
+  24 hours have passed since the customer last replied to this number."** My earlier "no
+  error in the app's console log" check had simply run before the async `after()` callback
+  (a real network call to Meta) had finished — a genuine methodology mistake, corrected by
+  going to the source (Meta's own delivery status) instead of trusting an app-level log that
+  wasn't actually conclusive.
+- **Root cause is a real, pre-existing gap in `sendOrderWhatsAppAlert`** (the staff new-order
+  alert, live since Phase 3 / Session 3): it sent plain free-text, which WhatsApp's Business
+  Messaging Policy only allows within 24h of the recipient last messaging the business first
+  — not a safe assumption for an alert meant to fire reliably on *every* order. The sibling
+  feature (`sendOrderStatusWhatsApp`, ROADMAP Part 7) had already correctly used an approved
+  template for exactly this reason; the staff alert never got the same treatment, and this
+  is the first time it was ever tested against a recipient with a genuinely closed window —
+  which is the realistic common case, not an edge case.
+- **Fix, plus the user's second ask (a customer-facing "order placed" WhatsApp message,
+  which didn't exist at all before)**: converted `sendOrderWhatsAppAlert` to use an approved
+  template — deliberately kept SHORT (order number, customer name, total — 3 variables)
+  rather than cramming the full itemized order into template parameters, which would hurt
+  approval odds and duplicates what the admin's own order view already shows. Added a new
+  `sendOrderConfirmationWhatsApp()` (customer-facing, same 24h-window reasoning, same
+  template requirement) wired into both existing notification call sites exactly where the
+  confirmation email already fires — immediately for COD/bank-transfer
+  (`api/orders/route.ts`), deferred to the payment-confirmed hook for card/OMT
+  (`collections/Orders.ts`) — so online-payment orders don't get confirmed twice.
+- New env vars: `WHATSAPP_ORDER_ALERT_TEMPLATE_NAME`/`_LANG` (replaces the old always-broken
+  free-text staff path) and `WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME`/`_LANG` (new
+  feature) — both documented in `ENV_VARS.md` with the exact template body text to submit
+  to Meta Business Manager (category Utility), alongside the pre-existing
+  `WHATSAPP_STATUS_TEMPLATE_NAME`. Each is independent and gated the same way as everything
+  else in this app — unset = silent no-op, activate as each gets approved rather than
+  waiting on all three. `.env.local`/`.env.local.example` updated to match; the real
+  token/phone-number-ID/staff-number the user provided live in `.env.local` only (gitignored
+  — confirmed via `git check-ignore` before touching it), never committed.
+- ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified.
+- Templates aren't submitted/approved yet — that's a Meta Business Manager action only the
+  user can take (given the exact bodies documented in ENV_VARS.md). Once approved, filling
+  in the three template-name env vars activates each feature with zero further code changes.
+- Not yet committed at the time of writing this entry.

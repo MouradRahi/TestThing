@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { isAdmin } from '../lib/access'
-import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendOrderWhatsAppAlert, sendOrderStatusWhatsApp } from '../lib/notifications'
+import { sendOrderConfirmationEmail, sendOrderStatusEmail, sendOrderWhatsAppAlert, sendOrderStatusWhatsApp, sendOrderConfirmationWhatsApp } from '../lib/notifications'
 import { resolveBrandCopy, getDeliveryZones, resolveVatConfig } from '../lib/site-settings'
 import { logAuditEvent } from '../lib/audit-log'
 import { generateInvoicePdf } from '../lib/invoices/invoice-pdf'
@@ -184,6 +184,7 @@ export const Orders: CollectionConfig = {
           await Promise.allSettled([
             sendOrderConfirmationEmail({ ...notificationData, invoicePdf }),
             sendOrderWhatsAppAlert(notificationData),
+            sendOrderConfirmationWhatsApp(notificationData),
           ])
         } catch (err) {
           console.error('[orders] Payment-confirmed notifications failed:', err)

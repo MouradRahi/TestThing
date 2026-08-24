@@ -73,21 +73,36 @@ Session 21. Keep dev and prod either both-configured or both-unconfigured.
 
 ---
 
-## WhatsApp Cloud API — order alerts to staff + customer status updates
+## WhatsApp Cloud API — staff alerts + customer order confirmation + status updates
 
-`WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` are shared by both features
-below; each feature additionally needs its own destination/template setting.
+`WHATSAPP_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` are shared by all three
+features below; each feature additionally needs its own destination/template
+setting. **All three message types are business-initiated and must use an
+approved template** — confirmed for real (2026-08-24): a plain free-text
+staff alert was rejected by Meta with error 131047 ("Re-engagement message
+... more than 24 hours have passed since the customer last replied to this
+number") the first time this was tested against a recipient with no open
+session. The 24h "customer service window" exception only applies when the
+recipient messaged the business first within the last 24h — not a safe
+assumption for an alert that must fire reliably on every order.
 
 | Variable | What it's for |
 |---|---|
 | `WHATSAPP_TOKEN` | Meta WhatsApp Cloud API access token |
 | `WHATSAPP_PHONE_NUMBER_ID` | The Cloud API phone number ID sending the message |
-| `WHATSAPP_RECIPIENT_NUMBER` | Staff number to notify on new orders, international format (e.g. `+9611234567`) — required for the staff alert |
-| `WHATSAPP_STATUS_TEMPLATE_NAME` | Name of an **approved** WhatsApp message template (ROADMAP Part 7) used to message the *customer* on order-status changes (confirmed/shipped/delivered/…). Business-initiated messages outside a 24h customer-service window must use a pre-approved template — Meta will reject plain text. Submit a Utility-category template with a 2-variable body, e.g. `"Update on your order {{1}}: {{2}}."` ({{1}} = order number, {{2}} = status). Unset = feature off (silent no-op), same as everything else here. |
-| `WHATSAPP_STATUS_TEMPLATE_LANG` | Template language code (default `en`) — must match what the template was approved under |
+| `WHATSAPP_RECIPIENT_NUMBER` | Staff number to notify on new orders, international format (e.g. `+9611234567`) |
+| `WHATSAPP_ORDER_ALERT_TEMPLATE_NAME` | Name of an **approved** template (Utility category) used for the staff new-order alert. Deliberately short — the full itemized order lives in admin, this just pings staff to go check it: `"New order {{1}} from {{2}} — total ${{3}}. Check the admin dashboard for full details."` ({{1}} = order number, {{2}} = customer name, {{3}} = total, 2 decimals). Unset = feature off (silent no-op). |
+| `WHATSAPP_ORDER_ALERT_TEMPLATE_LANG` | Template language code (default `en`) |
+| `WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME` | Name of an **approved** template (Utility category) sent to the *customer* right when their order is placed (immediately for COD/bank-transfer, once payment confirms for card/OMT): `"Hi {{1}}, thank you for your order! We've received order {{2}} — total ${{3}} — and it's being processed. We'll message you here with updates."` ({{1}} = customer name, {{2}} = order number, {{3}} = total, 2 decimals). Unset = feature off. |
+| `WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_LANG` | Template language code (default `en`) |
+| `WHATSAPP_STATUS_TEMPLATE_NAME` | Name of an **approved** template used to message the *customer* on later order-status changes (confirmed/shipped/delivered/…). Body: `"Update on your order {{1}}: {{2}}."` ({{1}} = order number, {{2}} = status). Unset = feature off. |
+| `WHATSAPP_STATUS_TEMPLATE_LANG` | Template language code (default `en`) |
 
-Blocked on Meta business verification as of this writing — leave blank until
-that's done; nothing else depends on it.
+Submit all three template bodies for approval in Meta Business Manager →
+WhatsApp Manager → Message Templates (category **Utility** — faster review,
+no marketing opt-in required since these are transactional). Each is
+independent — activate them as they get approved rather than waiting for
+all three; unset ones simply stay silent no-ops.
 
 ---
 
