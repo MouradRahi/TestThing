@@ -34,6 +34,14 @@ export const SiteSettings: GlobalConfig = {
           const url = await mediaUrl(req.payload, data.faviconMedia)
           if (url) data.faviconUrl = url
         }
+        if (data.faviconMediaDark) {
+          const url = await mediaUrl(req.payload, data.faviconMediaDark)
+          if (url) data.faviconUrlDark = url
+        }
+        if (data.appleTouchIconMedia) {
+          const url = await mediaUrl(req.payload, data.appleTouchIconMedia)
+          if (url) data.appleTouchIconUrl = url
+        }
         return data
       },
     ],
@@ -517,7 +525,8 @@ export const SiteSettings: GlobalConfig = {
               type: 'upload',
               relationTo: 'media',
               admin: {
-                description: 'Browser tab icon — square PNG/ICO/SVG. Pick or upload; fills the URL below.',
+                description:
+                  'Browser tab icon (light mode) — square PNG/ICO/SVG. Used when the visitor\'s browser/OS is in light mode, and as the fallback everywhere if no dark variant is set below. Pick or upload; fills the URL below.',
               },
             },
             {
@@ -526,6 +535,38 @@ export const SiteSettings: GlobalConfig = {
               admin: {
                 description:
                   'Auto-filled from the icon above, or paste a Supabase Storage URL. Leave blank to use the Next.js default.',
+              },
+            },
+            {
+              name: 'faviconMediaDark',
+              type: 'upload',
+              relationTo: 'media',
+              admin: {
+                description:
+                  'Browser tab icon (dark mode) — optional. Shown instead of the icon above when the visitor\'s browser/OS is in dark mode (via prefers-color-scheme), so the icon stays visible against a dark tab bar. Leave blank to use the light-mode icon everywhere.',
+              },
+            },
+            {
+              name: 'faviconUrlDark',
+              type: 'text',
+              admin: {
+                description: 'Auto-filled from the dark-mode icon above, or paste a Supabase Storage URL.',
+              },
+            },
+            {
+              name: 'appleTouchIconMedia',
+              type: 'upload',
+              relationTo: 'media',
+              admin: {
+                description:
+                  'Home-screen icon for iOS/iPadOS "Add to Home Screen" — square, opaque (no transparency), 180×180 recommended. Falls back to the light-mode favicon if left blank.',
+              },
+            },
+            {
+              name: 'appleTouchIconUrl',
+              type: 'text',
+              admin: {
+                description: 'Auto-filled from the icon above, or paste a Supabase Storage URL.',
               },
             },
             {

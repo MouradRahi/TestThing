@@ -74,6 +74,24 @@ export async function generateMetadata({
   const description = (settings.metaDescription as string) || tCommon('defaultSiteDescription')
   const ogImage = (settings.ogImage as string) || ''
   const faviconUrl = (settings.faviconUrl as string) || ''
+  const faviconUrlDark = (settings.faviconUrlDark as string) || ''
+  const appleTouchIconUrl = (settings.appleTouchIconUrl as string) || ''
+
+  // Theme-adaptive favicon: when a dark-mode variant is set, emit both as
+  // separate <link rel="icon" media="..."> tags — the browser picks whichever
+  // matches the visitor's own OS/browser color scheme (Next's Icon type
+  // supports `media` directly). No dark variant = single icon everywhere,
+  // unchanged from before. Every value here is admin-uploaded via
+  // SiteSettings (never a hardcoded file) so a different brand's icons swap
+  // in with zero code changes.
+  const iconList = faviconUrl
+    ? faviconUrlDark
+      ? [
+          { url: faviconUrl, media: '(prefers-color-scheme: light)' },
+          { url: faviconUrlDark, media: '(prefers-color-scheme: dark)' },
+        ]
+      : [{ url: faviconUrl }]
+    : []
 
   return {
     title: { default: defaultTitle, template: `%s | ${storeName}` },
@@ -83,7 +101,14 @@ export async function generateMetadata({
     // this; every other route sets its own (more specific) alternates, which
     // wins per Next.js's metadata merge rules.
     alternates: localizedAlternates('/', locale),
-    ...(faviconUrl ? { icons: { icon: faviconUrl } } : {}),
+    ...(iconList.length || appleTouchIconUrl
+      ? {
+          icons: {
+            ...(iconList.length ? { icon: iconList } : {}),
+            ...(appleTouchIconUrl ? { apple: appleTouchIconUrl } : {}),
+          },
+        }
+      : {}),
     openGraph: {
       siteName: storeName,
       type: 'website',
