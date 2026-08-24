@@ -2563,13 +2563,29 @@ export interface SiteSetting {
    */
   ogImage?: string | null;
   /**
-   * Browser tab icon — square PNG/ICO/SVG. Pick or upload; fills the URL below.
+   * Browser tab icon (light mode) — square PNG/ICO/SVG. Used when the visitor's browser/OS is in light mode, and as the fallback everywhere if no dark variant is set below. Pick or upload; fills the URL below.
    */
   faviconMedia?: (number | null) | Media;
   /**
    * Auto-filled from the icon above, or paste a Supabase Storage URL. Leave blank to use the Next.js default.
    */
   faviconUrl?: string | null;
+  /**
+   * Browser tab icon (dark mode) — optional. Shown instead of the icon above when the visitor's browser/OS is in dark mode (via prefers-color-scheme), so the icon stays visible against a dark tab bar. Leave blank to use the light-mode icon everywhere.
+   */
+  faviconMediaDark?: (number | null) | Media;
+  /**
+   * Auto-filled from the dark-mode icon above, or paste a Supabase Storage URL.
+   */
+  faviconUrlDark?: string | null;
+  /**
+   * Home-screen icon for iOS/iPadOS "Add to Home Screen" — square, opaque (no transparency), 180×180 recommended. Falls back to the light-mode favicon if left blank.
+   */
+  appleTouchIconMedia?: (number | null) | Media;
+  /**
+   * Auto-filled from the icon above, or paste a Supabase Storage URL.
+   */
+  appleTouchIconUrl?: string | null;
   /**
    * Google Analytics 4 Measurement ID (e.g. G-XXXXXXXXXX). Leave blank to disable — the GA script only loads when set.
    */
@@ -2976,6 +2992,10 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   ogImage?: T;
   faviconMedia?: T;
   faviconUrl?: T;
+  faviconMediaDark?: T;
+  faviconUrlDark?: T;
+  appleTouchIconMedia?: T;
+  appleTouchIconUrl?: T;
   gaMeasurementId?: T;
   metaPixelId?: T;
   productBlurb?: T;

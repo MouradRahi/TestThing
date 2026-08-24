@@ -2234,3 +2234,87 @@ right after deploying the F7 + XSS/CSP work.
     fixed. Debug logging removed before commit.
 - ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run test:e2e` 1/1 (verified locally,
   not just assumed from the spec-file diff).
+
+### Session 29 — 2026-08-24
+Focus: **live domain cutover** (trackid-lb.com purchased mid-session) + **theme-adaptive
+favicon**. Both requested directly by the user; no roadmap item.
+- **Domain cutover**: diagnosed a "This trackid-lb.com page can't be found" 404 the user hit
+  after flipping which domain (apex vs `www`) is primary in Vercel. Root-caused via live
+  diagnostics (not guessing): `curl -sI` showed `Server: cloudflare` instead of `Server:
+  Vercel` for the apex domain, and DNS resolved to a different IP than the configured A
+  record. Ruled out GoDaddy Domain Forwarding (checked — "Not set up"), ruled out Vercel/DNS
+  misconfiguration (GoDaddy's own authoritative nameserver + Google DNS + Cloudflare DNS all
+  independently confirmed the correct A record; forcing `curl --resolve` straight to that IP
+  returned a clean 200 from Vercel with a valid, just-issued cert). Root cause: the user's
+  own browser's DNS resolver was `DC-2022.Liquigaslb.local` — their **employer's internal
+  Active Directory domain controller** — serving a stale cached answer; my own sandbox
+  environment happened to sit on the exact same corporate network and hit the identical wrong
+  IP via its default (non-overridden) resolver, which is what let this get root-caused
+  precisely instead of staying a vague "try waiting" answer. Confirmed via mobile data (wifi
+  off) loading correctly — the site was never actually broken for real visitors, only for
+  testing from inside that specific office network. Also walked the user through updating
+  `NEXT_PUBLIC_SITE_URL` in Vercel and verifying the Resend sending domain (DKIM+SPF, both
+  came back Verified) — confirmed after redeploy via direct `curl` that sitemap.xml,
+  robots.txt, and canonical tags all correctly picked up `trackid-lb.com` with zero
+  `.vercel.app` leftovers (the codebase was already 100% driven off `NEXT_PUBLIC_SITE_URL`
+  with no hardcoded domain references anywhere — confirmed by grep before assuming so).
+- **Theme-adaptive favicon (new admin feature)**: user provided a logo image + asked for a
+  favicon that adapts to the visitor's browser/OS light-dark mode, with the color pickable —
+  clarified via AskUserQuestion into two decisions: react to the **visitor's OS
+  prefers-color-scheme** (not the storefront's own SiteSettings color scheme), and build a
+  **proper admin picker** rather than a one-off manual edit. User then dropped a full
+  pre-generated icon set (`favicon-*.png` at 5 sizes, `favicon-dark-*.png`, `favicon.ico`/
+  `favicon-dark.ico`, `apple-touch-icon.png`, and a wide `td-logo-transparent.png` wordmark)
+  at the repo root and asked to "relocate them where they should be... make everything
+  customizable bcz obv not every business will have the same logo" — confirming the design
+  direction (admin-managed via Media/SiteSettings, never hardcoded static files, matching
+  every other branding asset in this codebase).
+  - **SiteSettings SEO tab** gained `faviconMediaDark`/`faviconUrlDark` (mirrors the existing
+    `faviconMedia`/`faviconUrl` pair exactly, filled by the same `beforeValidate` → `mediaUrl()`
+    hook pattern) and `appleTouchIconMedia`/`appleTouchIconUrl`. Existing `faviconMedia`/
+    `faviconUrl` is now explicitly "light mode + fallback when no dark variant is set" —
+    zero behavior change for any install that never sets the new dark field.
+  - **Frontend layout `generateMetadata`**: confirmed Next 15.4.11's `Icon` type supports a
+    per-icon `media` string (checked the actual type file, not assumed) — emits `icons.icon`
+    as a two-entry array (`media: '(prefers-color-scheme: light|dark)'`) when a dark variant
+    is set, a single icon otherwise, plus `icons.apple` for the touch icon.
+  - **`/favicon.ico` legacy route** (`src/app/favicon.ico/route.ts`) — some
+    browsers/crawlers/bookmark managers still probe this path directly regardless of the
+    `<link>` tags; a redirect to the current light-mode `faviconUrl` from SiteSettings
+    covers it without hardcoding a static file (would've fought the "customizable" goal).
+  - **`td-logo-transparent.png`** (a wide horizontal wordmark, ~2.3:1) went to the existing
+    `logo`/`logoUrl` field instead of favicon fields — checked `Nav.tsx`'s rendering
+    (`h-7 w-auto object-contain`, aspect-ratio-preserving) first to confirm that's genuinely
+    where a wordmark like this belongs, rather than guessing.
+  - **Asset mapping decision**: of the two variants provided, the plain transparent
+    white-on-nothing icon only reads correctly against a *dark* tab bar (white-on-white would
+    be invisible on light chrome), while the "dark" one has its own opaque near-black box
+    background and reads fine regardless — so light-mode traffic gets the boxed variant,
+    dark-mode traffic gets the transparent one. This was the only functionally-correct
+    pairing available from what was actually provided (verified by opening both images and
+    comparing contrast directly, not assumed from filenames — "favicon-dark" turned out to
+    mean "the icon's dark/boxed style," not "for OS dark mode").
+  - **Migration**: hand-written (`20260824_120000_add_dark_favicon_and_apple_touch_icon.ts`),
+    mirrors the baseline migration's exact `favicon_media_id`/`favicon_url` column shape for
+    the two new field pairs — purely additive, four new nullable columns + two FK
+    constraints + two indexes on `site_settings`. Applied cleanly to dev.
+  - **Real data uploaded, not just schema**: a throwaway Local API script (deleted after)
+    uploaded all four images into the `media` collection (Payload's documented `file: {
+    data: Buffer, mimetype, name, size }` create-from-buffer shape, verified against
+    Payload's own type definitions before using it — no prior precedent for this exact
+    pattern existed in the codebase) and set them on the live SiteSettings doc, so this
+    isn't just a built feature — trackID.lb's actual favicon is live with it now. Source
+    PNG/ICO files removed from the repo root afterward (not committed — they live in
+    Supabase Storage now, consistent with this project's "no hardcoded brand assets" rule).
+  - **Verified against a real built+started server**, not just tsc: confirmed no dev server
+    was running first (the Session 25 shared-`.next` lesson), hit a transient Postgres DNS
+    resolution flake during the first build attempt (`ENOTFOUND` on the pooler hostname —
+    confirmed via an external resolver that the hostname genuinely resolves fine right now,
+    so this was the already-documented intermittent Windows DNS stall, not the dev project
+    pausing again — retried clean). Live HTML from the running server showed both
+    `<link rel="icon" media="...">` tags with the correct URLs, the apple-touch-icon tag,
+    `/favicon.ico` 302-redirecting to the right URL, and the Nav rendering the new wordmark
+    logo — all four checked directly via `curl`, not assumed from the code.
+  - ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified (after the DNS
+    retry) with live HTTP verification of every new surface.
+- Not yet committed at the time of writing this entry — commit/push/CI-verify follows.
