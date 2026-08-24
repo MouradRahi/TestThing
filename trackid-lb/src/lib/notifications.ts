@@ -708,50 +708,39 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData): Prom
 
 // --- WhatsApp ---
 
+// Staff new-order alert. Was a plain free-text message — that only works
+// while the recipient happens to have an open 24h WhatsApp "customer service
+// window" with the business number (e.g. having just messaged it), which
+// isn't a fair assumption for an alert meant to fire on every single order
+// (confirmed the failure for real: Meta error 131047 "Re-engagement
+// message" the first time this was tested against a genuinely stale
+// window). Converted to an approved template, same reasoning
+// sendOrderStatusWhatsApp already uses below. Deliberately kept SHORT (order
+// number, customer name, total) rather than trying to cram the full
+// itemized order into template variables — long/complex bodies are harder
+// to get approved and templates aren't meant to replace the admin's own
+// order detail view, which already has everything.
+//
+// Expected template (submit for approval in Meta Business Manager, category
+// "Utility"): body text with three variables, e.g.
+//   "New order {{1}} from {{2}} — total ${{3}}. Check the admin dashboard for full details."
+// {{1}} = order number, {{2}} = customer name, {{3}} = total (2 decimals)
 export async function sendOrderWhatsAppAlert(order: OrderNotificationData): Promise<void> {
   const token = process.env.WHATSAPP_TOKEN
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
   const recipient = process.env.WHATSAPP_RECIPIENT_NUMBER
+  const templateName = process.env.WHATSAPP_ORDER_ALERT_TEMPLATE_NAME
+  const templateLang = process.env.WHATSAPP_ORDER_ALERT_TEMPLATE_LANG || 'en'
 
-  if (!token || !phoneNumberId || !recipient) {
-    console.warn('[notifications] WhatsApp env vars not set — skipping team alert')
+  if (!token || !phoneNumberId || !recipient || !templateName) {
+    // Not an error — fully optional until the business has both API keys
+    // AND an approved template, same convention as every other optional
+    // integration in this codebase.
     return
   }
 
   // Meta API requires number without leading +
   const to = recipient.replace(/^\+/, '')
-
-  const itemsList = order.items
-    .map((i) => `• ${i.titleAtPurchase}${i.size ? ` (${i.size})` : ''} ×${i.quantity} — $${(i.priceAtPurchase * i.quantity).toFixed(2)}`)
-    .join('\n')
-
-  const paymentLabel =
-    order.paymentMethod === 'cod'
-      ? 'Cash on Delivery'
-      : order.paymentMethod === 'card'
-        ? 'Card'
-        : order.paymentMethod === 'omt'
-          ? 'OMT'
-          : 'Bank Transfer'
-
-  const body = [
-    `🛍 New Order — ${order.orderNumber}`,
-    '',
-    `Customer: ${order.customerName}`,
-    `Phone: ${order.customerPhone}`,
-    `Area: ${order.area}`,
-    '',
-    'Items:',
-    itemsList,
-    '',
-    `Subtotal: $${order.subtotal.toFixed(2)}`,
-    ...(order.discountAmount && order.discountAmount > 0
-      ? [`Discount${order.discountCode ? ` (${order.discountCode})` : ''}: -$${order.discountAmount.toFixed(2)}`]
-      : []),
-    ...(order.deliveryFeeLabel ? [`Delivery: ${order.deliveryFeeLabel}`] : []),
-    `Total: $${order.total.toFixed(2)}`,
-    `Payment: ${paymentLabel}`,
-  ].join('\n')
 
   try {
     const res = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
@@ -763,17 +752,89 @@ export async function sendOrderWhatsAppAlert(order: OrderNotificationData): Prom
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         to,
-        type: 'text',
-        text: { body },
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: templateLang },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: order.orderNumber },
+                { type: 'text', text: order.customerName },
+                { type: 'text', text: order.total.toFixed(2) },
+              ],
+            },
+          ],
+        },
       }),
     })
 
     if (!res.ok) {
       const text = await res.text()
-      console.error('[notifications] WhatsApp API error:', text)
+      console.error('[notifications] WhatsApp order-alert template error:', text)
     }
   } catch (err) {
     console.error('[notifications] Failed to send WhatsApp alert:', err)
+  }
+}
+
+// Order-confirmation WhatsApp message to the CUSTOMER, fired at the same
+// moment as sendOrderConfirmationEmail (immediately for COD/bank-transfer,
+// deferred to the payment-confirmed hook for card/OMT — see both call
+// sites). Same 24h-window reasoning as the staff alert above and as
+// sendOrderStatusWhatsApp below — a first-time customer has essentially
+// never messaged the business first, so this MUST be a template.
+//
+// Expected template (submit for approval in Meta Business Manager, category
+// "Utility"): body text with three variables, e.g.
+//   "Hi {{1}}, thank you for your order! We've received order {{2}} — total ${{3}} — and it's being processed. We'll message you here with updates."
+// {{1}} = customer name, {{2}} = order number, {{3}} = total (2 decimals)
+export async function sendOrderConfirmationWhatsApp(order: OrderNotificationData): Promise<void> {
+  const token = process.env.WHATSAPP_TOKEN
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
+  const templateName = process.env.WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME
+  const templateLang = process.env.WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_LANG || 'en'
+
+  if (!token || !phoneNumberId || !templateName) return
+
+  const to = order.customerPhone.replace(/[^\d+]/g, '').replace(/^\+/, '')
+  if (!to) return
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: templateLang },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: order.customerName },
+                { type: 'text', text: order.orderNumber },
+                { type: 'text', text: order.total.toFixed(2) },
+              ],
+            },
+          ],
+        },
+      }),
+    })
+
+    if (!res.ok) {
+      const text = await res.text()
+      console.error('[notifications] WhatsApp order-confirmation template error:', text)
+    }
+  } catch (err) {
+    console.error('[notifications] Failed to send WhatsApp order confirmation:', err)
   }
 }
 

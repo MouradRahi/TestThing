@@ -585,6 +585,14 @@ export const SiteSettings: GlobalConfig = {
                   'Meta (Facebook) Pixel ID — numeric. Leave blank to disable — the Pixel script only loads when set.',
               },
             },
+            {
+              name: 'googleSiteVerification',
+              type: 'text',
+              admin: {
+                description:
+                  'Google Search Console verification token — paste just the content value from the <meta name="google-site-verification" content="..."> tag Google gives you. Renders that tag on every page. Leave blank if not verifying with Google.',
+              },
+            },
           ],
         },
 

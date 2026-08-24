@@ -93,6 +93,8 @@ export async function generateMetadata({
       : [{ url: faviconUrl }]
     : []
 
+  const googleSiteVerification = (settings.googleSiteVerification as string) || ''
+
   return {
     title: { default: defaultTitle, template: `%s | ${storeName}` },
     description,
@@ -109,6 +111,7 @@ export async function generateMetadata({
           },
         }
       : {}),
+    ...(googleSiteVerification ? { verification: { google: googleSiteVerification } } : {}),
     openGraph: {
       siteName: storeName,
       type: 'website',
