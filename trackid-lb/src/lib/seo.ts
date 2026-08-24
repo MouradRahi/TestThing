@@ -1,6 +1,6 @@
 import { routing } from '@/i18n/routing'
 
-function withLocalePrefix(path: string, locale: string): string {
+export function withLocalePrefix(path: string, locale: string): string {
   const p = path.startsWith('/') ? path : `/${path}`
   return locale === routing.defaultLocale ? p : `/${locale}${p}`
 }

@@ -2,6 +2,8 @@
   "nav": {
     "openMenu": "فتح القائمة",
     "closeMenu": "إغلاق القائمة",
+    "openSearch": "بحث",
+    "closeSearch": "إغلاق البحث",
     "cart": "السلة",
     "openCart": "فتح السلة، {count, plural, =0 {فارغة} one {# منتج} other {# منتجات}}",
     "itemsInCart": "{count, plural, =0 {لا منتجات} one {# منتج} other {# منتجات}} في السلة"
@@ -24,6 +26,8 @@
     "delivery": "التوصيل",
     "deliveryCalc": "تُحتسب عند الدفع",
     "deliveryNote": "تُحتسب رسوم التوصيل عند الدفع.",
+    "freeDeliveryProgress": "أنت على بعد {amount} من التوصيل المجاني",
+    "freeDeliveryUnlocked": "✓ تم تفعيل التوصيل المجاني",
     "checkout": "إتمام الشراء",
     "continueShopping": "متابعة التسوّق",
     "viewFullCart": "عرض السلة كاملة",
@@ -48,7 +52,17 @@
     "nothingYet": "لا شيء هنا بعد.",
     "clearFilters": "مسح الفلاتر",
     "firstPage": "→ الصفحة الأولى",
-    "nextPage": "الصفحة التالية ←"
+    "nextPage": "الصفحة التالية ←",
+    "priceLabel": "السعر",
+    "anyPrice": "أي سعر",
+    "priceBands": {
+      "under25": "أقل من 25$",
+      "25to50": "25$–50$",
+      "50to100": "50$–100$",
+      "over100": "أكثر من 100$"
+    },
+    "inStockOnly": "المتوفر فقط",
+    "recentlyViewed": "شوهد مؤخرًا"
   },
   "product": {
     "shop": "المتجر",
@@ -68,6 +82,11 @@
     "moreLikeThis": "المزيد مثل هذا",
     "preorder": "متاح للطلب المسبق",
     "sizeGuide": "دليل المقاسات",
+    "copyLink": "نسخ الرابط",
+    "linkCopied": "تم نسخ الرابط ✓",
+    "shareWhatsApp": "مشاركة عبر واتساب",
+    "deliveryInfo": "التوصيل",
+    "returnsInfo": "الإرجاع",
     "reviews": "التقييمات",
     "reviewCount": "{count, plural, one {# تقييم} other {# تقييمات}}",
     "noReviews": "لا توجد تقييمات بعد.",
@@ -219,6 +238,10 @@
     "deliveryAddress": "العنوان الكامل",
     "wishlistSave": "حفظ لوقت لاحق",
     "wishlistSaved": "محفوظ",
+    "wishlistToastSaved": "أُضيف إلى قائمة أمنياتك",
+    "wishlistToastRemoved": "أُزيل من قائمة أمنياتك",
+    "wishlistToastError": "تعذّر تحديث قائمة أمنياتك — حاول مجددًا.",
+    "profileToastSaved": "تم حفظ الملف الشخصي",
     "total": "الإجمالي",
     "forgotPasswordLink": "نسيت كلمة المرور؟",
     "forgotPasswordTitle": "إعادة تعيين كلمة المرور",

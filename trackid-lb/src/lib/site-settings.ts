@@ -178,6 +178,11 @@ export function resolveDeliveryFee(settings: AnyRecord, area: string, subtotal: 
   return zone.fee
 }
 
+/** Free-delivery threshold (E2 progress nudge) — null when unset/not a number. */
+export function resolveFreeDeliveryThreshold(settings: AnyRecord): number | null {
+  return typeof settings.freeDeliveryThreshold === 'number' ? settings.freeDeliveryThreshold : null
+}
+
 // ── Currency (ROADMAP F1 §2.5) ──────────────────────────────────────────────
 // USD stays the money of record everywhere (payments, discounts, order
 // totals) — this only controls a display-side LBP equivalent. "both" mode

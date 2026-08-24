@@ -2,6 +2,8 @@
   "nav": {
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
+    "openSearch": "Search",
+    "closeSearch": "Close search",
     "cart": "Cart",
     "openCart": "Open cart, {count, plural, =0 {empty} one {# item} other {# items}}",
     "itemsInCart": "{count, plural, =0 {no items} one {# item} other {# items}} in cart"
@@ -24,6 +26,8 @@
     "delivery": "Delivery",
     "deliveryCalc": "Calculated at checkout",
     "deliveryNote": "Delivery calculated at checkout.",
+    "freeDeliveryProgress": "You're {amount} away from free delivery",
+    "freeDeliveryUnlocked": "✓ Free delivery unlocked",
     "checkout": "Checkout",
     "continueShopping": "Continue Shopping",
     "viewFullCart": "View full cart",
@@ -48,7 +52,17 @@
     "nothingYet": "Nothing here yet.",
     "clearFilters": "Clear filters",
     "firstPage": "← First Page",
-    "nextPage": "Next Page →"
+    "nextPage": "Next Page →",
+    "priceLabel": "Price",
+    "anyPrice": "Any price",
+    "priceBands": {
+      "under25": "Under $25",
+      "25to50": "$25–$50",
+      "50to100": "$50–$100",
+      "over100": "$100+"
+    },
+    "inStockOnly": "In stock only",
+    "recentlyViewed": "Recently viewed"
   },
   "product": {
     "shop": "Shop",
@@ -68,6 +82,11 @@
     "moreLikeThis": "More like this",
     "preorder": "Available for preorder",
     "sizeGuide": "Size guide",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied ✓",
+    "shareWhatsApp": "Share on WhatsApp",
+    "deliveryInfo": "Delivery",
+    "returnsInfo": "Returns",
     "reviews": "Reviews",
     "reviewCount": "{count, plural, one {# review} other {# reviews}}",
     "noReviews": "No reviews yet.",
@@ -219,6 +238,10 @@
     "deliveryAddress": "Full address",
     "wishlistSave": "Save for later",
     "wishlistSaved": "Saved",
+    "wishlistToastSaved": "Added to your wishlist",
+    "wishlistToastRemoved": "Removed from your wishlist",
+    "wishlistToastError": "Couldn't update your wishlist — try again.",
+    "profileToastSaved": "Profile saved",
     "total": "Total",
     "forgotPasswordLink": "Forgot password?",
     "forgotPasswordTitle": "Reset your password",

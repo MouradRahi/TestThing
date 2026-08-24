@@ -612,6 +612,24 @@ export const SiteSettings: GlobalConfig = {
               admin: { description: 'Short note shown under the details on every product page.' },
             },
             {
+              name: 'deliveryInfo',
+              type: 'textarea',
+              localized: true,
+              admin: {
+                description:
+                  'Answers "how does delivery work?" — shown as a collapsible section on every product page, under the buy box. Leave blank to hide the section entirely.',
+              },
+            },
+            {
+              name: 'returnsInfo',
+              type: 'textarea',
+              localized: true,
+              admin: {
+                description:
+                  'Answers "can I return this?" — shown as a collapsible section on every product page, under the buy box. Leave blank to hide the section entirely.',
+              },
+            },
+            {
               name: 'productMetaTagline',
               type: 'text',
               localized: true,

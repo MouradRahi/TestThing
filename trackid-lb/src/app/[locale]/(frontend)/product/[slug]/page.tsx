@@ -22,12 +22,17 @@ import {
   DEFAULT_PRODUCT_BLURB,
   DEFAULT_PRODUCT_META_TAGLINE,
 } from '@/lib/site-settings'
-import { localizedAlternates } from '@/lib/seo'
+import { localizedAlternates, withLocalePrefix } from '@/lib/seo'
+import { ShareButton } from '@/components/product/ShareButton'
+import { RecentlyViewedTracker } from '@/components/product/RecentlyViewedTracker'
+import { RecentlyViewedStrip } from '@/components/product/RecentlyViewedStrip'
 import { buildBreadcrumbJsonLd } from '@/lib/structured-data'
 import { jsonLdScript } from '@/lib/sanitize'
 import { routing } from '@/i18n/routing'
 
 export const revalidate = 3600
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
 
 export async function generateStaticParams() {
   const payload = await getPayload()
@@ -255,6 +260,7 @@ export default async function ProductPage({
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-12">
+      <RecentlyViewedTracker productId={product.id} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
@@ -294,6 +300,8 @@ export default async function ProductPage({
           )}
 
           <h1 className="text-3xl font-bold text-foreground leading-tight">{product.title}</h1>
+
+          <ShareButton url={`${siteUrl}${withLocalePrefix(`/product/${product.slug}`, locale)}`} title={product.title as string} />
 
           {product.ratingCount != null && product.ratingCount > 0 && (
             <div className="flex items-center gap-1.5 text-xs text-muted">
@@ -423,6 +431,25 @@ export default async function ProductPage({
               </div>
             </details>
           )}
+
+          {/* Delivery/returns accordion (E5, ENHANCEMENTS.md) — answers the two
+              questions every COD customer asks, right where they're deciding to buy. */}
+          {typeof settings.deliveryInfo === 'string' && settings.deliveryInfo && (
+            <details className="pt-4 border-t border-border text-xs group">
+              <summary className="cursor-pointer uppercase tracking-[0.2em] text-muted hover:text-foreground transition-colors">
+                {t('deliveryInfo')}
+              </summary>
+              <p className="pt-3 text-muted whitespace-pre-line leading-relaxed">{settings.deliveryInfo}</p>
+            </details>
+          )}
+          {typeof settings.returnsInfo === 'string' && settings.returnsInfo && (
+            <details className="pt-4 border-t border-border text-xs group">
+              <summary className="cursor-pointer uppercase tracking-[0.2em] text-muted hover:text-foreground transition-colors">
+                {t('returnsInfo')}
+              </summary>
+              <p className="pt-3 text-muted whitespace-pre-line leading-relaxed">{settings.returnsInfo}</p>
+            </details>
+          )}
         </div>
       </div>
 
@@ -479,6 +506,8 @@ export default async function ProductPage({
           </div>
         )}
       </section>
+
+      <RecentlyViewedStrip excludeId={product.id} />
     </div>
   )
 }

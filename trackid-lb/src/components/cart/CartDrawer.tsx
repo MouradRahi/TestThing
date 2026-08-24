@@ -6,6 +6,7 @@ import { Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
 import { CartNotices } from '@/components/cart/CartNotices'
+import { FreeDeliveryNudge } from '@/components/cart/FreeDeliveryNudge'
 import { formatPrice, formatLBP } from '@/lib/format'
 import { useFocusTrap } from '@/lib/useFocusTrap'
 
@@ -79,6 +80,7 @@ export function CartDrawer() {
         </div>
 
         <CartNotices className="mx-4 mt-4" />
+        <FreeDeliveryNudge className="mx-4 mt-4" />
 
         {isLoading && items.length === 0 ? (
           <div className="flex-1 flex items-center justify-center" aria-busy="true">

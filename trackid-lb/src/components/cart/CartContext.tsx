@@ -5,6 +5,7 @@ import { useLocale } from 'next-intl'
 import type { CartItem, CartNotice } from '@/lib/cart'
 import { cartLineKey } from '@/lib/cart'
 import type { CurrencyDisplay } from '@/lib/site-settings'
+import { useToast } from '@/components/ui/Toast'
 
 type CartContextValue = {
   items: CartItem[]
@@ -25,6 +26,8 @@ type CartContextValue = {
   emptyCartMessage: string
   /** USD/LBP display mode + rate (SiteSettings → Commerce), ROADMAP F1 §2.5. */
   currency: CurrencyDisplay
+  /** Free-delivery threshold (SiteSettings → Commerce) — null when unset. */
+  freeDeliveryThreshold: number | null
   /** Slide-over mini-cart open state. */
   isOpen: boolean
   openCart: () => void
@@ -45,12 +48,15 @@ export function CartProvider({
   children,
   emptyCartMessage = 'Find a piece that speaks to you.',
   currency = { mode: 'usd_only', exchangeRate: null },
+  freeDeliveryThreshold = null,
 }: {
   children: React.ReactNode
   emptyCartMessage?: string
   currency?: CurrencyDisplay
+  freeDeliveryThreshold?: number | null
 }) {
   const locale = useLocale()
+  const { showToast } = useToast()
   const [items, setItems] = useState<CartItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [notices, setNotices] = useState<CartNotice[]>([])
@@ -105,6 +111,10 @@ export function CartProvider({
           // re-fetching the authoritative cart, and tell the customer why.
           if (typeof d?.error === 'string' && d.error) {
             setNotices((prev) => [...prev, { type: 'error', message: d.error }])
+            // Toast too (B6) — the CartNotices banner only shows when the
+            // drawer/cart page happens to be open; a failed mutation from a
+            // product page otherwise looked like nothing happened at all.
+            showToast(d.error, 'error')
           }
           refreshCart()
         }
@@ -112,7 +122,7 @@ export function CartProvider({
         // network error — leave the optimistic state; next refresh reconciles
       }
     },
-    [locale, refreshCart],
+    [locale, refreshCart, showToast],
   )
 
   const addItem = useCallback(
@@ -163,7 +173,7 @@ export function CartProvider({
 
   return (
     <CartContext.Provider
-      value={{ items, isLoading, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, currency, isOpen, openCart, closeCart }}
+      value={{ items, isLoading, addItem, removeItem, updateQuantity, clearCart, refreshCart, notices, dismissNotices, itemCount, total, emptyCartMessage, currency, freeDeliveryThreshold, isOpen, openCart, closeCart }}
     >
       {children}
     </CartContext.Provider>

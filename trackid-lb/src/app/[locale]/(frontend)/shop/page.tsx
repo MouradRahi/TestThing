@@ -9,7 +9,7 @@ import { resolveAlt } from '@/lib/image'
 import { getSiteSettings, resolveCurrencyDisplay } from '@/lib/site-settings'
 import { routing } from '@/i18n/routing'
 import { localizedAlternates } from '@/lib/seo'
-import type { Where } from 'payload'
+import type { Where, WhereField } from 'payload'
 
 // Filter/search/sort variants all point back to the base shop URL for SEO.
 // A locale-aware function (not a static object) — the canonical must be
@@ -39,16 +39,27 @@ type SearchParams = {
   cursor?: string
   artist?: string
   category?: string
+  garmentType?: string
   q?: string
   sort?: string
+  inStock?: string
+  price?: string
 }
+
+// Fixed bands (E6, ENHANCEMENTS.md) — RSC-friendly, zero JS, avoids a slider.
+const PRICE_BANDS: Array<{ key: string; max?: number; min?: number }> = [
+  { key: 'under25', max: 25 },
+  { key: '25to50', min: 25, max: 50 },
+  { key: '50to100', min: 50, max: 100 },
+  { key: 'over100', min: 100 },
+]
 
 export default async function ShopPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>
 }) {
-  const { cursor, artist, category, q, sort: sortParam } = await searchParams
+  const { cursor, artist, category, garmentType, q, sort: sortParam, inStock, price } = await searchParams
   const payload = await getPayload()
   const locale = (await getLocale()) as 'en' | 'ar'
   const t = await getTranslations('shop')
@@ -61,13 +72,31 @@ export default async function ShopPage({
   // show a single larger page instead (fine until the catalog gets very big)
   const cursorable = sortKey === 'newest'
 
-  const where: Where = { status: { equals: 'published' } }
-  if (artist) where['artist.slug'] = { equals: artist }
-  if (category) where['category.slug'] = { equals: category }
-  if (q) where.or = [{ title: { like: q } }, { 'tags.tag': { like: q } }]
-  if (cursorable && cursor) where['createdAt'] = { less_than: cursor }
+  const priceBand = PRICE_BANDS.find((b) => b.key === price)
 
-  const [{ docs: products, totalDocs }, { docs: artists }, { docs: categories }, settings] = await Promise.all([
+  // and[] rather than a single flat object — both search (q) and the
+  // in-stock toggle need their own `or` block, and Payload's Where type only
+  // allows one top-level `or` key per object.
+  const and: Where[] = [{ status: { equals: 'published' } }]
+  if (artist) and.push({ 'artist.slug': { equals: artist } })
+  if (category) and.push({ 'category.slug': { equals: category } })
+  if (garmentType) and.push({ 'garmentType.slug': { equals: garmentType } })
+  if (q) and.push({ or: [{ title: { like: q } }, { 'tags.tag': { like: q } }] })
+  if (cursorable && cursor) and.push({ createdAt: { less_than: cursor } })
+  if (inStock === '1') {
+    // Mirrors totalStock()'s semantics exactly: sum of sizes' stock (if any
+    // size has stock > 0, the sum is > 0) or the flat quantity otherwise.
+    and.push({ or: [{ stockQuantity: { greater_than: 0 } }, { 'sizes.stockQuantity': { greater_than: 0 } }] })
+  }
+  if (priceBand) {
+    const priceWhere: WhereField = {}
+    if (priceBand.min != null) priceWhere.greater_than_equal = priceBand.min
+    if (priceBand.max != null) priceWhere.less_than_equal = priceBand.max
+    and.push({ price: priceWhere })
+  }
+  const where: Where = { and }
+
+  const [{ docs: products, totalDocs }, { docs: artists }, { docs: categories }, { docs: garmentTypes }, settings] = await Promise.all([
     payload.find({
       collection: 'products',
       where,
@@ -78,6 +107,7 @@ export default async function ShopPage({
     }),
     payload.find({ collection: 'artists', limit: 50, sort: 'name', locale }),
     payload.find({ collection: 'categories', limit: 50, sort: 'name', locale }),
+    payload.find({ collection: 'garment-types', limit: 50, sort: 'name', locale }),
     getSiteSettings(locale),
   ])
   const currency = resolveCurrencyDisplay(settings)
@@ -92,7 +122,16 @@ export default async function ShopPage({
 
   // Build a /shop URL preserving the other active params
   const shopUrl = (overrides: Record<string, string | undefined>) => {
-    const merged: Record<string, string | undefined> = { artist, category, q, sort: sortKey === 'newest' ? undefined : sortKey, ...overrides }
+    const merged: Record<string, string | undefined> = {
+      artist,
+      category,
+      garmentType,
+      q,
+      inStock,
+      price,
+      sort: sortKey === 'newest' ? undefined : sortKey,
+      ...overrides,
+    }
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries(merged)) {
       if (value) params.set(key, value)
@@ -151,11 +190,11 @@ export default async function ShopPage({
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-wrap gap-2 mb-10 pb-8 border-b border-border">
+      <div className="flex flex-wrap gap-2 mb-4 pb-8 border-b border-border">
         <Link
-          href={shopUrl({ artist: undefined, category: undefined, cursor: undefined })}
+          href={shopUrl({ artist: undefined, category: undefined, garmentType: undefined, cursor: undefined })}
           className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
-            !artist && !category
+            !artist && !category && !garmentType
               ? 'border-accent text-accent'
               : 'border-border text-muted hover:border-foreground hover:text-foreground'
           }`}
@@ -177,8 +216,26 @@ export default async function ShopPage({
           </Link>
         ))}
 
+        {garmentTypes.length > 0 && (
+          <span className="border-r border-border self-stretch mx-1" aria-hidden="true" />
+        )}
+
+        {garmentTypes.map((gt) => (
+          <Link
+            key={gt.id}
+            href={shopUrl({ garmentType: gt.slug, cursor: undefined })}
+            className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
+              garmentType === gt.slug
+                ? 'border-accent text-accent'
+                : 'border-border text-muted hover:border-foreground hover:text-foreground'
+            }`}
+          >
+            {gt.name}
+          </Link>
+        ))}
+
         {artists.length > 0 && (
-          <span className="border-r border-border self-stretch mx-1" />
+          <span className="border-r border-border self-stretch mx-1" aria-hidden="true" />
         )}
 
         {artists.map((art) => (
@@ -196,11 +253,53 @@ export default async function ShopPage({
         ))}
       </div>
 
+      {/* Attribute filters: price bands + in-stock toggle */}
+      <div className="flex flex-wrap items-center gap-2 mb-10 pb-8 border-b border-border">
+        <span className="text-[10px] uppercase tracking-[0.2em] text-muted me-1">{t('priceLabel')}</span>
+        <Link
+          href={shopUrl({ price: undefined, cursor: undefined })}
+          className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
+            !priceBand
+              ? 'border-accent text-accent'
+              : 'border-border text-muted hover:border-foreground hover:text-foreground'
+          }`}
+        >
+          {t('anyPrice')}
+        </Link>
+        {PRICE_BANDS.map((band) => (
+          <Link
+            key={band.key}
+            href={shopUrl({ price: band.key, cursor: undefined })}
+            className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
+              price === band.key
+                ? 'border-accent text-accent'
+                : 'border-border text-muted hover:border-foreground hover:text-foreground'
+            }`}
+          >
+            {t(`priceBands.${band.key}` as 'priceBands.under25')}
+          </Link>
+        ))}
+
+        <span className="border-r border-border self-stretch mx-1" aria-hidden="true" />
+
+        <Link
+          href={shopUrl({ inStock: inStock === '1' ? undefined : '1', cursor: undefined })}
+          aria-pressed={inStock === '1'}
+          className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
+            inStock === '1'
+              ? 'border-accent text-accent'
+              : 'border-border text-muted hover:border-foreground hover:text-foreground'
+          }`}
+        >
+          {t('inStockOnly')}
+        </Link>
+      </div>
+
       {/* Grid */}
       {products.length === 0 ? (
         <div className="text-center py-32 text-muted">
           <p className="mb-4">{q ? t('nothingFound', { query: q }) : t('nothingYet')}</p>
-          {(artist || category || q) && (
+          {(artist || category || garmentType || q || inStock || price) && (
             <Link href="/shop" className="text-xs uppercase tracking-widest text-accent hover:text-accent-hover">
               {t('clearFilters')}
             </Link>

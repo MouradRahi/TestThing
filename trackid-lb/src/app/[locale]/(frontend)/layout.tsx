@@ -5,6 +5,7 @@ import { NextIntlClientProvider, hasLocale } from 'next-intl'
 import { setRequestLocale, getTranslations } from 'next-intl/server'
 import { routing, isRtl } from '@/i18n/routing'
 import { CartProvider } from '@/components/cart/CartContext'
+import { ToastProvider } from '@/components/ui/Toast'
 import { CartDrawer } from '@/components/cart/CartDrawer'
 import { NavWrapper } from '@/components/nav/NavWrapper'
 import { Footer } from '@/components/nav/Footer'
@@ -17,6 +18,8 @@ import {
   buildThemeCssVars,
   resolveFontStack,
   resolveCurrencyDisplay,
+  resolveFreeDeliveryThreshold,
+  getDeliveryZones,
   DEFAULT_EMPTY_CART_MESSAGE,
 } from '@/lib/site-settings'
 import { localizedAlternates } from '@/lib/seo'
@@ -163,9 +166,14 @@ export default async function FrontendLayout({
       </head>
       <body className={fontVariables}>
         <NextIntlClientProvider>
+          <ToastProvider>
           <CartProvider
             emptyCartMessage={(settings.emptyCartMessage as string) || DEFAULT_EMPTY_CART_MESSAGE}
             currency={resolveCurrencyDisplay(settings)}
+            // Only meaningful when delivery zones are configured — in free-text
+            // area mode the fee is confirmed by phone, so a "free delivery"
+            // promise here wouldn't hold.
+            freeDeliveryThreshold={getDeliveryZones(settings).length > 0 ? resolveFreeDeliveryThreshold(settings) : null}
           >
             <a
               href="#main-content"
@@ -183,6 +191,7 @@ export default async function FrontendLayout({
             <WhatsAppButton />
             <CartDrawer />
           </CartProvider>
+          </ToastProvider>
         </NextIntlClientProvider>
         <Analytics
           gaId={settings.gaMeasurementId as string | undefined}

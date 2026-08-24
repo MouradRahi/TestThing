@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { useCart } from '@/components/cart/CartContext'
 import { LocaleSwitcher } from '@/components/nav/LocaleSwitcher'
+import { SearchOverlay, MobileSearchField } from '@/components/nav/SearchOverlay'
 import { safeHref } from '@/lib/sanitize'
 
 export type NavLink = {
@@ -105,6 +106,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
             {link.label}
           </Link>
         ))}
+        <SearchOverlay />
         {accountLink}
         {cartLink}
         <LocaleSwitcher />
@@ -137,6 +139,7 @@ export function Nav({ storeName, links, logoUrl }: Props) {
       {/* Mobile menu panel */}
       {menuOpen && (
         <nav className="absolute top-full left-0 right-0 md:hidden bg-bg border-b border-border flex flex-col px-6 py-5 gap-5 text-xs uppercase tracking-widest text-muted">
+          <MobileSearchField />
           {links.map((link) => (
             <Link
               key={link.href}

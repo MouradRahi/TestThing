@@ -48,6 +48,7 @@ export const Orders: CollectionConfig = {
               customerEmail: doc.customerEmail,
               status: next,
               brand,
+              locale: doc.locale === 'ar' ? 'ar' : 'en',
               courierName: doc.courierName ?? undefined,
               trackingRef: doc.trackingRef ?? undefined,
             })
@@ -142,6 +143,7 @@ export const Orders: CollectionConfig = {
           const notificationData = {
             orderId: String(doc.id),
             orderNumber: doc.orderNumber,
+            locale: (doc.locale === 'ar' ? 'ar' : 'en') as 'en' | 'ar',
             customerName: doc.customerName,
             customerPhone: doc.customerPhone,
             customerEmail: doc.customerEmail,
@@ -373,6 +375,19 @@ export const Orders: CollectionConfig = {
       name: 'discountCode',
       type: 'text',
       admin: { readOnly: true, description: 'Discount code applied at checkout (if any).' },
+    },
+    {
+      // E12 (ENHANCEMENTS.md) — the storefront locale the customer checked
+      // out in, so confirmation/status emails render in the matching
+      // language instead of always English.
+      name: 'locale',
+      type: 'select',
+      options: [
+        { label: 'English', value: 'en' },
+        { label: 'Arabic', value: 'ar' },
+      ],
+      defaultValue: 'en',
+      admin: { readOnly: true, description: 'Storefront locale at checkout — determines the language of order emails.' },
     },
     {
       name: 'discountAmount',

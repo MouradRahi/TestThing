@@ -2390,3 +2390,94 @@ hardcoding it.
 - Verified against a real built+started server: curled the homepage and confirmed the
   exact meta tag renders with the correct token, not assumed from the code.
 - ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified.
+- Committed (`e3d633c`), pushed, CI verified green.
+
+### Session 29 (part 4) — 2026-08-24
+Focus: **8-item UX/conversion batch**, all picked by the user in one AskUserQuestion round
+(ENHANCEMENTS.md E2/E4/E5/E6/E7/E9/E11/E12) — unrelated to payments, per the user's own
+framing. Worked through them one at a time, each type-checked before moving to the next,
+then verified as a whole against a real built+started server + the E2E suite.
+- **Doc correction first**: several ENHANCEMENTS.md items were already done in later
+  sessions without the checkboxes being flipped (per-field checkout errors, newsletter,
+  weekly reports, durable rate limiting) — filtered those out before presenting the menu,
+  and separately discovered mid-batch that E5's "size guide" sub-item was also already
+  shipped (Session 27 part 4, `GarmentTypes.sizeGuide`) — confirmed by grep before building
+  a duplicate.
+- **E2 — Free-delivery progress nudge**: `resolveFreeDeliveryThreshold()` (site-settings.ts)
+  threaded through `CartProvider` (mirrors the existing `currency`/`emptyCartMessage` prop
+  pattern) — only passed a real value when delivery zones are configured (a threshold means
+  nothing in free-text-area mode). New `FreeDeliveryNudge.tsx` in the drawer + cart page.
+- **E4 — Toast notifications**: new dependency-free `src/components/ui/Toast.tsx`
+  (context+provider, aria-live polite, 3.5s auto-dismiss, accent-colored matching
+  `CartNotices`' existing convention — icon differentiates success/error rather than
+  introducing a red/green color the theme system doesn't define). Mounted once in the
+  frontend layout. Wired into: `WishlistButton` (closed a real, previously-**totally
+  silent** failure path — a rejected toggle showed nothing at all before this), `ProfileForm`
+  (save confirmation), and `CartContext`'s mutation-rejection path (bug B6 — the existing
+  `CartNotices` banner only shows when the drawer/cart page happens to be open; a toast is
+  visible regardless).
+- **E11 — Order status timeline**: new `OrderStatusTimeline.tsx` (RSC, reads the canonical
+  status order straight from `Orders.ts`'s own enum definition rather than re-guessing it) —
+  a Pending→Confirmed→In production→Shipped→Delivered stepper on `/order/[orderNumber]`;
+  renders nothing for `cancelled` (doesn't map to a step on this pipeline).
+- **E7 — Global search in the nav**: new `SearchOverlay.tsx` — desktop gets an icon-triggered
+  dropdown panel (Esc/backdrop-click closes, focuses the input on open), mobile gets a plain
+  always-visible field at the top of the existing hamburger panel (`MobileSearchField`, no
+  redundant toggle-within-a-toggle). Both submit to `/shop?q=` using the exact same
+  locale-aware form-action pattern `/shop`'s own search already established (BUGS.md B8).
+- **E5 — Product page upgrades**: image lightbox (click-to-open full-screen overlay, click
+  again toggles a 2x zoom centered on the click point — dependency-free CSS transform, no
+  library, arrow-key/button navigation when multiple images); new `deliveryInfo`/`returnsInfo`
+  localized Copy-tab fields rendered as `<details>` accordions (matching the size-guide's own
+  existing collapsible pattern exactly); new `ShareButton.tsx` (copy-link via Clipboard API
+  with a silent fallback, `wa.me/?text=` WhatsApp share — "the audience lives on WhatsApp,
+  needs no SDK"). Exported `withLocalePrefix()` from `src/lib/seo.ts` (was file-private) so
+  the product page could build a real locale-aware canonical share URL without duplicating
+  the logic inline.
+- **E6 — Shop filtering**: garment-type filter chips (data already existed via
+  `Products.garmentType`, just never had shop UI); an in-stock-only toggle (`where` clause
+  verified to exactly match `totalStock()`'s own semantics — sum of sizes' stock or the flat
+  quantity — via `{ or: [{ stockQuantity: gt 0 }, { 'sizes.stockQuantity': gt 0 }] }`, not an
+  approximation); four fixed price bands (RSC-friendly, no slider). Refactored the shop
+  query's `where` from a flat object to an `and[]` array — needed because Payload's `Where`
+  type only allows one top-level `or` key per object, and both search (`q`) and the new
+  in-stock toggle need their own `or` block.
+- **E9 — Recently-viewed strip**: cookie-based (httpOnly, last 8 ids, 90-day) —
+  `POST /api/recently-viewed` records a view, `GET` resolves the actual product data
+  server-side. **Deliberately NOT a Server Component reading `cookies()` directly** — caught
+  this before building it wrong: `cookies()` in an RSC on a `revalidate: 3600` product page
+  would force that whole route dynamic, breaking this project's "RSC + ISR, Non-Negotiable"
+  rule. Followed the established `WishlistButton`-style `fetchState` pattern instead — a
+  client component fetches the GET route on mount, keeping the host page fully static.
+  Verified this actually held: `npm run build`'s route table still shows product pages as
+  `●` (SSG) after the change, not `ƒ` (dynamic) — checked, not assumed. Wired into the
+  product page (bottom) and the cart page's empty state.
+- **E12 — Bilingual transactional emails**: new `Orders.locale` field (select en/ar, set from
+  the checkout form's `useLocale()` value, threaded through both notification call sites —
+  immediate COD/bank-transfer send and the payment-confirmed hook for card/OMT) + a
+  `EMAIL_STRINGS` en/ar dictionary in `notifications.ts` covering every static label in both
+  HTML templates (order-confirmation and status-update) — subject lines, section headers,
+  payment-method labels, the footer line. `<html lang dir>` now reflects the order's locale.
+  **Deliberately scoped as v1/basic RTL** (dir attribute + translated strings, not a bespoke
+  mirrored table layout) — same "reasonable smaller scope" call this project already made for
+  the email shell staying dark-themed (Session 11) — flagged explicitly, not silently
+  under-delivered. `STATUS_EMAIL_COPY` (5 status subject/body pairs) translated into an
+  `en`/`ar` nested structure; `sendOrderStatusWhatsApp` deliberately still sources its status
+  label from `.en` only, since WhatsApp templates are configured per-deployment
+  (`WHATSAPP_STATUS_TEMPLATE_LANG`), not per-order the way email now is.
+- **Migrations**: three hand-written (same interactive-wizard-hangs-under-this-runner
+  reasoning as every prior one) — `add_delivery_returns_info` (two new localized textarea
+  columns on `site_settings_locales`), `add_order_locale` (new enum + column on `orders`),
+  and the SiteSettings `googleSiteVerification` migration from part 3 earlier this session.
+  All purely additive, applied cleanly to dev.
+- **Verified against a real built+started server, not just tsc**: shop page's price-band/
+  in-stock-toggle text confirmed present in real HTML; product page's ShareButton + lightbox
+  trigger confirmed present; order page's full 5-step timeline confirmed present for a real
+  order; a full `POST`→`GET` round trip against `/api/recently-viewed` confirmed the cookie
+  correctly records and resolves a real product (id 5, "Cassette Tote Bag") with the right
+  price/image/currency shape; confirmed zero runtime errors in the server log across all of
+  it. `npm run test:e2e` 1/1 — the full COD checkout flow (which now also sends `locale` in
+  its POST body) still passes end-to-end.
+- ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified (product pages
+  confirmed still `●` SSG); `npm run test:e2e` 1/1.
+- Not yet committed at the time of writing this entry.

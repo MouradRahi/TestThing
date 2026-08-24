@@ -461,6 +461,10 @@ export interface Order {
    */
   discountCode?: string | null;
   /**
+   * Storefront locale at checkout — determines the language of order emails.
+   */
+  locale?: ('en' | 'ar') | null;
+  /**
    * Amount taken off the subtotal by the discount code.
    */
   discountAmount?: number | null;
@@ -1690,6 +1694,7 @@ export interface OrdersSelect<T extends boolean = true> {
   utmMedium?: T;
   utmCampaign?: T;
   discountCode?: T;
+  locale?: T;
   discountAmount?: T;
   giftCardCode?: T;
   giftCardAmount?: T;
@@ -2603,6 +2608,14 @@ export interface SiteSetting {
    */
   productBlurb?: string | null;
   /**
+   * Answers "how does delivery work?" — shown as a collapsible section on every product page, under the buy box. Leave blank to hide the section entirely.
+   */
+  deliveryInfo?: string | null;
+  /**
+   * Answers "can I return this?" — shown as a collapsible section on every product page, under the buy box. Leave blank to hide the section entirely.
+   */
+  returnsInfo?: string | null;
+  /**
    * Filled into the {tagline} placeholder in the pattern below.
    */
   productMetaTagline?: string | null;
@@ -3004,6 +3017,8 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   metaPixelId?: T;
   googleSiteVerification?: T;
   productBlurb?: T;
+  deliveryInfo?: T;
+  returnsInfo?: T;
   productMetaTagline?: T;
   productMetaPattern?: T;
   emptyCartMessage?: T;
