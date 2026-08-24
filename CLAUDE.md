@@ -2373,4 +2373,20 @@ a real recipient until this session).
 - Templates aren't submitted/approved yet — that's a Meta Business Manager action only the
   user can take (given the exact bodies documented in ENV_VARS.md). Once approved, filling
   in the three template-name env vars activates each feature with zero further code changes.
-- Not yet committed at the time of writing this entry.
+- Committed (`a5b494e`), pushed, CI verified green.
+
+### Session 29 (part 3) — 2026-08-24
+Focus: **Google Search Console verification** — user asked how to submit the sitemap;
+given the verification meta-tag content value, wired it the same way as every other
+third-party ID in this app (`gaMeasurementId`/`metaPixelId` precedent) rather than
+hardcoding it.
+- SiteSettings → SEO gained `googleSiteVerification` (plain text, mirrors the sibling
+  ID fields' column shape). Frontend layout's `generateMetadata` emits it via Next's
+  built-in `verification: { google: ... }` metadata field, which renders the exact
+  `<meta name="google-site-verification">` tag — no hand-rolled markup.
+- Migration purely additive (one nullable varchar column on `site_settings`). Applied to
+  dev; value set live via a throwaway Local API script (deleted after) so it's active on
+  the dev site immediately, not just scaffolded.
+- Verified against a real built+started server: curled the homepage and confirmed the
+  exact meta tag renders with the correct token, not assumed from the code.
+- ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified.

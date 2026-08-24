@@ -2595,6 +2595,10 @@ export interface SiteSetting {
    */
   metaPixelId?: string | null;
   /**
+   * Google Search Console verification token — paste just the content value from the <meta name="google-site-verification" content="..."> tag Google gives you. Renders that tag on every page. Leave blank if not verifying with Google.
+   */
+  googleSiteVerification?: string | null;
+  /**
    * Short note shown under the details on every product page.
    */
   productBlurb?: string | null;
@@ -2998,6 +3002,7 @@ export interface SiteSettingsSelect<T extends boolean = true> {
   appleTouchIconUrl?: T;
   gaMeasurementId?: T;
   metaPixelId?: T;
+  googleSiteVerification?: T;
   productBlurb?: T;
   productMetaTagline?: T;
   productMetaPattern?: T;
