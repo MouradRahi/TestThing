@@ -92,16 +92,29 @@ id, name, slug (e.g., hoodies, tees, accessories)
 ```
 
 ### Order
+> ⚠️ This block drifted badly stale across many sessions (missing card/OMT payment methods,
+> half the payment_status values, and ~15 fields) — rewritten from the actual
+> `src/collections/Orders.ts` schema Session 29. Keep it honest going forward: when a field
+> is added there, update this block in the same commit, don't let it drift again.
 ```
-id, order_number (human-readable, e.g., TRK-123456-AB12)
-customer_name, customer_phone, customer_email
+id, order_number (human-readable, e.g., TRK-123456-AB12), invoice_link (ui field, admin-only)
+customer_name, customer_phone, customer_email, customer → relation to Customers (null for guest orders)
 delivery_address (text), area (Lebanon area/city)
 items[] → { product_id, quantity, size, price_at_purchase, title_at_purchase, image_url }
-subtotal, delivery_fee, discount_code, discount_amount, total
-payment_method (cod | bank_transfer)
-payment_status (pending | paid)
+subtotal, delivery_fee
+utm_source, utm_medium, utm_campaign (first-touch attribution, Session 28)
+discount_code, discount_amount
+locale (en | ar — storefront locale at checkout; picks order-email language, Session 29)
+gift_card_code, gift_card_amount, store_credit_applied, points_redeemed
+total
+payment_method (cod | bank_transfer | card | omt)
+payment_status (pending | awaiting_payment | paid | failed | expired | refunded | partially_refunded)
+payment_expires_at (reservation TTL for card/OMT — expire-payments cron)
+exchange_rate_at_purchase (LBP/USD snapshot, null when currency display is USD-only)
+refunded_amount (running total across full/partial refunds, any payment method)
 order_status (pending | confirmed | in_production | shipped | delivered | cancelled)
 notes (customer notes)
+courier_name, tracking_ref, dispatch_date (manual entry, Part 3.2)
 created_at, updated_at
 ```
 
@@ -2480,4 +2493,4 @@ then verified as a whole against a real built+started server + the E2E suite.
   its POST body) still passes end-to-end.
 - ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified (product pages
   confirmed still `●` SSG); `npm run test:e2e` 1/1.
-- Not yet committed at the time of writing this entry.
+- Committed (`b7760fc`), pushed, CI verified green.

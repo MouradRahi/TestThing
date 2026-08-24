@@ -140,34 +140,39 @@ The order page prints the status as a word. Render the pipeline (Pending → Con
 
 ## E. Features (new, necessary — still no AI, no payments)
 
-### F1 ☐ 🟡 Newsletter / drop-list capture (IMPROVEMENTS P5 leftover)
-Email capture block (footer + optional homepage block) → `POST /api/newsletter` (rate-limited, honeypot) → Resend Audiences (`RESEND_AUDIENCE_ID` env; degrade gracefully when unset — same pattern as WhatsApp). For a drop-based one-of-a-kind store, the announcement list IS the launch weapon.
-- Files: new `api/newsletter/route.ts`, `NewsletterForm.tsx`, footer + new `newsletter` block, `SiteSettings.ts` toggle, `.env.local.example`.
+### F1 ☑ DONE (Session 28, ROADMAP Part 7) 🟡 Newsletter / drop-list capture (IMPROVEMENTS P5 leftover)
+Email capture block (footer + homepage/page block) → `POST /api/newsletter` (rate-limited, honeypot) → Resend segment. Plus an admin drop-announcement broadcast panel. Doc had gone stale — this was built as part of the F7 growth-marketing session, checkboxes just never got flipped here.
 
-### F2 ☐ 🟡 Admin order ergonomics (IMPROVEMENTS 4.5 leftover)
-- Orders list: `useAsTitle` virtual-ish title (hook-maintained `adminTitle` field: `TRK-1234 · Name · $86 COD`), default columns tuned, status filter presets
-- **Packing slip / order print view**: printable route (`/admin-print/order/[id]`, admin-cookie-gated) with items, address, phone, COD amount — the team prints or screenshots per delivery today
-- CSV export of orders for a date range (route returning `text/csv`, admin-gated) — accountant-friendly
-- Files: `Orders.ts`, new print route + small print CSS, new `api/admin/orders-export/route.ts`.
+### F2 ◐ 🟡 Admin order ergonomics (IMPROVEMENTS 4.5 leftover)
+- ☐ Orders list: `useAsTitle` virtual-ish title (hook-maintained `adminTitle` field: `TRK-1234 · Name · $86 COD`), default columns tuned, status filter presets — still genuinely open
+- ☑ **Packing slip / order print view** — DONE (Session 27, part 2): `GET /api/admin/packing-slips`, admin-gated, linked from the Sales Overview panel
+- ☑ **CSV export of orders** — DONE (Session 24, part 1, F2 reconciliation work): `GET /api/admin/payments/export` covers every order's money fields incl. COD/bank-transfer; the report engine (Session 25) also exports orders as CSV/XLSX/PDF
+- Only the orders-list ergonomics sub-item remains; small enough to fold into a future admin-polish pass.
 
-### F3 ☐ 🟢 Cart lifecycle ops (companion to bug B4)
-Rate limit + abandoned-guest-cart cleanup (Vercel Cron → guarded route). Include the discounts `usageLimit` atomic fix (B14) in the same hardening pass.
-- Files: `api/cart/route.ts`, new `api/cron/cleanup/route.ts`, `vercel.json`, `api/orders/route.ts`.
+### F3 ☑ DONE (bug B4, Session 22 part 5 + B14, Session 22 part 6) 🟢 Cart lifecycle ops (companion to bug B4)
+Rate limit + abandoned-guest-cart cleanup cron both shipped as part of the B4 fix; the discounts `usageLimit` atomic race (B14) was closed the same week. Doc had gone stale.
 
-### F4 ☐ 🟢 Weekly owner email summary (deferred from 4.6)
-Vercel Cron (weekly) → guarded route reusing the SalesDashboard aggregation (extract to `src/lib/analytics.ts`) → Resend email: revenue vs last week, orders, top pieces, low stock, pending custom requests. No admin login needed to feel the pulse.
-- Files: extract `lib/analytics.ts` from `SalesDashboard.tsx`, new `api/cron/weekly-summary/route.ts`, `vercel.json`.
+### F4 ☑ DONE (Session 26, part 2) 🟢 Weekly owner email summary (deferred from 4.6)
+Built as ROADMAP Part 4 §4.2 (scheduled reports) — a SiteSettings "Reports" tab controls cadence/recipients/which report types, `GET /api/cron/scheduled-reports` sends a CSV-attached digest. Doc had gone stale.
 
 ### F5 ☐ 🔴 Page versions + live preview (IMPROVEMENTS 4.3 deferred — needs owner buy-in)
-`versions: { drafts: true }` on Pages/Homepage + Payload Live Preview iframe. ⚠️ Requires the one-time force-publish migration for existing pages (the reason it was deferred). Only schedule when the owner actually asks for undo/history.
+`versions: { drafts: true }` on Pages/Homepage + Payload Live Preview iframe. ⚠️ Requires the one-time force-publish migration for existing pages (the reason it was deferred). Only schedule when the owner actually asks for undo/history. Still genuinely open — see NEXT_STEPS.md.
 
-### F6 ☐ ⏸ Ops activations (no code, keys only — surface to owner)
-- WhatsApp Cloud API keys (order alerts — code ships dark since Session 3)
-- Instagram embed (blocked on the handle)
-- `SEED_SECRET` should NOT be set in prod Vercel env unless seeding is intended
+### F6 ◐ ⏸ Ops activations (no code, keys only — surface to owner)
+- ◐ WhatsApp Cloud API keys — **in progress (Session 29)**: real credentials obtained and
+  wired in; two message templates (staff alert, customer confirmation) submitted to Meta for
+  approval, not yet live. Along the way, a real bug was found and fixed: the staff alert sent
+  plain free-text, which WhatsApp's 24h "customer service window" policy rejects for any
+  recipient who hasn't messaged the business first (confirmed via the real delivery webhook,
+  error 131047) — converted to an approved-template send.
+- ☐ Instagram embed (blocked on the handle)
+- ☐ `SEED_SECRET` should NOT be set in prod Vercel env unless seeding is intended
 
-### F7 ☐ 🟢 Durable rate limiting (only if abuse appears)
-Upstash Redis / Vercel KV behind the existing `rateLimit()` signature (in-memory fallback when env unset). Parked: current in-memory guard is accepted risk (B24).
+### F7 ☑ DONE (ROADMAP F0 §1.3, Session 22 part 10) 🟢 Durable rate limiting (only if abuse appears)
+Built as a Postgres-backed fixed-window counter (`src/lib/durable-rate-limit.ts`) rather than
+Upstash/Vercel KV — solves the same cross-instance problem using infrastructure every instance
+already shares, no new external service needed. All 11 rate-limit call sites use it; the old
+in-memory map is now only a same-file fallback if the DB pool is unreachable. Doc had gone stale.
 
 ---
 
@@ -177,13 +182,13 @@ Upstash Redis / Vercel KV behind the existing `rateLimit()` signature (in-memory
 |---|---|---|---|
 | 1 | **Correctness sweep** ☑ DONE (Session 22) | BUGS B2, B3, B5, B6, B7, B8, B11, B13, B15, B16 (◐), B23 | All small, all user-visible wrongness on the live site; zero schema changes |
 | 2 | **Account rescue** ◐ (B1 done, Session 22 part 4) | ☑ B1 forgot/reset/change password · ☑ B22 done (part 13) · remaining: `?next=` redirect (E10 phase 2) | P0 — real customers are creating accounts on the live site *now*; every day without reset = support debt |
-| 3 | **Cart/checkout conversion** | E1, E2, E4, E3; F3 hardening (☑ B4 done Session 22 part 5, ☑ B12 done Session 22 part 11, ☑ B14 done Session 22 part 6) | The money path; toast (E4) unblocks proper B6 fix |
-| 4 | **Discovery** | E5 (description first), E6, E7, E8 | Catalog is growing; product storytelling is the brand |
-| 5 | **Order experience** | E11, B3 verify, E12 (adds `locale` field — migration) | Post-purchase trust; groundwork for repeat customers |
+| 3 | **Cart/checkout conversion** ◐ (E1/E2/E4/F3 done) | ☑ E1, ☑ E2 (Session 29), ☑ E4 (Session 29), ☐ E3 remaining; F3 hardening ☑ done (B4 Session 22 part 5, B12 Session 22 part 11, B14 Session 22 part 6) | The money path; toast (E4) unblocks proper B6 fix |
+| 4 | **Discovery** ☑ DONE (Session 29 + Session 28) | E5 ☑, E6 ☑, E7 ☑ (all Session 29), E8 ☑ (Session 28) | Catalog is growing; product storytelling is the brand |
+| 5 | **Order experience** ☑ DONE (Session 29) | E11 ☑, B3 ☑ (verified earlier), E12 ☑ (adds `locale` field — migration applied) | Post-purchase trust; groundwork for repeat customers |
 | 6 | **SEO/i18n batch** ☑ DONE (Session 27 part 6) | E13 ☑ (B9, B10, B20, homepage-block/alt localization all done) | Arabic side is currently invisible to Google — fix before content marketing starts |
 | 7 | **A11y batch** ☑ DONE (Session 27 part 6) | E14 ☑ (B17, B18, B19, B21, form-error `role="alert"`, announcement-bar contrast all done) | Bundled — cheap together, disruptive apart |
-| 8 | **Growth & admin** | F1 newsletter, F2 admin ergonomics, F4 weekly summary, E9 recently-viewed | Post-stabilization leverage |
-| — | *Parked* | F5 versions/preview, F7 KV rate-limit, F6 keys | Trigger-based, not scheduled |
+| 8 | **Growth & admin** ◐ (F1/F4/E9 done, F2 partial) | ☑ F1 newsletter (Session 28), ◐ F2 admin ergonomics (packing slip + CSV done, orders-list title/filters remaining), ☑ F4 weekly summary (Session 26), ☑ E9 recently-viewed (Session 29) | Post-stabilization leverage |
+| — | *Parked* | F5 versions/preview (still parked, needs owner buy-in), ~~F7 KV rate-limit~~ ☑ done via Postgres not KV (Session 22 part 10), F6 keys ◐ (WhatsApp in progress Session 29, Instagram still blocked on handle) | Trigger-based, not scheduled |
 
 **Standing rules for every session** (from CLAUDE.md/MIGRATIONS.md):
 - Schema changes → dev push locally, but prod is migration-only (`npm run migrate:create`, commit `src/migrations/`)

@@ -1,6 +1,13 @@
 # trackID.lb — Deploy Checklist (Vercel + Supabase + Resend)
 
-> First production deploy. Work top to bottom. Boxes are ☐ until done.
+> ⚠️ **trackID.lb is already live in production** at `https://trackid-lb.com` (domain cutover
+> completed Session 29 — DNS, SSL, Resend sending domain all verified). This checklist was
+> originally written for the *first* deploy and is kept as reference for future re-deploys
+> (or, per ROADMAP Part 8, as the starting template for a new client's deploy) — most boxes
+> below are already checked in practice for this specific deployment. For the live site's
+> actual current status, see CLAUDE.md's session log, not this file.
+>
+> Work top to bottom. Boxes are ☐ until done.
 > Stack: Next.js 15 + Payload 3 on Vercel · Postgres + Storage on Supabase · email via Resend.
 
 ---
@@ -31,8 +38,8 @@ You've been developing against **one** Supabase project, and Payload's dev serve
 
 ⚠️ Right now `RESEND_FROM=onboarding@resend.dev`, which **only delivers to your own Resend account email** — real customers will not receive order confirmations.
 
-- ☐ Add and **verify your sending domain** in Resend (DNS records)
-- ☐ Set `RESEND_FROM` to an address on that domain, e.g. `orders@trackid.lb`
+- ☑ Add and **verify your sending domain** in Resend (DNS records) — done for `trackid-lb.com` (Session 29): DKIM + SPF both verified
+- ☑ Set `RESEND_FROM` to an address on that domain, e.g. `orders@trackid-lb.com`
 - ☐ Set SiteSettings → `contactEmail` — it's now the reply-to on all order emails and shows in the footer (wired Session 20)
 
 ---
@@ -43,7 +50,7 @@ You've been developing against **one** Supabase project, and Payload's dev serve
 - ☐ **Root Directory = `trackid-lb`** (the Next app is in a subfolder, not the repo root)
 - ☐ Framework preset: **Next.js** (auto). **Override the Build Command to `npm run migrate && npm run build`** so committed migrations apply to prod before the build (prod never auto-pushes schema — see MIGRATIONS.md). `migrate` runs `scripts/migrate.mjs` (esbuild-bundled config — works on any Node, Session 20). Leave Output Directory default.
 - ☐ Node version: leave Vercel's default.
-- ☐ Add your domain (`trackid.lb`) under Project → Domains (point DNS per Vercel's instructions)
+- ☑ Add your domain (`trackid-lb.com`) under Project → Domains (point DNS per Vercel's instructions) — done Session 29. Note: GoDaddy's DNS records take priority over any "Domain Forwarding" setting — if you ever see the apex domain resolving to a `Server: cloudflare` response instead of `Server: Vercel`, check Forwarding is off, not just DNS Records.
 
 ## 5. Vercel — environment variables
 
@@ -53,7 +60,7 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 |---|---|
 | `PAYLOAD_SECRET` | ⚠️ **Generate a NEW strong random value for prod** — don't reuse the dev string. (e.g. `openssl rand -hex 32`) |
 | `DATABASE_URI` | Supabase **pooler** URL (port 6543) |
-| `NEXT_PUBLIC_SITE_URL` | `https://trackid.lb` (your real domain — drives metadata, sitemap, robots, OG) |
+| `NEXT_PUBLIC_SITE_URL` | `https://trackid-lb.com` (your real domain — drives metadata, sitemap, robots, OG) |
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://bdbhygelwizizepxewxv.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET` | `products` |
 | `SUPABASE_S3_ENDPOINT` | `https://bdbhygelwizizepxewxv.storage.supabase.co/storage/v1/s3` |
@@ -62,7 +69,8 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 | `SECRET_ACCESS_KEY_SUPABASE` | from Supabase S3 connection (server-only — no `NEXT_PUBLIC_`) |
 | `RESEND_API_KEY` | from Resend |
 | `RESEND_FROM` | your verified-domain sender (see §3) |
-| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_RECIPIENT_NUMBER` | leave blank for now (notifications skip gracefully) |
+| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_RECIPIENT_NUMBER` | real values obtained Session 29 — copy from `.env.local`. Notifications skip gracefully if left blank. |
+| `WHATSAPP_ORDER_ALERT_TEMPLATE_NAME` / `WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME` (+ `_LANG` each) | leave blank until Meta approves the two templates submitted Session 29 (see ENV_VARS.md for the exact bodies) — both features are silent no-ops until set |
 | `CRON_SECRET` | any long random string — protects `/api/cron/*` (Vercel signs its own Cron Job requests with it automatically once set; without it, cron routes 401 in production) |
 | `NEXT_PUBLIC_SENTRY_DSN` | optional — error monitoring is off entirely without it. Sentry → Project Settings → Client Keys |
 | `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` | optional, only for source-map upload (readable stack traces) — omit and error tracking still works, just with minified traces |
@@ -108,6 +116,7 @@ Rotate/update a secret anytime from the same Settings page, or locally with `gh 
 - ☐ WhatsApp floating button opens a chat (if `whatsappNumber` set in SiteSettings)
 - ☐ Upload a new image in **Admin → Media**, then pick it on a product → it renders on the storefront
 - ☐ `robots.txt` and `sitemap.xml` show your real domain
+- ☐ Google Search Console: SiteSettings → SEO → Google Site Verification (admin field, not an env var, Session 29) → verify ownership → submit `sitemap.xml`
 
 ---
 
@@ -126,6 +135,12 @@ Rotate/update a secret anytime from the same Settings page, or locally with `gh 
 
 ## 9. After a clean launch
 
-- Activate WhatsApp Cloud API (keys → the three `WHATSAPP_*` vars) to get team alerts on new orders
+- ◐ WhatsApp Cloud API — credentials obtained and wired Session 29; two message templates
+  (staff new-order alert, customer order confirmation) submitted to Meta for approval — set
+  `WHATSAPP_ORDER_ALERT_TEMPLATE_NAME` / `WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME` once
+  approved to activate both
 - ~~Generate `payload-types.ts`~~ done (Session 20) — `npm run generate:types`, file committed
-- Continue the roadmap: IMPROVEMENTS.md deferred items (homepage-block localization, localized order emails, newsletter)
+- ~~Homepage-block localization~~ done (Session 27) · ~~localized order emails~~ done
+  (Session 29 — `Orders.locale` + `notifications.ts` en/ar dictionary) · ~~newsletter~~ done
+  (Session 28, ROADMAP Part 7)
+- See NEXT_STEPS.md for what's actually still open

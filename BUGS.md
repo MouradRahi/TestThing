@@ -37,7 +37,24 @@ Every other public POST route uses `rateLimit()`; the cart route uses none. A co
 
 ---
 
-## P1 — Visible wrongness — ☑ ALL FIXED (Session 22, part 11)
+## P1 — Visible wrongness — ☑ ALL FIXED (Session 22, part 11; B25 added + fixed Session 29)
+
+### B25 ☑ FIXED (Session 29) — Staff new-order WhatsApp alert silently fails outside a 24h window
+`sendOrderWhatsAppAlert()` (`notifications.ts`) sent a plain free-text message — WhatsApp's
+Business Messaging Policy only allows that within 24h of the *recipient* last messaging the
+business first. Any staff member who hadn't recently texted the business's WhatsApp number
+got nothing on a new order, with no error visible anywhere in the app (the failure only shows
+up in Meta's own delivery-status webhook, which nothing in this codebase was listening to).
+Found via live testing while setting up WhatsApp Cloud API credentials for real — confirmed
+via the actual delivery webhook payload: error 131047, "Re-engagement message."
+- **Fix**: converted to an approved-template send (`WHATSAPP_ORDER_ALERT_TEMPLATE_NAME`),
+  which bypasses the 24h-window restriction entirely — same pattern the sibling
+  `sendOrderStatusWhatsApp()` already used for exactly this reason. Also added a new
+  customer-facing order-confirmation WhatsApp message (`sendOrderConfirmationWhatsApp`,
+  `WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME`) that didn't exist before.
+- Files: `src/lib/notifications.ts`, `src/app/api/orders/route.ts`, `src/collections/Orders.ts`.
+- ⚠️ Both templates are submitted to Meta for approval as of this writing — the fix is
+  code-complete but not yet *live* until the template names are set once approved.
 
 ### B5 ☑ FIXED (Session 22) — Cart & checkout flash "empty" while the server cart loads
 `CartContext` starts with `items: []` and no loading flag; `/checkout` and `/cart` render their empty states immediately, then pop the items in when `GET /api/cart` returns. On a slow connection a customer with a full cart sees "Your cart is empty / Find a piece that speaks to you" for seconds — on checkout, that's an abandonment trigger.

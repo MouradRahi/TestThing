@@ -42,13 +42,30 @@ adjacent phases as we go.
 
 - ◐ **Baseline migration** — DONE on dev (Session 22): `src/migrations/20260720_055440_baseline.ts` created + marked applied via `npm run migrate:local -- mark`. **Remaining: run the one-line `payload_migrations` INSERT on prod** (SQL in MIGRATIONS.md §Baselining) **before the next deploy**.
 - ☑ **4.2 `payload-types.ts` generation** — DONE (Session 22): `npm run generate:types` (programmatic runner sidesteps the broken CLI); generated types adopted, all strict-type errors fixed, tsc clean
-- ☐ **i18n leftovers** — homepage-block text localization, product image `alt` localization, decorative shop strings, localized order emails
+- ☐ **i18n leftovers** — homepage-block text localization, product image `alt` localization,
+  decorative shop strings. ~~localized order emails~~ — **DONE (Session 29)**: `Orders.locale`
+  field + an en/ar string dictionary in `notifications.ts` covering both the order-confirmation
+  and status-update HTML templates; v1/basic RTL (`dir` attribute + translated strings, not a
+  bespoke mirrored layout — an intentional scope call, not an oversight).
 - ☐ **4.3 deferred** — Payload versions/rollback + live-preview iframe for Pages/Homepage
 - ☑ **Weekly email summary** for the sales dashboard — DONE (Session 26), see Part 4 §4.2
-- ☐ **Recently-viewed strip** — server-backed design (no localStorage per mandate); fold into customer-account phase polish
+- ☑ **Recently-viewed strip** — **DONE (Session 29)**: cookie-based (httpOnly, no localStorage,
+  per mandate) — `POST/GET /api/recently-viewed`. Built as a client-fetch component
+  (`RecentlyViewedStrip.tsx`), not a Server Component reading `cookies()` directly, since that
+  would force the ISR product pages dynamic — verified the build output still shows product
+  pages as `●` (SSG) after the change.
 - ☐ **2.7 artist filter chips → dropdown/combobox** at scale (~15+ artists)
 - ☐ **Announcement-bar contrast check** on admin-set colors
-- ☐ **WhatsApp activation** — code ready, needs Meta keys (blocked on business verification)
+- ◐ **WhatsApp activation** — **in progress (Session 29)**: real Meta Cloud API credentials
+  obtained and wired in (`.env.local`), a real test message confirmed delivered. Along the way,
+  found and fixed a real bug: the staff new-order alert sent plain free-text, which WhatsApp's
+  24h "customer service window" policy silently rejects for any recipient who hasn't messaged
+  the business first — confirmed via the actual delivery webhook payload (error 131047,
+  "Re-engagement message"). Converted to an approved-template send
+  (`WHATSAPP_ORDER_ALERT_TEMPLATE_NAME`), and added a new customer-facing order-confirmation
+  WhatsApp message that didn't exist before (`WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME`).
+  **Still open**: both templates are submitted to Meta for approval, not yet live — set the two
+  template-name env vars once approved to activate.
 - ☐ **Instagram embed** — blocked on brand handle
 
 ---
@@ -835,8 +852,11 @@ typically takes longer than the code).
 External blockers to start in parallel today:
 1. Card acquirer merchant account — Areeba (MPGS) or NetCommerce — with sandbox/hosted-checkout access
 2. OMT merchant/B2B agreement (asks: e-commerce API availability, voucher flow)
-3. Meta WhatsApp Cloud API business verification (already known)
-4. Resend domain verification for the production sender (already in DEPLOY.md)
+3. ~~Meta WhatsApp Cloud API business verification~~ — **in progress (Session 29)**: real
+   credentials obtained, a test app is live, two message templates submitted for Meta
+   approval. Not fully closed until those templates are approved.
+4. ~~Resend domain verification for the production sender~~ — **DONE (Session 29)**:
+   `trackid-lb.com` added and verified in Resend (DKIM + SPF both confirmed), sending is live.
 
 ---
 
