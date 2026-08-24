@@ -14,7 +14,7 @@
 Companion to bug B5. `CartContext` gained `isLoading`; drawer shows a loading line, cart page + checkout render skeletons until the server cart resolves.
 - Files: `CartContext.tsx`, `CartDrawer.tsx`, `cart/page.tsx`, `CheckoutForm.tsx`.
 
-### E2 ☐ 🟢 Free-delivery progress nudge
+### E2 ☑ DONE (Session 29) 🟢 Free-delivery progress nudge
 Settings already hold `freeDeliveryThreshold` + zones. In the drawer and cart page show: "You're $12 away from free delivery" with a thin progress bar; switches to "✓ Free delivery unlocked" past the threshold. Classic AOV lever, zero schema change.
 - Data path: thread `freeDeliveryThreshold` from the layout (already fetches settings) into `CartProvider` alongside `emptyCartMessage`.
 - Files: `(frontend)/layout.tsx`, `CartContext.tsx`, `CartDrawer.tsx`, `cart/page.tsx`, `messages/{en,ar}.json`.
@@ -26,7 +26,7 @@ Settings already hold `freeDeliveryThreshold` + zones. In the drawer and cart pa
 - Submit button disabled until required fields valid; scroll-to-first-error
 - Files: `api/orders/route.ts`, `CheckoutForm.tsx`, `api/account/profile/route.ts` reuse.
 
-### E4 ☐ 🟢 Toast/feedback channel for cart + wishlist actions
+### E4 ☑ DONE (Session 29) 🟢 Toast/feedback channel for cart + wishlist actions
 Small dependency-free toast (aria-live polite, auto-dismiss, theme-colored) used by: add-to-cart failures (bug B6), wishlist saved/removed, profile saved. One component, mounted in the frontend layout.
 - Files: new `src/components/ui/Toast.tsx` (+ context), consumers above.
 
@@ -34,7 +34,7 @@ Small dependency-free toast (aria-live polite, auto-dismiss, theme-colored) used
 
 ## B. Product & Discovery UX
 
-### E5 ☐ 🟡 Product page content upgrades
+### E5 ☑ DONE (Session 29) 🟡 Product page content upgrades
 - ☑ Render the per-product rich-text `description` (bug B2 — done Session 22)
 - **Size guide**: optional CMS page slug in SiteSettings (`sizeGuidePage`); when set and the product has sizes, "Size guide" link opens it (modal or new tab)
 - **Delivery & returns accordion**: localized SiteSettings copy fields (`deliveryInfo`, `returnsInfo`) rendered as collapsible sections under the buy box — answers the two questions every COD customer asks
@@ -42,7 +42,7 @@ Small dependency-free toast (aria-live polite, auto-dismiss, theme-colored) used
 - **Image lightbox/zoom**: click main image → full-screen overlay with pinch/scroll zoom; hand-painted detail is the product — let people see brushstrokes. Dependency-free (CSS transform + pointer events)
 - Files: `product/[slug]/page.tsx`, `ProductGallery.tsx`, `src/globals/SiteSettings.ts` (Copy/Commerce tabs), new `ShareButton.tsx`, `messages/*`.
 
-### E6 ☐ 🟡 Shop filtering that scales (IMPROVEMENTS 2.7 leftover + gaps)
+### E6 ☑ DONE (Session 29) 🟡 Shop filtering that scales (IMPROVEMENTS 2.7 leftover + gaps)
 - **Garment-type filter** — the data model has `garmentType` (Session 10) but the shop offers no way to filter by it. Add alongside category chips
 - Artist wall-of-chips → searchable `<select>`/combobox once artists > ~10 (progressive: chips under the limit, dropdown over)
 - **In-stock only** toggle (`totalStock > 0` needs a where on sizes/stockQuantity — compute simplest server-side variant: `stockQuantity > 0 OR sizes.stockQuantity > 0`)
@@ -50,7 +50,7 @@ Small dependency-free toast (aria-live polite, auto-dismiss, theme-colored) used
 - Active filters row with × remove chips; ☑ real total count via `totalDocs` (bug B23 — done Session 22)
 - Files: `shop/page.tsx`, `messages/*`.
 
-### E7 ☐ 🟢 Global search entry point in the nav
+### E7 ☑ DONE (Session 29) 🟢 Global search entry point in the nav
 Search only exists buried on /shop. Add a search icon in the nav (desktop + mobile) opening a minimal overlay with one input that submits to `/shop?q=` (locale-aware — bug B8's helper). Zero new backend.
 - Files: `Nav.tsx`, small `SearchOverlay.tsx` client component, `messages/*`.
 
@@ -62,7 +62,7 @@ Search only exists buried on /shop. Add a search icon in the nav (desktop + mobi
 - Files: `src/lib/structured-data.ts` (new), `product/[slug]/page.tsx`, `artist/[slug]/
   page.tsx`, `bundle/[slug]/page.tsx`, `blog/[slug]/page.tsx`, `(frontend)/layout.tsx`.
 
-### E9 ☐ 🟡 Recently-viewed strip (no localStorage — mandate)
+### E9 ☑ DONE (Session 29) 🟡 Recently-viewed strip (no localStorage — mandate)
 Cookie-based: product page fires a tiny client effect → `POST /api/recently-viewed` appends the id to an httpOnly cookie (last 8 ids, no DB). Product page + cart empty state render the strip server-side from the cookie. Honors the "no localStorage, ever" rule without a schema change.
 - Files: new `api/recently-viewed/route.ts`, small `RecentlyViewedTracker.tsx` (client, fire-and-forget), `RecentlyViewedStrip.tsx` (RSC), product page + cart page.
 
@@ -79,11 +79,11 @@ Cookie-based: product page fires a tiny client effect → `POST /api/recently-vi
 - Optional later: email change (needs re-verification), account deletion request
 - Files: `api/account/*`, `AuthForm.tsx`, `account/page.tsx`, `WishlistButton.tsx`, `Nav.tsx`, `notifications.ts`, `messages/*`.
 
-### E11 ☐ 🟢 Order status timeline
+### E11 ☑ DONE (Session 29) 🟢 Order status timeline
 The order page prints the status as a word. Render the pipeline (Pending → Confirmed → In production → Shipped → Delivered) as a stepper with the current stage highlighted; cancelled renders distinctly. Pure UI over existing data — pairs with bug B3 (page must be dynamic first, or the timeline lies).
 - Files: `order/[orderNumber]/page.tsx`, `messages/*`.
 
-### E12 ☐ 🟡 Localized + brand-complete transactional emails (Session 18/11 leftovers)
+### E12 ☑ DONE (Session 29) 🟡 Localized + brand-complete transactional emails (Session 18/11 leftovers)
 - Order confirmation + status emails: Arabic variants (pick language by the storefront locale at checkout — store `locale` on the order, 1 new field)
 - The 5 `STATUS_EMAIL_COPY` lines move to the Copy tab (localized)
 - Email header uses the logo when set (3.1 leftover noted in IMPROVEMENTS)

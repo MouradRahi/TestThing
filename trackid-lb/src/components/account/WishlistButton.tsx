@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { useRouter } from '@/i18n/navigation'
+import { useToast } from '@/components/ui/Toast'
 
 // Server-backed save-for-later. Guests are sent to sign in first.
 // Pass `fetchState` (e.g. on the static product page) to resolve login + saved
@@ -22,6 +23,7 @@ export function WishlistButton({
 }) {
   const t = useTranslations('account')
   const router = useRouter()
+  const { showToast } = useToast()
   const [saved, setSaved] = useState(initialSaved)
   const [isLoggedIn, setIsLoggedIn] = useState(isLoggedInProp ?? false)
   const [loading, setLoading] = useState(false)
@@ -57,9 +59,16 @@ export function WishlistButton({
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setSaved(data.inWishlist)
+        showToast(data.inWishlist ? t('wishlistToastSaved') : t('wishlistToastRemoved'))
         if (!data.inWishlist) onRemoved?.()
         router.refresh()
+      } else {
+        // Previously silent on failure — a 400/500 here left the click
+        // looking like nothing happened at all.
+        showToast(t('wishlistToastError'), 'error')
       }
+    } catch {
+      showToast(t('wishlistToastError'), 'error')
     } finally {
       setLoading(false)
     }

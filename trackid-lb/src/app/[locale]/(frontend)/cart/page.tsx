@@ -5,6 +5,8 @@ import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { useCart } from '@/components/cart/CartContext'
 import { CartNotices } from '@/components/cart/CartNotices'
+import { FreeDeliveryNudge } from '@/components/cart/FreeDeliveryNudge'
+import { RecentlyViewedStrip } from '@/components/product/RecentlyViewedStrip'
 import { Button } from '@/components/ui/Button'
 import { formatPrice, formatLBP } from '@/lib/format'
 
@@ -38,6 +40,7 @@ export default function CartPage() {
         <h1 className="text-2xl font-bold text-foreground mb-3">{t('emptyTitle')}</h1>
         <p className="text-muted text-sm mb-10">{emptyCartMessage}</p>
         <Button href="/shop">{t('browseShop')}</Button>
+        <RecentlyViewedStrip />
       </div>
     )
   }
@@ -45,6 +48,7 @@ export default function CartPage() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-12">
       <CartNotices className="mb-8" />
+      <FreeDeliveryNudge className="mb-8" />
       <div className="flex items-baseline justify-between mb-10">
         <h1 className="text-2xl font-bold text-foreground">{t('title')}</h1>
         <span className="text-xs text-muted uppercase tracking-widest">

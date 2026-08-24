@@ -7,6 +7,7 @@ import { getSiteSettings, getDeliveryZones, DEFAULT_ORDER_THANKYOU_NOTE } from '
 import { formatPrice, formatLBP } from '@/lib/format'
 import { Button } from '@/components/ui/Button'
 import { PaymentConfirmingBanner } from '@/components/payments/PaymentConfirmingBanner'
+import { OrderStatusTimeline } from '@/components/OrderStatusTimeline'
 
 // Always render fresh: customers revisit this page (and arrive via /track) to
 // see their live order status — a cached copy would freeze it at first view.
@@ -59,7 +60,8 @@ export default async function OrderConfirmationPage({ params }: Props) {
   const isBankTransfer = order.paymentMethod === 'bank_transfer'
   const isCardPayment = order.paymentMethod === 'card'
   const paymentLabel = isCardPayment ? t('card') : isOmtPayment ? t('omt') : isBankTransfer ? t('bankTransfer') : t('cod')
-  const settings = await getSiteSettings(await getLocale())
+  const locale = await getLocale()
+  const settings = await getSiteSettings(locale)
   const bankInstructions = (settings.bankTransferInstructions as string) || ''
   const omtInstructions = (settings.omtInstructions as string) || ''
   const thankYouNote = (settings.orderThankYouNote as string) || DEFAULT_ORDER_THANKYOU_NOTE
@@ -150,6 +152,9 @@ export default async function OrderConfirmationPage({ params }: Props) {
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('status')}</p>
           <p className="text-foreground">{t(`statuses.${order.orderStatus as string}`)}</p>
+          <div className="mt-4">
+            <OrderStatusTimeline status={order.orderStatus as string} locale={locale} />
+          </div>
         </div>
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-muted mb-1.5">{t('delivery')}</p>

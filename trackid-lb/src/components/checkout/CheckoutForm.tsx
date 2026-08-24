@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useTranslations } from 'next-intl'
+import { useTranslations, useLocale } from 'next-intl'
 import { useRouter, Link } from '@/i18n/navigation'
 import Image from 'next/image'
 import { useCart } from '@/components/cart/CartContext'
@@ -54,6 +54,7 @@ export function CheckoutForm({
 }: Props) {
   const router = useRouter()
   const t = useTranslations('checkout')
+  const locale = useLocale()
   const { items, isLoading: cartLoading, total, clearCart, currency } = useCart()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -159,6 +160,7 @@ export function CheckoutForm({
         headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
         body: JSON.stringify({
           ...form,
+          locale,
           discountCode: discount?.code,
           giftCardCode: giftCardCode.trim() || undefined,
           useStoreCredit,

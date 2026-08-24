@@ -32,7 +32,60 @@ export type OrderNotificationData = {
   brand?: BrandCopy
   /** Rendered invoice PDF (ROADMAP Part 3.1) — attached when the caller supplies one; never generated here (this file stays a pure renderer with no Payload/DB access). */
   invoicePdf?: Buffer
+  /** Storefront locale at checkout (E12, ENHANCEMENTS.md) — picks the email's language. Defaults to 'en'. */
+  locale?: 'en' | 'ar'
 }
+
+// E12 (ENHANCEMENTS.md) — the static labels in both HTML email templates
+// below (table headers, section titles, the fixed parts of the greeting)
+// were hardcoded English. This is a v1/basic RTL treatment: `dir="rtl"` on
+// <html> plus these translated strings, not a bespoke mirrored layout — the
+// same "reasonable smaller scope" call this project made for the email
+// shell staying dark-themed (Session 11).
+const EMAIL_STRINGS = {
+  en: {
+    orderReceived: 'Order received',
+    yourOrder: 'Your Order',
+    subtotal: 'Subtotal',
+    discount: 'Discount',
+    delivery: 'Delivery',
+    deliveryConfirmedOnCall: 'Confirmed on call',
+    total: 'Total',
+    deliveryLabel: 'Delivery',
+    paymentLabel: 'Payment',
+    bankDetailsFallback: 'Bank account details will be sent separately via WhatsApp.',
+    questionsFooter: 'Questions? Reply to this email or WhatsApp us directly.',
+    orderConfirmedSubject: 'Order confirmed',
+    paymentCod: 'Cash on Delivery',
+    paymentCard: 'Card',
+    paymentOmt: 'OMT',
+    paymentBankTransfer: 'Bank Transfer',
+    hiGreeting: (name: string) => `Hi ${name},`,
+    courier: 'Courier',
+    tracking: 'Tracking',
+  },
+  ar: {
+    orderReceived: 'تم استلام طلبك',
+    yourOrder: 'طلبك',
+    subtotal: 'المجموع الفرعي',
+    discount: 'الخصم',
+    delivery: 'التوصيل',
+    deliveryConfirmedOnCall: 'يُحدَّد عند الاتصال',
+    total: 'الإجمالي',
+    deliveryLabel: 'التوصيل',
+    paymentLabel: 'الدفع',
+    bankDetailsFallback: 'سيتم إرسال تفاصيل الحساب البنكي عبر واتساب بشكل منفصل.',
+    questionsFooter: 'أسئلة؟ الرجاء الرد على هذا البريد الإلكتروني أو مراسلتنا عبر واتساب.',
+    orderConfirmedSubject: 'تم تأكيد الطلب',
+    paymentCod: 'الدفع عند الاستلام',
+    paymentCard: 'بطاقة',
+    paymentOmt: 'أو إم تي',
+    paymentBankTransfer: 'تحويل بنكي',
+    hiGreeting: (name: string) => `مرحبًا ${name}،`,
+    courier: 'شركة التوصيل',
+    tracking: 'رقم التتبع',
+  },
+} as const
 
 // Mirror of site-settings.ts BrandCopy — duplicated here so this stays a pure
 // renderer with no SiteSettings/Payload import. Callers pass resolved strings.
@@ -82,7 +135,7 @@ export async function sendOrderConfirmationEmail(order: OrderNotificationData): 
       from,
       to: order.customerEmail,
       ...(replyTo ? { replyTo } : {}),
-      subject: `Order confirmed — ${order.orderNumber}`,
+      subject: `${EMAIL_STRINGS[order.locale === 'ar' ? 'ar' : 'en'].orderConfirmedSubject} — ${order.orderNumber}`,
       html: buildOrderEmailHtml(order),
       ...(order.invoicePdf
         ? { attachments: [{ filename: `invoice-${order.orderNumber}.pdf`, content: order.invoicePdf }] }
@@ -95,6 +148,9 @@ export async function sendOrderConfirmationEmail(order: OrderNotificationData): 
 }
 
 function buildOrderEmailHtml(order: OrderNotificationData): string {
+  const locale = order.locale === 'ar' ? 'ar' : 'en'
+  const s = EMAIL_STRINGS[locale]
+  const dir = locale === 'ar' ? 'rtl' : 'ltr'
   const itemsHtml = order.items
     .map(
       (item) => `
@@ -109,23 +165,21 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
   const brand = order.brand ?? DEFAULT_BRAND
   const paymentLabel =
     order.paymentMethod === 'cod'
-      ? 'Cash on Delivery'
+      ? s.paymentCod
       : order.paymentMethod === 'card'
-        ? 'Card'
+        ? s.paymentCard
         : order.paymentMethod === 'omt'
-          ? 'OMT'
-          : 'Bank Transfer'
+          ? s.paymentOmt
+          : s.paymentBankTransfer
   const bankNote =
     order.paymentMethod === 'bank_transfer'
       ? `<p style="margin: 8px 0 0; font-size: 12px; color: #666; line-height: 1.5;">${
-          order.bankInstructions
-            ? escapeHtml(order.bankInstructions).replace(/\n/g, '<br>')
-            : 'Bank account details will be sent separately via WhatsApp.'
+          order.bankInstructions ? escapeHtml(order.bankInstructions).replace(/\n/g, '<br>') : s.bankDetailsFallback
         }</p>`
       : ''
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${locale}" dir="${dir}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -147,7 +201,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Title -->
           <tr>
             <td style="padding:36px 0 6px;">
-              <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">Order received</h1>
+              <h1 style="margin:0;font-size:24px;font-weight:700;color:#f5f0e8;letter-spacing:-0.02em;">${s.orderReceived}</h1>
             </td>
           </tr>
           <tr>
@@ -159,14 +213,14 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Greeting -->
           <tr>
             <td style="padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
-              <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(order.customerName)},<br><br>${escapeHtml(brand.emailGreeting)}</p>
+              <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">${s.hiGreeting(escapeHtml(order.customerName))}<br><br>${escapeHtml(brand.emailGreeting)}</p>
             </td>
           </tr>
 
           <!-- Items -->
           <tr>
             <td style="padding-top:28px;">
-              <p style="margin:0 0 16px;font-size:10px;letter-spacing:0.2em;color:#444;text-transform:uppercase;">Your Order</p>
+              <p style="margin:0 0 16px;font-size:10px;letter-spacing:0.2em;color:#444;text-transform:uppercase;">${s.yourOrder}</p>
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 ${itemsHtml}
               </table>
@@ -178,23 +232,23 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
             <td style="padding:20px 0;border-top:1px solid #1e1e1e;border-bottom:1px solid #1e1e1e;">
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="font-size:12px;color:#555;padding-bottom:6px;">Subtotal</td>
+                  <td style="font-size:12px;color:#555;padding-bottom:6px;">${s.subtotal}</td>
                   <td align="right" style="font-size:12px;color:#555;padding-bottom:6px;font-variant-numeric:tabular-nums;">$${order.subtotal.toFixed(2)}</td>
                 </tr>
                 ${
                   order.discountAmount && order.discountAmount > 0
                     ? `<tr>
-                  <td style="font-size:12px;color:#8a7f6a;padding-bottom:6px;">Discount${order.discountCode ? ` (${escapeHtml(order.discountCode)})` : ''}</td>
+                  <td style="font-size:12px;color:#8a7f6a;padding-bottom:6px;">${s.discount}${order.discountCode ? ` (${escapeHtml(order.discountCode)})` : ''}</td>
                   <td align="right" style="font-size:12px;color:#8a7f6a;padding-bottom:6px;font-variant-numeric:tabular-nums;">&minus;$${order.discountAmount.toFixed(2)}</td>
                 </tr>`
                     : ''
                 }
                 <tr>
-                  <td style="font-size:12px;color:#555;padding-bottom:6px;">Delivery</td>
-                  <td align="right" style="font-size:12px;color:#555;padding-bottom:6px;">${order.deliveryFeeLabel ?? 'Confirmed on call'}</td>
+                  <td style="font-size:12px;color:#555;padding-bottom:6px;">${s.delivery}</td>
+                  <td align="right" style="font-size:12px;color:#555;padding-bottom:6px;">${order.deliveryFeeLabel ?? s.deliveryConfirmedOnCall}</td>
                 </tr>
                 <tr>
-                  <td style="font-size:13px;color:#c0b8ae;font-weight:600;">Total</td>
+                  <td style="font-size:13px;color:#c0b8ae;font-weight:600;">${s.total}</td>
                   <td align="right" style="font-size:13px;color:#c0b8ae;font-weight:600;font-variant-numeric:tabular-nums;">
                     $${order.total.toFixed(2)}
                     ${
@@ -211,7 +265,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Delivery -->
           <tr>
             <td style="padding-top:24px;padding-bottom:8px;">
-              <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;color:#444;text-transform:uppercase;">Delivery</p>
+              <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;color:#444;text-transform:uppercase;">${s.deliveryLabel}</p>
               <p style="margin:0;font-size:13px;color:#888;line-height:1.6;">${escapeHtml(order.area)}<br>${escapeHtml(order.deliveryAddress).replace(/\n/g, '<br>')}</p>
             </td>
           </tr>
@@ -219,7 +273,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Payment -->
           <tr>
             <td style="padding-top:20px;padding-bottom:32px;border-bottom:1px solid #1e1e1e;">
-              <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;color:#444;text-transform:uppercase;">Payment</p>
+              <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;color:#444;text-transform:uppercase;">${s.paymentLabel}</p>
               <p style="margin:0;font-size:13px;color:#888;">${paymentLabel}</p>
               ${bankNote}
             </td>
@@ -228,7 +282,7 @@ function buildOrderEmailHtml(order: OrderNotificationData): string {
           <!-- Footer -->
           <tr>
             <td style="padding-top:32px;">
-              <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">${escapeHtml(brand.storeName)} — ${escapeHtml(brand.emailFooterNote)}<br>Questions? Reply to this email or WhatsApp us directly.</p>
+              <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">${escapeHtml(brand.storeName)} — ${escapeHtml(brand.emailFooterNote)}<br>${s.questionsFooter}</p>
             </td>
           </tr>
 
@@ -254,33 +308,47 @@ export type StatusEmailData = {
   trackingRef?: string
   /** Only needed by sendOrderStatusWhatsApp — the email itself doesn't use it. */
   customerPhone?: string
+  /** Storefront locale at checkout (E12, ENHANCEMENTS.md) — picks the email's language. Defaults to 'en'. */
+  locale?: 'en' | 'ar'
 }
 
-const STATUS_EMAIL_COPY: Record<string, { subject: string; body: string }> = {
+const STATUS_EMAIL_COPY: Record<string, Record<'en' | 'ar', { subject: string; body: string }>> = {
   confirmed: {
-    subject: 'Order confirmed',
-    body: 'Your order is confirmed — we’re getting started on your piece.',
+    en: { subject: 'Order confirmed', body: 'Your order is confirmed — we’re getting started on your piece.' },
+    ar: { subject: 'تم تأكيد الطلب', body: 'تم تأكيد طلبك — بدأنا العمل على قطعتك.' },
   },
   in_production: {
-    subject: 'Your piece is being painted',
-    body: 'Your piece is on the easel right now. We’ll let you know the moment it ships.',
+    en: {
+      subject: 'Your piece is being painted',
+      body: 'Your piece is on the easel right now. We’ll let you know the moment it ships.',
+    },
+    ar: { subject: 'قطعتك قيد الرسم', body: 'قطعتك على الحامل الآن. سنعلمك فور شحنها.' },
   },
   shipped: {
-    subject: 'Your order is on its way',
-    body: 'Your order has shipped. Keep your phone nearby — the courier will call to arrange delivery.',
+    en: {
+      subject: 'Your order is on its way',
+      body: 'Your order has shipped. Keep your phone nearby — the courier will call to arrange delivery.',
+    },
+    ar: { subject: 'طلبك في الطريق', body: 'تم شحن طلبك. يرجى إبقاء هاتفك قريبًا — سيتصل بك مندوب التوصيل لترتيب موعد التسليم.' },
   },
   delivered: {
-    subject: 'Order delivered',
-    body: 'Your order was delivered. Thank you for supporting the music — wear it loud.',
+    en: { subject: 'Order delivered', body: 'Your order was delivered. Thank you for supporting the music — wear it loud.' },
+    ar: { subject: 'تم تسليم الطلب', body: 'تم تسليم طلبك. شكرًا لدعمك الموسيقى — البسها بفخر.' },
   },
   cancelled: {
-    subject: 'Order cancelled',
-    body: 'Your order has been cancelled. If this is unexpected, just reply to this email or reach us on WhatsApp.',
+    en: {
+      subject: 'Order cancelled',
+      body: 'Your order has been cancelled. If this is unexpected, just reply to this email or reach us on WhatsApp.',
+    },
+    ar: { subject: 'تم إلغاء الطلب', body: 'تم إلغاء طلبك. إذا لم يكن هذا متوقعًا، يرجى الرد على هذا البريد الإلكتروني أو مراسلتنا عبر واتساب.' },
   },
 }
 
 export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void> {
-  const copy = STATUS_EMAIL_COPY[data.status]
+  const locale = data.locale === 'ar' ? 'ar' : 'en'
+  const dir = locale === 'ar' ? 'rtl' : 'ltr'
+  const s = EMAIL_STRINGS[locale]
+  const copy = STATUS_EMAIL_COPY[data.status]?.[locale]
   if (!copy || !data.customerEmail) return
 
   const apiKey = process.env.RESEND_API_KEY
@@ -295,7 +363,7 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
   const replyTo = brand.contactEmail
 
   const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="${locale}" dir="${dir}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${copy.subject}</title></head>
 <body style="margin:0;padding:0;background-color:#0a0a0a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;">
@@ -311,19 +379,19 @@ export async function sendOrderStatusEmail(data: StatusEmailData): Promise<void>
           <p style="margin:0;font-family:'Courier New',monospace;font-size:13px;letter-spacing:0.15em;color:#c9a96e;">${escapeHtml(data.orderNumber)}</p>
         </td></tr>
         <tr><td style="padding-bottom:32px;">
-          <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">Hi ${escapeHtml(data.customerName)},<br><br>${copy.body}</p>
+          <p style="margin:0;font-size:14px;color:#888;line-height:1.7;">${s.hiGreeting(escapeHtml(data.customerName))}<br><br>${copy.body}</p>
           ${
             data.status === 'shipped' && (data.courierName || data.trackingRef)
               ? `<p style="margin:16px 0 0;font-size:13px;color:#c9a96e;">${
-                  data.courierName ? `Courier: ${escapeHtml(data.courierName)}` : ''
+                  data.courierName ? `${s.courier}: ${escapeHtml(data.courierName)}` : ''
                 }${data.courierName && data.trackingRef ? ' · ' : ''}${
-                  data.trackingRef ? `Tracking: ${escapeHtml(data.trackingRef)}` : ''
+                  data.trackingRef ? `${s.tracking}: ${escapeHtml(data.trackingRef)}` : ''
                 }</p>`
               : ''
           }
         </td></tr>
         <tr><td style="padding-top:24px;border-top:1px solid #1e1e1e;">
-          <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">Questions? Reply to this email or WhatsApp us directly.</p>
+          <p style="margin:0;font-size:11px;color:#3a3a3a;line-height:1.6;">${s.questionsFooter}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -858,7 +926,10 @@ export async function sendOrderConfirmationWhatsApp(order: OrderNotificationData
 // uses (STATUS_EMAIL_COPY[status].subject) — kept in sync automatically since
 // both read from the same map.
 export async function sendOrderStatusWhatsApp(data: StatusEmailData): Promise<void> {
-  const copy = STATUS_EMAIL_COPY[data.status]
+  // WhatsApp templates are configured per-deployment (WHATSAPP_STATUS_TEMPLATE_LANG),
+  // not per-order like the email is — always source the status label from
+  // 'en' here regardless of the order's own locale.
+  const copy = STATUS_EMAIL_COPY[data.status]?.en
   if (!copy || !data.customerPhone) return
 
   const token = process.env.WHATSAPP_TOKEN

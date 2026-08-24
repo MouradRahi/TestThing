@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useRouter } from '@/i18n/navigation'
 import { Button } from '@/components/ui/Button'
 import { Field, TextareaField } from '@/components/ui/FormField'
+import { useToast } from '@/components/ui/Toast'
 
 type Address = { label?: string; area?: string; deliveryAddress?: string }
 
@@ -19,6 +20,7 @@ export function ProfileForm({
 }) {
   const t = useTranslations('account')
   const router = useRouter()
+  const { showToast } = useToast()
   const [form, setForm] = useState({ name, phone })
   const [addrs, setAddrs] = useState<Address[]>(addresses)
   const [saving, setSaving] = useState(false)
@@ -42,6 +44,7 @@ export function ProfileForm({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || t('genericError'))
       setSaved(true)
+      showToast(t('profileToastSaved'))
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : t('genericError'))

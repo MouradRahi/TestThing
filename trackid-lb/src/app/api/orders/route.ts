@@ -180,6 +180,7 @@ export async function POST(req: NextRequest) {
     const giftCardCodeInput = cleanOptional(body.giftCardCode, 40)
     const useStoreCredit = body.useStoreCredit === true
     const usePoints = body.usePoints === true
+    const orderLocale: 'en' | 'ar' = body.locale === 'ar' ? 'ar' : 'en'
     const paymentMethod: 'cod' | 'bank_transfer' | 'card' | 'omt' =
       body.paymentMethod === 'bank_transfer'
         ? 'bank_transfer'
@@ -468,6 +469,7 @@ export async function POST(req: NextRequest) {
         collection: 'orders',
         data: {
           orderNumber: generateOrderNumber(settings.orderNumberPrefix),
+          locale: orderLocale,
           customerName,
           customerPhone,
           customerEmail,
@@ -550,6 +552,7 @@ export async function POST(req: NextRequest) {
     const notificationData = {
       orderId: String(order.id),
       orderNumber: order.orderNumber as string,
+      locale: orderLocale,
       customerName,
       customerPhone,
       customerEmail,
