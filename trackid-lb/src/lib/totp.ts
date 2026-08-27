@@ -1,5 +1,6 @@
 import { TOTP, Secret } from 'otpauth'
 import QRCode from 'qrcode'
+import { getStoreName } from './env'
 
 // Thin wrapper around `otpauth`/`qrcode` for staff opt-in 2FA (ROADMAP F0
 // §1.6 follow-up). Server-only — never imported by any client component, so
@@ -7,7 +8,7 @@ import QRCode from 'qrcode'
 // pre-built QR data URI; login verification happens inside the `beforeLogin`
 // collection hook).
 
-const ISSUER = process.env.NEXT_PUBLIC_STORE_NAME || 'trackID.lb'
+const ISSUER = getStoreName()
 // A generous ±1 step window (±30s) tolerates minor clock drift between the
 // server and the admin's phone without meaningfully widening the guessable
 // window (a 6-digit code is still only valid for ~90s total either way).

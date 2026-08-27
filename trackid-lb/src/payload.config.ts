@@ -35,6 +35,7 @@ import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
 import { Homepage } from './globals/Homepage'
 import { slugify } from './lib/slug'
+import { getStoreName, getSupabaseUrl, getSupabaseStorageBucket } from './lib/env'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -51,8 +52,8 @@ export default buildConfig({
     user: Users.slug,
     meta: {
       // Config loads before the DB, so the admin title can't read storeName from
-      // SiteSettings — set NEXT_PUBLIC_STORE_NAME to rebrand the admin tab title.
-      titleSuffix: `— ${process.env.NEXT_PUBLIC_STORE_NAME || 'trackID.lb'} Admin`,
+      // SiteSettings — set STORE_NAME to rebrand the admin tab title.
+      titleSuffix: `— ${getStoreName()} Admin`,
     },
     // Local admin component paths (e.g. '/components/...') resolve relative to src/
     importMap: {
@@ -131,7 +132,7 @@ export default buildConfig({
       enabled: Boolean(
         process.env.ACCESS_KEY_ID_SUPABASE && process.env.SECRET_ACCESS_KEY_SUPABASE,
       ),
-      bucket: process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'products',
+      bucket: getSupabaseStorageBucket(),
       // Upload straight from the browser to Supabase via a presigned URL, so large
       // images don't hit Vercel's ~4.5MB serverless request-body limit. Requires a
       // CORS rule on the bucket allowing PUT from the site origin (see DEPLOY.md).
@@ -142,8 +143,8 @@ export default buildConfig({
           // Serve files straight from Supabase's public CDN, not proxied through Payload
           disablePayloadAccessControl: true,
           generateFileURL: ({ filename, prefix }) => {
-            const base = process.env.NEXT_PUBLIC_SUPABASE_URL
-            const bucket = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET || 'products'
+            const base = getSupabaseUrl()
+            const bucket = getSupabaseStorageBucket()
             const key = [prefix, filename].filter(Boolean).join('/')
             return `${base}/storage/v1/object/public/${bucket}/${key}`
           },

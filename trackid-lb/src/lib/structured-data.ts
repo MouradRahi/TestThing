@@ -1,3 +1,4 @@
+import { getSiteUrl } from './env'
 // Shared JSON-LD builders (ROADMAP Part 7 — structured-data audit / ENHANCEMENTS
 // E8). Product schema + per-product AggregateRating already existed
 // (product/[slug]/page.tsx); this adds the site-wide Organization/WebSite
@@ -5,7 +6,7 @@
 // real navigation trail. Pure functions — no Payload/DB access — callers
 // pass already-resolved settings/locale, same convention as notifications.ts.
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const siteUrl = getSiteUrl()
 
 function withLocalePrefix(path: string, locale: string, defaultLocale: string): string {
   const p = path.startsWith('/') ? path : `/${path}`

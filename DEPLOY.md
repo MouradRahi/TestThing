@@ -31,7 +31,7 @@ You've been developing against **one** Supabase project, and Payload's dev serve
 
 ## 2. Supabase — storage (images)
 
-- ☐ The bucket in `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET` (`products`) is set to **Public** (Storage → bucket → Settings). Image URLs are served straight from the public CDN.
+- ☐ The bucket in `SUPABASE_STORAGE_BUCKET` (`products`) is set to **Public** (Storage → bucket → Settings). Image URLs are served straight from the public CDN.
 - ☐ S3 access key still valid (Project Settings → Storage → S3 Connection). You'll put the keys in Vercel env (below).
 
 ## 3. Resend — email (order confirmations)
@@ -60,9 +60,9 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 |---|---|
 | `PAYLOAD_SECRET` | ⚠️ **Generate a NEW strong random value for prod** — don't reuse the dev string. (e.g. `openssl rand -hex 32`) |
 | `DATABASE_URI` | Supabase **pooler** URL (port 6543) |
-| `NEXT_PUBLIC_SITE_URL` | `https://trackid-lb.com` (your real domain — drives metadata, sitemap, robots, OG) |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://bdbhygelwizizepxewxv.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET` | `products` |
+| `SITE_URL` | `https://trackid-lb.com` (your real domain — drives metadata, sitemap, robots, OG) |
+| `SUPABASE_URL` | `https://bdbhygelwizizepxewxv.supabase.co` |
+| `SUPABASE_STORAGE_BUCKET` | `products` |
 | `SUPABASE_S3_ENDPOINT` | `https://bdbhygelwizizepxewxv.storage.supabase.co/storage/v1/s3` |
 | `SUPABASE_S3_REGION` | `eu-central-1` |
 | `ACCESS_KEY_ID_SUPABASE` | from Supabase S3 connection |
@@ -92,7 +92,7 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 |---|---|
 | `CI_PAYLOAD_SECRET` | any string (can differ from dev/prod) |
 | `CI_DATABASE_URI` | dev project's pooler URL |
-| `CI_SUPABASE_URL` | dev project's `NEXT_PUBLIC_SUPABASE_URL` |
+| `CI_SUPABASE_URL` | dev project's `SUPABASE_URL` |
 | `CI_SUPABASE_STORAGE_BUCKET` | dev project's storage bucket name |
 | `CI_SUPABASE_S3_ENDPOINT` / `CI_SUPABASE_S3_REGION` | dev project's S3 connection details |
 | `CI_S3_ACCESS_KEY_ID` / `CI_S3_SECRET_ACCESS_KEY` | dev project's S3 keys |
@@ -100,6 +100,88 @@ Add each to **Production** (and Preview if you want preview deploys to work). Pa
 ⚠️ **These must stay pointed at the disposable dev project, never prod** — the E2E suite places real test orders through the real checkout API, exactly the reason the dev/prod split exists (MIGRATIONS.md). If the dev Supabase project is ever recreated/rotated, update these 8 secret values to match.
 
 Rotate/update a secret anytime from the same Settings page, or locally with `gh secret set NAME` if the `gh` CLI is installed. Both suites can also be run locally before pushing: `npm test` (fast, seconds) and `npm run test:e2e` (slower — builds + starts the app, ~2–3 min).
+
+## 5b. Vercel — Preview / demo environment (dev database)
+
+Purpose: a shareable deployment running the **dev** Supabase project, so the app can be
+demoed and freely messed with without touching real orders or customers. Same
+per-client-deploy model ROADMAP Part 8.2 settles on, in miniature.
+
+**How it works**: Vercel scopes every variable to Production / Preview / Development
+independently, so Preview can point somewhere else entirely. Every branch already gets its
+own URL automatically — `<project>-git-<branch>-<scope>.vercel.app` — with no setup.
+**Do not change the Production Branch setting** to achieve this: `...-git-main-...` is the
+production branch's own URL and will always track production.
+
+### First, unblock the link
+
+- ☐ **Settings → Deployment Protection → turn off Vercel Authentication for Preview.**
+  Until you do, preview URLs 302 to `vercel.com/sso-api` and anyone not on your Vercel team
+  hits a login wall. Preview deployments already send `X-Robots-Tag: noindex`, so opening
+  them up does not risk a duplicate of the store being indexed.
+
+### Set these to Preview scope (dev project values)
+
+| Variable | Preview value |
+|---|---|
+| `DATABASE_URI` | dev pooler URI (copy from `.env.local`) |
+| `PAYLOAD_SECRET` | any strong random value — need not match production |
+| `SITE_URL` | the preview URL, e.g. `https://trackid-lb-git-<branch>-<scope>.vercel.app` |
+| `SUPABASE_URL` | `https://lsrmtpazcdksdllfrsqw.supabase.co` |
+| `SUPABASE_STORAGE_BUCKET` | `products` |
+| `SUPABASE_S3_ENDPOINT` | `https://lsrmtpazcdksdllfrsqw.storage.supabase.co/storage/v1/s3` |
+| `SUPABASE_S3_REGION` | `ap-southeast-2` ⚠️ **differs from production** (`eu-central-1`) |
+| `ACCESS_KEY_ID_SUPABASE` / `SECRET_ACCESS_KEY_SUPABASE` | dev project's S3 keys |
+
+⚠️ The S3 endpoint and region are project-specific and must match `SUPABASE_URL`. Mixing a
+dev URL with prod S3 credentials fails at upload time, not at build time — so it looks fine
+until someone tries to add an image during a demo.
+
+### Deliberately leave UNSET on Preview
+
+So a demo order never reaches real people or pollutes real dashboards. Every one of these
+degrades to a silent no-op when absent — by design throughout the codebase.
+
+`RESEND_API_KEY` · `RESEND_FROM` · `RESEND_AUDIENCE_ID` · all nine `WHATSAPP_*` ·
+`NEXT_PUBLIC_SENTRY_DSN` · `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` ·
+`CRON_SECRET` (Vercel Cron only runs on production deployments, so it is not needed here)
+
+### Optional — worth setting for a good demo
+
+| Variable | Value | Why |
+|---|---|---|
+| `ONLINE_PAYMENTS_ENABLED` | `true` | Required for Card / OMT to appear at checkout at all |
+| `ALLOW_MOCK_PAYMENTS` | `true` | Enables the mock provider, so you can walk someone through a card payment |
+| `MOCK_PAYMENT_SECRET` | any random string | Signs the mock webhook |
+| `SEED_SECRET` | any random string | Lets you reset demo catalog data via `npm run seed` |
+| `STORE_NAME` | e.g. a prospect's brand | Rebrands the admin tab title when demoing white-label |
+
+### Gotchas specific to this setup
+
+1. **The build command runs `npm run migrate` against whatever `DATABASE_URI` points at** —
+   so deploying a branch carrying a new migration applies it to the **dev** database
+   automatically. Desirable, but know it is happening.
+2. **`NODE_ENV` is `production` on Preview too.** Payload's schema push stays off (good — no
+   accidental sync), which is also why `SEED_SECRET` is required to seed there.
+3. **A variable restricted to Production is `undefined` on Preview, and some fall back
+   silently.** `SITE_URL` in particular falls back to `http://localhost:3000`, putting
+   localhost into canonicals, the sitemap, invoice links and emails with no error shown. Set
+   a Preview value for everything in the table above — do not merely restrict Production.
+4. **Values are read at build time — edit, then redeploy.** Changing a variable in the
+   dashboard does nothing to an already-built deployment.
+5. **The dev database is not a clean demo dataset.** As of 2026-08-26 it holds ~6 products,
+   3 artists and ~73 test orders accumulated from verification work. `npm run seed -- --reset`
+   refreshes the catalog but deliberately leaves orders alone — clear those separately for a
+   presentable demo.
+
+### For a permanent demo rather than a branch preview
+
+Consider a **separate Vercel project** on the same repo/branch with its own variables and a
+stable domain (e.g. `demo.yourbrand.com`). Cleaner than preview URLs: no chance of confusing
+Preview and Production scopes, and a link that does not change. That is the shape ROADMAP
+Part 8.6 ("demo deployment for sales conversations") assumes.
+
+---
 
 ## 6. Deploy
 

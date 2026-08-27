@@ -4,6 +4,7 @@ import { resolveBrandCopy } from '@/lib/site-settings'
 import { sendAbandonedCartEmail } from '@/lib/notifications'
 import { serializeCart } from '@/lib/cart-server'
 import { signCartRecoveryToken } from '@/lib/unsubscribe-token'
+import { getSiteUrl } from '@/lib/env'
 
 // Abandoned-cart recovery (ROADMAP Part 6.5) — same daily-cron auth pattern
 // as the other crons. Only logged-in customers qualify (guest carts have no
@@ -19,7 +20,7 @@ function authorized(req: NextRequest): boolean {
 }
 
 const IDLE_HOURS = 24
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const SITE_URL = getSiteUrl()
 
 export async function GET(req: NextRequest) {
   if (!authorized(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

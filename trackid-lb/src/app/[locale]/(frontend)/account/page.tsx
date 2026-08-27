@@ -13,6 +13,7 @@ import { LogoutButton } from '@/components/account/LogoutButton'
 import { ProfileForm } from '@/components/account/ProfileForm'
 import { ChangePasswordForm } from '@/components/account/ChangePasswordForm'
 import { WishlistButton } from '@/components/account/WishlistButton'
+import { getSiteUrl } from '@/lib/env'
 
 export async function generateMetadata({
   params,
@@ -59,7 +60,7 @@ export default async function AccountPage() {
   const loyalty = resolveLoyaltyConfig(settings)
   const storeCredit = Number(customer.storeCredit) || 0
   const loyaltyPoints = Number(customer.loyaltyPoints) || 0
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const siteUrl = getSiteUrl()
   const referralLink = `${siteUrl}/?ref=${customer.id}`
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

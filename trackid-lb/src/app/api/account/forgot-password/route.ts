@@ -5,6 +5,7 @@ import { clientIp, cleanString, EMAIL_RE } from '@/lib/api-guards'
 import { durableRateLimit } from '@/lib/durable-rate-limit'
 import { routing } from '@/i18n/routing'
 import { NextRequest, NextResponse } from 'next/server'
+import { getSiteUrl } from '@/lib/env'
 
 // Always responds { ok: true } for a well-formed request, whether or not the
 // email is registered — revealing which emails have accounts is an
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       })
       const customer = docs[0]
 
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      const siteUrl = getSiteUrl()
       const localePrefix = locale === routing.defaultLocale ? '' : `/${locale}`
       const resetUrl = `${siteUrl}${localePrefix}/account/reset/${token}`
 

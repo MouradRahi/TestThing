@@ -1,5 +1,13 @@
 # Environment Variables Reference
 
+> **Renamed 2026-08-26**: `SITE_URL`, `SUPABASE_URL`, `SUPABASE_STORAGE_BUCKET` and
+> `STORE_NAME` previously carried a `NEXT_PUBLIC_` prefix. Every read is server-side, so
+> the prefix only inlined them into the browser bundle for no benefit (Vercel flags this).
+> `src/lib/env.ts` reads the new name first and still falls back to the old one, so
+> environments can be migrated in any order — delete the fallbacks once Production and
+> Preview both carry the new names. `NEXT_PUBLIC_SENTRY_DSN` keeps its prefix: it is
+> genuinely read in the browser and a DSN is public by design.
+
 > Companion to `.env.local.example` (the file you actually copy) — this is the
 > narrative reference: what each variable does, whether it's required, and
 > what breaks if it's missing. Written with an eye toward ROADMAP.md Part 8
@@ -38,8 +46,8 @@ uploads vanish on every deploy). Treat as required for any real deployment.
 
 | Variable | What it's for |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Public base URL for the Supabase project serving images (same project as `DATABASE_URI`, or a dedicated storage project) |
-| `NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET` | Public bucket name (default `products`) — must exist and be marked **Public** with a CORS rule allowing `PUT` from your site's origin (client-direct uploads bypass Vercel's ~4.5MB request-body limit) |
+| `SUPABASE_URL` | Public base URL for the Supabase project serving images (same project as `DATABASE_URI`, or a dedicated storage project) |
+| `SUPABASE_STORAGE_BUCKET` | Public bucket name (default `products`) — must exist and be marked **Public** with a CORS rule allowing `PUT` from your site's origin (client-direct uploads bypass Vercel's ~4.5MB request-body limit) |
 | `SUPABASE_S3_ENDPOINT` | S3-compatible endpoint — Supabase → Project Settings → Storage → S3 Connection |
 | `SUPABASE_S3_REGION` | e.g. `eu-central-1` |
 | `ACCESS_KEY_ID_SUPABASE` | S3 access key (same S3 Connection panel) |
@@ -59,7 +67,7 @@ Session 21. Keep dev and prod either both-configured or both-unconfigured.
 
 | Variable | What it's for | Default if unset |
 |---|---|---|
-| `NEXT_PUBLIC_SITE_URL` | Canonical site URL — drives `metadataBase`, sitemap, robots.txt, OG/Twitter card URLs | `http://localhost:3000` (deliberately *not* the trackID.lb production domain, so a fresh clone isn't silently mis-branded) |
+| `SITE_URL` | Canonical site URL — drives `metadataBase`, sitemap, robots.txt, OG/Twitter card URLs | `http://localhost:3000` (deliberately *not* the trackID.lb production domain, so a fresh clone isn't silently mis-branded) |
 
 ---
 
@@ -174,7 +182,7 @@ guaranteeing that).
 
 | Variable | What it's for | Default |
 |---|---|---|
-| `NEXT_PUBLIC_STORE_NAME` | Admin panel's browser-tab title suffix — can't come from the CMS because the admin shell loads before the database is reachable | `trackID.lb` |
+| `STORE_NAME` | Admin panel's browser-tab title suffix — can't come from the CMS because the admin shell loads before the database is reachable | `trackID.lb` |
 
 Every other white-label knob (store name shown to customers, logo, colors,
 fonts, copy, delivery zones, etc.) is CMS-driven via Site Settings — this is
@@ -193,7 +201,7 @@ rationale and rotation notes.
 |---|---|
 | `CI_PAYLOAD_SECRET` | any string |
 | `CI_DATABASE_URI` | dev project's pooler URL |
-| `CI_SUPABASE_URL` | dev project's `NEXT_PUBLIC_SUPABASE_URL` |
+| `CI_SUPABASE_URL` | dev project's `SUPABASE_URL` |
 | `CI_SUPABASE_STORAGE_BUCKET` | dev project's storage bucket name |
 | `CI_SUPABASE_S3_ENDPOINT` / `CI_SUPABASE_S3_REGION` | dev project's S3 connection details |
 | `CI_S3_ACCESS_KEY_ID` / `CI_S3_SECRET_ACCESS_KEY` | dev project's S3 keys |
@@ -216,9 +224,9 @@ For each new brand/client (own Vercel project + own Supabase project, per the
 "per-client deploy" recommendation in ROADMAP.md):
 
 1. **Required**: `PAYLOAD_SECRET` (new random value), `DATABASE_URI`
-2. **Storage**: all six `NEXT_PUBLIC_SUPABASE_*`/`SUPABASE_S3_*`/`*_SUPABASE`
+2. **Storage**: all six `SUPABASE_*`/`SUPABASE_S3_*`/`*_SUPABASE`
    vars, pointed at that client's own Supabase project + bucket
-3. **Identity**: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_STORE_NAME`
+3. **Identity**: `SITE_URL`, `STORE_NAME`
 4. **Email**: `RESEND_API_KEY` + a verified-domain `RESEND_FROM`
 5. **Cron**: `CRON_SECRET` (any random string)
 6. Everything else (WhatsApp, Sentry, payments) stays unset until that

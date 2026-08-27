@@ -7,6 +7,7 @@ import { totalStock } from '../lib/stock'
 import { getPool } from '../lib/db-pool'
 import { sendBackInStockEmail } from '../lib/notifications'
 import { resolveBrandCopy } from '../lib/site-settings'
+import { getSiteUrl } from '../lib/env'
 
 export const Products: CollectionConfig = {
   slug: 'products',
@@ -73,7 +74,7 @@ export const Products: CollectionConfig = {
           } catch {
             // fresh install without the global — notifications.ts applies defaults
           }
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+          const siteUrl = getSiteUrl()
           for (const request of pending) {
             await sendBackInStockEmail({
               email: request.email,
