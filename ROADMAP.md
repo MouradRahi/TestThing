@@ -793,22 +793,41 @@ User explicitly opted to include this despite the roadmap's own "optional" frami
 
 ## Part 8 — Productization (making it sellable) 💼
 
-- ☐ **Generic taxonomy / de-verticalization** (added Session 22) — the data model still
-  assumes a music/clothing brand, which the Copy tab can't fix. A jewelry (or any other)
-  brand needs:
-  - **Artist collection → configurable taxonomy**: admin-set singular/plural labels +
-    URL segment (SiteSettings or a Features tab field), so "Artist / `/artist/`" can
-    become "Designer / `/designer/`" or "Collection / `/collection/`" per client — used
-    everywhere the label appears (nav filters, product page, "More from {artist}",
-    admin UI labels). The `genre`/`bio` fields become generic subtitle/description.
-  - **CustomRequest fields**: `reference_artist` / `reference_song` → generic,
-    admin-configurable reference fields (or a flexible field list)
-  - **GarmentType** → already admin-managed values, but rename the collection label
+- ◐ **Generic taxonomy / de-verticalization** (added Session 22; **scope changed and data
+  layer built Session 30**) — the data model assumed a music/clothing brand, which the
+  Copy tab can't fix.
+
+  **Decision (owner, Session 30):** rather than making the single `Artist` collection
+  renameable, brands **define their own groupings at runtime**. A fresh install is
+  essentially empty apart from Products; the admin creates a "Manufacturer" grouping and
+  fills it with "Marie France" / "La Senza", and it behaves exactly as Artist does today.
+  Implemented as **data, not generated collections** — see `src/lib/taxonomy.ts` for why
+  (Payload builds its schema from static config at boot; runtime DDL would mean migrations
+  on click, untyped collections, and inconsistent schema across warm/cold Vercel
+  instances — the same class of failure as the Session 23 / 28 admin outages).
+
+  - ☑ **`Taxonomies` + `TaxonomyTerms` collections** — admin-set singular/plural labels
+    (localized), URL segment with reserved-word validation, description, per-taxonomy
+    toggles for shop filters and product-page display, ordering, and a **flexible
+    per-term field list** (admin defines e.g. Country / Founded; each term fills them in).
+    Terms support hierarchy via a self-relation.
+  - ☑ **`Products.taxonomyTerms`** — many-to-many; products are queryable by term.
+  - ☑ **Migration** `20260826_120000_add_admin_defined_taxonomies` — transcribed from
+    Payload's own generated DDL, then verified by dropping and re-running to confirm it
+    reproduces an identical schema (982 cols / 466 idx / 287 cons / 54 enums).
+  - ☐ **Storefront** (next) — `/<taxonomy>` listing + `/<taxonomy>/<term>` pages, shop
+    filter chips, product-page display, sitemap + hreflang, "More from {term}".
+  - ☐ **CustomRequest fields**: `reference_artist` / `reference_song` → generic,
+    admin-configurable reference fields (or reuse the taxonomy term-field pattern)
+  - ☐ **GarmentType** → already admin-managed values, but rename the collection label
     ("Product Type") so it reads vertical-neutral in admin
-  - **Vertical-neutral demo seed** (feeds the demo-mode item below) — the current seed
+  - ☐ **Vertical-neutral demo seed** (feeds the demo-mode item below) — the current seed
     is music-specific
-  - Remaining default strings that assume clothing ("hand-painted piece" etc.) are
+  - ☐ Remaining default strings that assume clothing ("hand-painted piece" etc.) are
     already overridable via the Copy tab — audit defaults, keep them neutral
+
+  **`Artists` is deliberately untouched** and stays that way: trackID.lb keeps `/artist/`
+  exactly as it is, and an install with zero taxonomies defined renders nothing new.
 - ☐ **Deployment model decision — recommendation: per-client deploy** (own Vercel project
   + Supabase project per brand). Zero code changes needed, hard data isolation, aligned
   with the white-label work already done. Multi-tenant SaaS is a major re-architecture

@@ -179,6 +179,17 @@ export const Products: CollectionConfig = {
       },
     },
     {
+      name: 'taxonomyTerms',
+      type: 'relationship',
+      relationTo: 'taxonomy-terms',
+      hasMany: true,
+      index: true,
+      admin: {
+        description:
+          'Entries from your own groupings (Catalog → Taxonomies), e.g. a Manufacturer or a Designer. Optional — leave empty if you do not use custom groupings.',
+      },
+    },
+    {
       name: 'tags',
       type: 'array',
       fields: [

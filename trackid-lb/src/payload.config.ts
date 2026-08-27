@@ -28,6 +28,8 @@ import { Reviews } from './collections/Reviews'
 import { GiftCards } from './collections/GiftCards'
 import { BackInStockRequests } from './collections/BackInStockRequests'
 import { Bundles } from './collections/Bundles'
+import { Taxonomies } from './collections/Taxonomies'
+import { TaxonomyTerms } from './collections/TaxonomyTerms'
 import { Users } from './collections/Users'
 import { SiteSettings } from './globals/SiteSettings'
 import { Navigation } from './globals/Navigation'
@@ -73,7 +75,7 @@ export default buildConfig({
       beforeLogin: ['/components/admin/AdminTwoFactorLoginGate#AdminTwoFactorLoginGate'],
     },
   },
-  collections: [Products, Artists, Categories, Orders, CustomRequests, Pages, Posts, Media, GarmentTypes, Discounts, Payments, Customers, Carts, Returns, Reviews, GiftCards, BackInStockRequests, Bundles, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],
+  collections: [Products, Taxonomies, TaxonomyTerms, Artists, Categories, Orders, CustomRequests, Pages, Posts, Media, GarmentTypes, Discounts, Payments, Customers, Carts, Returns, Reviews, GiftCards, BackInStockRequests, Bundles, RateLimitCounters, IdempotencyKeys, AuditLog, AnalyticsCounters, Users],
   // Content localization — mirrors the storefront locales (src/i18n/routing.ts).
   // Fields marked `localized: true` store a value per locale; everything else is
   // shared. Add a locale here + in routing.ts + a messages/<locale>.json to grow.
