@@ -171,3 +171,90 @@ The layout instantiates Inter, Space Grotesk, Playfair, DM Sans, and Manrope unc
 2. `npx tsc --noEmit` after each fix batch
 3. Manual: Arabic shop search (B8), drawer totals with a cents-priced product (B7), airplane-mode add-to-cart (B6), slow-3G checkout load (B5)
 4. Schema-affecting fixes: none expected — all bugs above are code-only (no new fields)
+
+---
+
+## P0 — Reported from production (Session 30, part 2)
+
+### B25 ☑ FIXED (Session 30, part 2) — Deleting a product 500s whenever anything references it
+
+**Reported**: owner could not delete a product from the live admin; the Products list
+showed `DELETE /api/products?...where[and][0][id][in][0]=3 → 500 (Internal Server Error)`
+with nothing useful in the UI.
+
+**Root cause** — a Payload schema mismatch, not application code. Four collections hold a
+`required` relationship to `products`, so the column is generated `NOT NULL`, while
+Payload always generates the foreign key as `ON DELETE SET NULL`:
+
+| child table | `product_id` | FK on delete |
+|---|---|---|
+| `carts_items` | NOT NULL | SET NULL |
+| `reviews` | NOT NULL | SET NULL |
+| `bundles_products` | NOT NULL | SET NULL |
+| `back_in_stock_requests` | NOT NULL | SET NULL |
+
+Postgres therefore tries to null a NOT NULL column and aborts the DELETE. In practice a
+single visitor leaving the product in their cart is enough to make it permanently
+undeletable. **Reproduced on dev**: an unreferenced product deletes cleanly; the same
+product with one cart line fails with `Failed query: delete from "products" where id = $1`.
+
+**Fix** — a `beforeDelete` hook on Products (`src/collections/Products.ts`) that clears
+every reference before Postgres sees the DELETE:
+- `reviews` / `back-in-stock-requests` — deleted (meaningless without their product)
+- `carts.items` — only the offending line is removed; the rest of the cart survives
+- `bundles.products` — special-cased, because that array enforces `minRows: 2`, so
+  removing a component from a two-product bundle makes the bundle invalid and Payload's
+  own `update()` refuses the save (which is what caused the failure in the first place).
+  If ≥2 components remain it goes through Payload normally; otherwise the row is dropped
+  and the bundle **unpublished** via direct SQL, with a warning logged — the owner keeps
+  the bundle as a draft to fix rather than losing it or leaving a broken one live.
+
+**Order history is deliberately untouched** — `orders.items[].productId` is a plain
+snapshot, not a relationship, so past orders keep their title and price. Verified.
+
+**Verified on dev, 6/6**: cart (line removed, cart survives), multi-line cart (other lines
+preserved), review, bundle (other component kept, bundle unpublished with a warning),
+back-in-stock request, and a past order retaining its snapshot. All test data cleaned up.
+
+⚠️ **Same bug class exists anywhere a `required` relationship points at a deletable
+collection** — worth checking before adding one. The identical mismatch was found and
+fixed the same session on the new `taxonomy_terms.taxonomy_id`.
+
+### B26 ☐ OPEN (found Session 30, part 3) — Product pages are NOT statically rendered in production
+
+**Severity**: performance / cost, not correctness. Pages render correctly; they just render
+on every request instead of being served from the edge cache.
+
+**Directly contradicts** CLAUDE.md's "Performance Architecture (Non-Negotiable)" §2 — *"ISR
+not SSR for product pages — product data changes infrequently; edge caching > per-request
+DB hit"* — and product pages are the highest-traffic route on the site.
+
+**Verified against live production** (which runs pre-Session-30 code, so this is long-standing,
+not introduced by the taxonomy or env work):
+
+| Page | Response headers | Verdict |
+|---|---|---|
+| `/artist/gerar` | `X-Nextjs-Prerender: 1` · `X-Vercel-Cache: PRERENDER` · `Cache-Control: public` | genuinely ISR ✓ |
+| `/product/jean` | *(no prerender header)* · `X-Vercel-Cache: MISS` · `Cache-Control: private, no-cache, no-store` | rendered per request ✗ |
+
+Confirmed locally too: a production build emits **6 artist HTML files and 0 product HTML
+files**, and `.next/server/app/en/product/` is an empty directory. `/[locale]/product/[slug]`
+appears in neither `routes` nor `dynamicRoutes` in `prerender-manifest.json`.
+
+**How it went unnoticed for so long**: the `next build` route table lists it as `●` (SSG),
+which several sessions took as proof. That table is unreliable — the same known gotcha
+recorded in Session 22 part 2 for `/shop`, `/account`, `/checkout` and `/track`. Note the
+product row also lacks the revalidate/expire columns that the genuinely-ISR artist row has,
+which is the tell. **Use `prerender-manifest.json`, emitted HTML, or live response headers —
+never the route table alone.**
+
+**Not the cause** (ruled out): `generateStaticParams` works — run directly against the dev
+DB it returns all 6 published products. `revalidate = 3600` and `generateStaticParams` are
+declared identically to the artist page, which *does* prerender. No `cookies()`, `headers()`,
+`draftMode()`, `searchParams` or `force-dynamic` anywhere in the product page or its ten
+imported components (one grep hit in `RecentlyViewedStrip.tsx` is a comment, not a call).
+
+**Next step**: bisect the page's component tree — render a stripped-down product page and
+add children back until it flips to dynamic. The prime suspects are whatever the product
+page imports that the artist page does not (`WriteReviewForm`, `NotifyMeForm`,
+`RecentlyViewedStrip`/`Tracker`, `ShareButton`, `WishlistButton`).
