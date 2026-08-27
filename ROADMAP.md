@@ -42,13 +42,30 @@ adjacent phases as we go.
 
 - ◐ **Baseline migration** — DONE on dev (Session 22): `src/migrations/20260720_055440_baseline.ts` created + marked applied via `npm run migrate:local -- mark`. **Remaining: run the one-line `payload_migrations` INSERT on prod** (SQL in MIGRATIONS.md §Baselining) **before the next deploy**.
 - ☑ **4.2 `payload-types.ts` generation** — DONE (Session 22): `npm run generate:types` (programmatic runner sidesteps the broken CLI); generated types adopted, all strict-type errors fixed, tsc clean
-- ☐ **i18n leftovers** — homepage-block text localization, product image `alt` localization, decorative shop strings, localized order emails
+- ☐ **i18n leftovers** — homepage-block text localization, product image `alt` localization,
+  decorative shop strings. ~~localized order emails~~ — **DONE (Session 29)**: `Orders.locale`
+  field + an en/ar string dictionary in `notifications.ts` covering both the order-confirmation
+  and status-update HTML templates; v1/basic RTL (`dir` attribute + translated strings, not a
+  bespoke mirrored layout — an intentional scope call, not an oversight).
 - ☐ **4.3 deferred** — Payload versions/rollback + live-preview iframe for Pages/Homepage
 - ☑ **Weekly email summary** for the sales dashboard — DONE (Session 26), see Part 4 §4.2
-- ☐ **Recently-viewed strip** — server-backed design (no localStorage per mandate); fold into customer-account phase polish
+- ☑ **Recently-viewed strip** — **DONE (Session 29)**: cookie-based (httpOnly, no localStorage,
+  per mandate) — `POST/GET /api/recently-viewed`. Built as a client-fetch component
+  (`RecentlyViewedStrip.tsx`), not a Server Component reading `cookies()` directly, since that
+  would force the ISR product pages dynamic — verified the build output still shows product
+  pages as `●` (SSG) after the change.
 - ☐ **2.7 artist filter chips → dropdown/combobox** at scale (~15+ artists)
 - ☐ **Announcement-bar contrast check** on admin-set colors
-- ☐ **WhatsApp activation** — code ready, needs Meta keys (blocked on business verification)
+- ◐ **WhatsApp activation** — **in progress (Session 29)**: real Meta Cloud API credentials
+  obtained and wired in (`.env.local`), a real test message confirmed delivered. Along the way,
+  found and fixed a real bug: the staff new-order alert sent plain free-text, which WhatsApp's
+  24h "customer service window" policy silently rejects for any recipient who hasn't messaged
+  the business first — confirmed via the actual delivery webhook payload (error 131047,
+  "Re-engagement message"). Converted to an approved-template send
+  (`WHATSAPP_ORDER_ALERT_TEMPLATE_NAME`), and added a new customer-facing order-confirmation
+  WhatsApp message that didn't exist before (`WHATSAPP_ORDER_CONFIRMATION_TEMPLATE_NAME`).
+  **Still open**: both templates are submitted to Meta for approval, not yet live — set the two
+  template-name env vars once approved to activate.
 - ☐ **Instagram embed** — blocked on brand handle
 
 ---
@@ -776,22 +793,41 @@ User explicitly opted to include this despite the roadmap's own "optional" frami
 
 ## Part 8 — Productization (making it sellable) 💼
 
-- ☐ **Generic taxonomy / de-verticalization** (added Session 22) — the data model still
-  assumes a music/clothing brand, which the Copy tab can't fix. A jewelry (or any other)
-  brand needs:
-  - **Artist collection → configurable taxonomy**: admin-set singular/plural labels +
-    URL segment (SiteSettings or a Features tab field), so "Artist / `/artist/`" can
-    become "Designer / `/designer/`" or "Collection / `/collection/`" per client — used
-    everywhere the label appears (nav filters, product page, "More from {artist}",
-    admin UI labels). The `genre`/`bio` fields become generic subtitle/description.
-  - **CustomRequest fields**: `reference_artist` / `reference_song` → generic,
-    admin-configurable reference fields (or a flexible field list)
-  - **GarmentType** → already admin-managed values, but rename the collection label
+- ◐ **Generic taxonomy / de-verticalization** (added Session 22; **scope changed and data
+  layer built Session 30**) — the data model assumed a music/clothing brand, which the
+  Copy tab can't fix.
+
+  **Decision (owner, Session 30):** rather than making the single `Artist` collection
+  renameable, brands **define their own groupings at runtime**. A fresh install is
+  essentially empty apart from Products; the admin creates a "Manufacturer" grouping and
+  fills it with "Marie France" / "La Senza", and it behaves exactly as Artist does today.
+  Implemented as **data, not generated collections** — see `src/lib/taxonomy.ts` for why
+  (Payload builds its schema from static config at boot; runtime DDL would mean migrations
+  on click, untyped collections, and inconsistent schema across warm/cold Vercel
+  instances — the same class of failure as the Session 23 / 28 admin outages).
+
+  - ☑ **`Taxonomies` + `TaxonomyTerms` collections** — admin-set singular/plural labels
+    (localized), URL segment with reserved-word validation, description, per-taxonomy
+    toggles for shop filters and product-page display, ordering, and a **flexible
+    per-term field list** (admin defines e.g. Country / Founded; each term fills them in).
+    Terms support hierarchy via a self-relation.
+  - ☑ **`Products.taxonomyTerms`** — many-to-many; products are queryable by term.
+  - ☑ **Migration** `20260826_120000_add_admin_defined_taxonomies` — transcribed from
+    Payload's own generated DDL, then verified by dropping and re-running to confirm it
+    reproduces an identical schema (982 cols / 466 idx / 287 cons / 54 enums).
+  - ☐ **Storefront** (next) — `/<taxonomy>` listing + `/<taxonomy>/<term>` pages, shop
+    filter chips, product-page display, sitemap + hreflang, "More from {term}".
+  - ☐ **CustomRequest fields**: `reference_artist` / `reference_song` → generic,
+    admin-configurable reference fields (or reuse the taxonomy term-field pattern)
+  - ☐ **GarmentType** → already admin-managed values, but rename the collection label
     ("Product Type") so it reads vertical-neutral in admin
-  - **Vertical-neutral demo seed** (feeds the demo-mode item below) — the current seed
+  - ☐ **Vertical-neutral demo seed** (feeds the demo-mode item below) — the current seed
     is music-specific
-  - Remaining default strings that assume clothing ("hand-painted piece" etc.) are
+  - ☐ Remaining default strings that assume clothing ("hand-painted piece" etc.) are
     already overridable via the Copy tab — audit defaults, keep them neutral
+
+  **`Artists` is deliberately untouched** and stays that way: trackID.lb keeps `/artist/`
+  exactly as it is, and an install with zero taxonomies defined renders nothing new.
 - ☐ **Deployment model decision — recommendation: per-client deploy** (own Vercel project
   + Supabase project per brand). Zero code changes needed, hard data isolation, aligned
   with the white-label work already done. Multi-tenant SaaS is a major re-architecture
@@ -835,8 +871,11 @@ typically takes longer than the code).
 External blockers to start in parallel today:
 1. Card acquirer merchant account — Areeba (MPGS) or NetCommerce — with sandbox/hosted-checkout access
 2. OMT merchant/B2B agreement (asks: e-commerce API availability, voucher flow)
-3. Meta WhatsApp Cloud API business verification (already known)
-4. Resend domain verification for the production sender (already in DEPLOY.md)
+3. ~~Meta WhatsApp Cloud API business verification~~ — **in progress (Session 29)**: real
+   credentials obtained, a test app is live, two message templates submitted for Meta
+   approval. Not fully closed until those templates are approved.
+4. ~~Resend domain verification for the production sender~~ — **DONE (Session 29)**:
+   `trackid-lb.com` added and verified in Resend (DKIM + SPF both confirmed), sending is live.
 
 ---
 

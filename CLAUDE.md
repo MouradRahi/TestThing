@@ -92,16 +92,29 @@ id, name, slug (e.g., hoodies, tees, accessories)
 ```
 
 ### Order
+> ⚠️ This block drifted badly stale across many sessions (missing card/OMT payment methods,
+> half the payment_status values, and ~15 fields) — rewritten from the actual
+> `src/collections/Orders.ts` schema Session 29. Keep it honest going forward: when a field
+> is added there, update this block in the same commit, don't let it drift again.
 ```
-id, order_number (human-readable, e.g., TRK-123456-AB12)
-customer_name, customer_phone, customer_email
+id, order_number (human-readable, e.g., TRK-123456-AB12), invoice_link (ui field, admin-only)
+customer_name, customer_phone, customer_email, customer → relation to Customers (null for guest orders)
 delivery_address (text), area (Lebanon area/city)
 items[] → { product_id, quantity, size, price_at_purchase, title_at_purchase, image_url }
-subtotal, delivery_fee, discount_code, discount_amount, total
-payment_method (cod | bank_transfer)
-payment_status (pending | paid)
+subtotal, delivery_fee
+utm_source, utm_medium, utm_campaign (first-touch attribution, Session 28)
+discount_code, discount_amount
+locale (en | ar — storefront locale at checkout; picks order-email language, Session 29)
+gift_card_code, gift_card_amount, store_credit_applied, points_redeemed
+total
+payment_method (cod | bank_transfer | card | omt)
+payment_status (pending | awaiting_payment | paid | failed | expired | refunded | partially_refunded)
+payment_expires_at (reservation TTL for card/OMT — expire-payments cron)
+exchange_rate_at_purchase (LBP/USD snapshot, null when currency display is USD-only)
+refunded_amount (running total across full/partial refunds, any payment method)
 order_status (pending | confirmed | in_production | shipped | delivered | cancelled)
 notes (customer notes)
+courier_name, tracking_ref, dispatch_date (manual entry, Part 3.2)
 created_at, updated_at
 ```
 
@@ -2480,4 +2493,198 @@ then verified as a whole against a real built+started server + the E2E suite.
   its POST body) still passes end-to-end.
 - ✅ `npx tsc --noEmit` clean; `npm test` 56/56; `npm run build` verified (product pages
   confirmed still `●` SSG); `npm run test:e2e` 1/1.
-- Not yet committed at the time of writing this entry.
+- Committed (`b7760fc`), pushed, CI verified green.
+
+### Session 30 — 2026-08-26
+Focus: **ROADMAP Part 8.1 — de-verticalization**, scope changed by the owner mid-session
+into something considerably more ambitious than the roadmap's original wording, then the
+data layer built and verified. Also a short live-site diagnostic first (below).
+- **Opened with a false alarm on the live site, correctly diagnosed as not-our-problem**:
+  user hit `NET::ERR_CERT_AUTHORITY_INVALID` on trackid-lb.com from the office. Root cause
+  was a **Sophos firewall** intercepting TLS *and* category-blocking the domain — proved
+  by the served cert's issuer (`O=Sophos, OU=NSG, CN=Sophos SSL CA_…`) and by the raw
+  response being a `307` to `https://192.168.1.7:8090/v1/ips/block/webcat?cat=40&url=<base64
+  of the site>`. Confirmed the real cert is healthy from outside via SSL Labs (leaf
+  `CN=trackid-lb.com` → `YR1` → `Root YR` → **ISRG Root X1**, valid to 2026-11-22; the
+  `www` variant has its own valid chain via `YR2`), and SSL Labs completed a real HTTPS
+  transaction reading back the app's own `hreflang` headers. Same corporate-network class
+  of issue as Session 29's DNS incident (`DC-2022.Liquigaslb.local` is still the resolver).
+  User confirmed the site loads fine on mobile data. **No code change** — the actionable
+  item is a re-categorization request to Sophos/Fortinet/Palo Alto for a ~6-week-old domain.
+  Two external relay services returned `522` for both hostnames during a second-opinion
+  attempt (including the apex already proven working), so that check was reported as
+  inconclusive rather than presented as confirmation.
+- **Scope change (owner, this session)**: rather than making the single `Artist` collection
+  renameable per client (the roadmap's original plan, and what I had proposed), brands
+  should be able to **define their own groupings at runtime** — "a fresh project looks
+  pretty much empty except for products", then the admin creates e.g. a Manufacturer
+  grouping with Marie France / La Senza and it behaves exactly as Artist does today. Owner
+  also asked, before any code, for an explanation of what such a thing entails.
+- **Architecture explained, then chosen**: Payload builds its schema from static config at
+  boot, so "admin creates a real table" means runtime DDL, a restart, untyped collections,
+  and inconsistent schema across warm/cold Vercel instances — the same failure class as the
+  Session 23 / 28-part-3 / 28-part-6 admin outages. Presented Option A (taxonomies as
+  **data** in two fixed collections — what WordPress custom taxonomies and Shopify
+  metaobjects do) vs Option B (genuinely generated collections). **Owner picked Option A
+  plus flexible per-term fields, and "leave Artists completely untouched".**
+- **Built (data layer)**: `src/lib/taxonomy.ts` (reserved-slug guard + `resolveTermDetails`
+  pairing helper), `Taxonomies` (localized singular/plural labels, URL segment,
+  description, enabled / show-in-filters / show-on-product-page toggles, orderable, and an
+  admin-defined `termFields[]` list of extra fields each term can fill in), `TaxonomyTerms`
+  (taxonomy relation, localized name/description, slug, media picker, **self-relation
+  `parent`** for hierarchy, `featured`, `details[]` values), and `Products.taxonomyTerms`
+  (many-to-many). Registered in `payload.config.ts` under a new `Catalog` admin group.
+- **Two real bugs found and fixed, both by verification rather than review**:
+  1. Payload generates `taxonomy_terms.taxonomy_id` as `NOT NULL` but its FK as
+     `ON DELETE SET NULL` — deleting a taxonomy that still had terms would fail with a raw
+     not-null violation in the admin. Fixed with a `beforeDelete` hook that removes the
+     taxonomy's terms first; verified it leaves 0 orphans.
+  2. `termFields[].label` was `required` **and** `localized`, so saving a taxonomy in the
+     Arabic locale failed (`The following fields are invalid: Term Fields 1 > Label`)
+     unless every term-field label was translated in the same save — i.e. translating a
+     taxonomy into Arabic was impossible. Made the label optional with a fallback to its
+     key. This changed the schema (`taxonomies_term_fields_locales.label` → nullable), so
+     the whole push→diff→migration→verify loop was redone rather than patched by hand.
+- **Migration approach worth reusing**: instead of hand-writing DDL (the pattern every
+  migration since F1 has used, because `migrate:create` hangs on drizzle-kit's interactive
+  wizard under this runner), let **Payload's own push generate the schema against dev**,
+  snapshot `information_schema` before/after, and transcribe the diff into the migration.
+  Then **drop the pushed tables, delete the migration row, and run the real migration**,
+  and diff the result against the pushed snapshot. Verified **identical: 982 columns, 466
+  indexes, 287 constraints, 54 enums**. Far stronger than the `migrate:mark` shortcut used
+  in Session 28 part 4, which leaves the prod-facing SQL never actually executed.
+  Two things this caught that a hand-written migration would likely have missed:
+  **`products_rels` is created here for the first time** (Products had no `hasMany`
+  relationship before), and the two `payload_locked_documents_rels` columns — the exact
+  Session 28-part-6 admin-outage cause.
+- **Verified end-to-end against the real dev DB** with the owner's own example: reserved
+  slug `shop` rejected; `Manufacturer` created with slug auto-derived; term-field keys
+  auto-derived from labels; `Marie France` / `La Senza` created; a term nested under a
+  parent term; duplicate slug **within** a taxonomy rejected while the same slug in a
+  **different** taxonomy is allowed; terms attached to a real product and the product
+  queryable by term; localized labels round-tripping per-locale (`ar` vs `en`); deleting a
+  taxonomy cascading to its terms. 12/12 passing, test data cleaned up, product restored to
+  its exact prior state. One assertion of mine was wrong rather than the code (`parent`
+  comes back populated at default depth, so it needed a `depth: 0` read) — corrected the
+  test, not the implementation.
+- **Also fixed while in the area**: `src/migrations/index.ts` had drifted again (15 imports
+  for 20 files — missing all four 2026-08-24 migrations). Regenerated from disk. It stays
+  vestigial (the drizzle adapter reads `migrationDir` off disk) but a stale file is
+  misleading; comment updated to say so explicitly.
+- ✅ `npx tsc --noEmit` clean; `npm test` **71/71** (was 56 — +15 new `taxonomy.test.ts`
+  cases covering the reserved-slug guard and the term-detail pairing/fallback logic);
+  `npm run build` verified (83 static pages; **product and artist pages still `●` SSG**, so
+  no ISR regression from the new relationship field); `npm run migrate:status` shows the
+  new migration applied on dev.
+- ⚠️ **Not yet built — the storefront half of 8.1**: `/<taxonomy>` listing and
+  `/<taxonomy>/<term>` pages, shop filter chips, product-page display, sitemap + hreflang,
+  "More from {term}". Sized as a second session upfront and communicated as such. Until
+  then the collections exist and are fully usable from the admin, but nothing renders on
+  the storefront — which is also exactly why this is safe to deploy to trackID.lb: with
+  zero taxonomies defined, behaviour is completely unchanged.
+- Next: the storefront half, then the remaining 8.1 sub-items (CustomRequest generic
+  fields, GarmentType relabel, vertical-neutral seed), then the rest of Part 8.
+
+### Session 30 (part 2) — 2026-08-26 — production bug: products could not be deleted
+Focus: owner reported a live 500 on `DELETE /api/products?...id[in][0]=3` from the admin
+Products list. **Unrelated to the taxonomy work** — that isn't committed, let alone
+deployed; this was latent in production and is now fixed. Filed as **BUGS.md B25**.
+- **Root cause — a Payload schema mismatch, found by querying rather than guessing**: four
+  collections hold a `required` relationship to `products`, so Payload generates the column
+  `NOT NULL`, but it always generates the foreign key as `ON DELETE SET NULL`
+  (`carts_items`, `reviews`, `bundles_products`, `back_in_stock_requests`). Postgres tries
+  to null a NOT NULL column and aborts the DELETE. One visitor leaving a product in their
+  cart is enough to make it permanently undeletable. Diagnosed by listing every FK
+  referencing `products` and then checking each child column's nullability — no FK
+  *blocked* the delete, which is what pointed at the NOT NULL/SET NULL mismatch instead.
+- **Reproduced on dev before fixing** (not inferred): a control product nothing references
+  deletes cleanly; the same product with a single cart line fails with
+  `Failed query: delete from "products" where "products"."id" = $1`.
+- **Fix** — a `beforeDelete` hook on Products clearing every reference first: reviews and
+  back-in-stock requests deleted outright; cart lines removed individually (the rest of the
+  cart survives); **bundles special-cased** because `Bundles.products` enforces
+  `minRows: 2` — removing a component from a two-product bundle leaves it invalid and
+  Payload's own `update()` refuses the save, which is exactly what caused the original
+  failure. With ≥2 components left it goes through Payload normally; otherwise the row is
+  dropped and the bundle **unpublished** via `getPool()` SQL with a warning logged, so the
+  owner keeps a draft to fix rather than losing the bundle or leaving a broken one live.
+  That branch was only discovered *because* the first version of the fix was tested against
+  a real bundle and failed.
+- **Order history deliberately untouched** — `orders.items[].productId` is a plain snapshot,
+  not a relationship (already good design), so past orders keep title and price. Verified
+  explicitly as one of the test cases rather than assumed.
+- ✅ Verified on dev **6/6**: cart, multi-line cart (other lines preserved), review, bundle
+  (other component kept + unpublished + warning), back-in-stock request, and order snapshot
+  survival. All fixtures cleaned up; confirmed 0 leftovers across 7 collections afterwards.
+  `npx tsc --noEmit` clean; `npm test` 71/71; `npm run build` verified (83 static pages,
+  product pages still `●` SSG).
+- **Environment note worth remembering**: standalone scripts hit `EAI_AGAIN` on the Supabase
+  pooler repeatedly this session while `nslookup` resolved fine — the corporate-DNS stall
+  documented since Session 21. `next.config.ts`'s `dns.setDefaultResultOrder('ipv4first')`
+  only applies inside the Next process; for scripts use
+  `NODE_OPTIONS=--dns-result-order=ipv4first`. It is a mitigation, not a cure — it still
+  failed intermittently, so retry rather than assume the DB is down.
+- **Standing lesson**: this bug class exists anywhere a `required` relationship points at a
+  deletable collection. Check for it when adding one — the identical mismatch was found and
+  fixed the same day on the new `taxonomy_terms.taxonomy_id`.
+
+### Session 30 (part 3) — 2026-08-26 — dev/demo environment + `NEXT_PUBLIC_` cleanup
+Focus: owner wanted a deployment they could demo and freely mess with, pointed at the dev
+database, without risking real data — then, prompted by a Vercel warning, dropping the
+`NEXT_PUBLIC_` prefix from variables that never needed it.
+- **Corrected the owner's plan on two points, both verified rather than asserted**: the URL
+  Vercel offered (`...-git-main-...`) is the **production branch's own** URL and always
+  tracks production — the Production Branch setting should not be repointed. Their current
+  branch already had its own preview URL; confirmed live. And **Deployment Protection was
+  on**: both preview URLs 302 to `vercel.com/sso-api`, so any non-team viewer hits a login
+  wall — a blocker they would have hit the moment they shared the link. Also confirmed
+  preview deployments already send `X-Robots-Tag: noindex`, so opening them up is safe.
+- **`NEXT_PUBLIC_` audit** — checked where each is actually read rather than assuming:
+  `SITE_URL` (9 files), `SUPABASE_URL`, `SUPABASE_STORAGE_BUCKET` and `STORE_NAME` are
+  **only ever read server-side**, so the prefix inlined them into the browser bundle for no
+  benefit. Only `NEXT_PUBLIC_SENTRY_DSN` genuinely needs it (read in `error.tsx` /
+  `global-error.tsx`; a DSN is public by design) and it keeps the prefix.
+- **Advised against the churn the owner started**: Vercel secrets are write-only, so
+  converting an existing one to "Config" means delete-and-recreate — real risk on live
+  production variables for a cosmetic warning. Recommended leaving Production untouched and
+  only *adding* Preview-scoped values. Recovered the real production values from the live
+  site (`bdbhygelwizizepxewxv.supabase.co`, `https://trackid-lb.com`) so they would not be
+  re-created from `.env.local`, which points at **dev** — that mistake would have pointed
+  production at the dev project's storage.
+- **New `src/lib/env.ts`**: each value reads the unprefixed name first and **falls back to
+  the legacy `NEXT_PUBLIC_` one**, so the code can deploy before the hosting environment is
+  updated and the two can be migrated in any order. Written as literal `process.env.X`
+  member access, not dynamic lookup, so the legacy value still resolves if any of it is ever
+  pulled into a client bundle. Rewired 11 files; zero legacy references remain outside the
+  fallbacks. Delete the fallbacks once Production and Preview both carry the new names.
+- **Verified at runtime against the owner's own running dev server** (read-only, so no risk
+  to the shared `.next`): canonical resolved via `SITE_URL`, image URLs via `SUPABASE_URL`,
+  and the admin tab title via `STORE_NAME`. `.env.local`, `.env.local.example`, `ENV_VARS.md`
+  and `DEPLOY.md` updated; CLAUDE.md's historical session entries deliberately left alone.
+- **New DEPLOY.md §5b** — repeatable preview/demo setup: which variables to scope to Preview
+  with dev values, which to deliberately leave unset (Resend/WhatsApp/Sentry, so a demo order
+  never reaches real people), optional mock-payment vars for demoing checkout, and the
+  gotchas (the build's `npm run migrate` runs against whatever `DATABASE_URI` points at;
+  `NODE_ENV` is `production` on Preview too; a Production-only variable is `undefined` on
+  Preview and `SITE_URL` in particular falls back to `localhost` silently).
+- ⚠️ **Found a real, pre-existing bug while verifying the build — filed as BUGS.md B26**:
+  **product pages are not statically rendered in production**, contradicting CLAUDE.md's
+  own "ISR not SSR for product pages" non-negotiable. Proven against live production
+  (artist pages return `X-Nextjs-Prerender: 1` / `X-Vercel-Cache: PRERENDER`; product pages
+  return `X-Vercel-Cache: MISS` and `Cache-Control: private, no-cache, no-store`) and
+  locally (a build emits 6 artist HTML files and **0** product HTML files). Ruled out
+  `generateStaticParams` (returns all 6 products when run directly) and any dynamic API in
+  the page's tree. **Root cause not yet found** — needs a component-tree bisect.
+- **Methodology lesson worth keeping**: the `next build` route table lists product pages as
+  `●` (SSG), which is what several past sessions relied on — and it is wrong, the same
+  gotcha already recorded for `/shop` in Session 22 part 2. The tell is that the product row
+  lacks the revalidate/expire columns the genuinely-ISR artist row has. Trust
+  `prerender-manifest.json`, the emitted HTML, or live response headers — never the route
+  table alone.
+- **Two process notes, disclosed rather than glossed**: (1) a doc-insertion script reported
+  success while silently doing nothing (its anchor did not match); caught by checking the
+  file and redone with a real verification step. (2) An attempt to build the pre-session
+  baseline for comparison failed twice on the corporate-DNS `EAI_AGAIN` stall, so the
+  before/after was settled against live production instead — which is better evidence anyway.
+- ✅ `npx tsc --noEmit` clean; `npm test` 71/71; `npm run build` succeeded (the first attempt
+  died on the same DNS stall — retry, not a code issue).

@@ -26,8 +26,9 @@ import { localizedAlternates } from '@/lib/seo'
 import { buildSiteJsonLd } from '@/lib/structured-data'
 import { jsonLdScript } from '@/lib/sanitize'
 import './globals.css'
+import { getSiteUrl } from '@/lib/env'
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+const siteUrl = getSiteUrl()
 
 // Curated font set, self-hosted by next/font. All variables are attached to
 // the body; the CSS var each stack actually references is the only one the

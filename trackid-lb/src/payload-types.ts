@@ -69,6 +69,8 @@ export interface Config {
   blocks: {};
   collections: {
     products: Product;
+    taxonomies: Taxonomy;
+    'taxonomy-terms': TaxonomyTerm;
     artists: Artist;
     categories: Category;
     orders: Order;
@@ -99,6 +101,8 @@ export interface Config {
   collectionsJoins: {};
   collectionsSelect: {
     products: ProductsSelect<false> | ProductsSelect<true>;
+    taxonomies: TaxonomiesSelect<false> | TaxonomiesSelect<true>;
+    'taxonomy-terms': TaxonomyTermsSelect<false> | TaxonomyTermsSelect<true>;
     artists: ArtistsSelect<false> | ArtistsSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     orders: OrdersSelect<false> | OrdersSelect<true>;
@@ -236,6 +240,10 @@ export interface Product {
    * Powers the "More like this" suggestions on the product page. Managed under Collections → Garment Types.
    */
   garmentType?: (number | null) | GarmentType;
+  /**
+   * Entries from your own groupings (Catalog → Taxonomies), e.g. a Manufacturer or a Designer. Optional — leave empty if you do not use custom groupings.
+   */
+  taxonomyTerms?: (number | TaxonomyTerm)[] | null;
   tags?:
     | {
         tag?: string | null;
@@ -414,6 +422,113 @@ export interface GarmentType {
     };
     [k: string]: unknown;
   } | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * The individual entries inside each grouping. Create the grouping first under Taxonomies, then add its entries here.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "taxonomy-terms".
+ */
+export interface TaxonomyTerm {
+  id: number;
+  /**
+   * Which grouping this entry belongs to.
+   */
+  taxonomy: number | Taxonomy;
+  name: string;
+  /**
+   * Auto-generated from the name if left empty. Must be unique within its grouping.
+   */
+  slug: string;
+  description?: string | null;
+  /**
+   * Pick from the Media library. Fills the URL below automatically on save.
+   */
+  imageMedia?: (number | null) | Media;
+  /**
+   * Auto-filled from the image above. You can also paste a Supabase Storage public URL.
+   */
+  image?: string | null;
+  /**
+   * Optional — nest this entry under another (e.g. a sub-brand under its parent brand). Leave empty for a top-level entry.
+   */
+  parent?: (number | null) | TaxonomyTerm;
+  /**
+   * Highlight this entry at the top of its listing page.
+   */
+  featured?: boolean | null;
+  /**
+   * Values for the extra fields defined on this entry’s grouping. The key must match a field key set under Taxonomies.
+   */
+  details?:
+    | {
+        /**
+         * Matches a field key from the grouping’s "Term fields".
+         */
+        key: string;
+        value?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Define your own ways of grouping products. A jewellery brand might add "Designer"; an underwear brand "Manufacturer". Each one gets its own pages at /<url-segment>/<term>, and can appear as a shop filter.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "taxonomies".
+ */
+export interface Taxonomy {
+  id: number;
+  _order?: string | null;
+  /**
+   * Shown on a single product, e.g. "Manufacturer" or "Designer".
+   */
+  labelSingular: string;
+  /**
+   * Used for headings and filters, e.g. "Manufacturers".
+   */
+  labelPlural: string;
+  /**
+   * URL segment — auto-generated from the singular label if left empty. Terms then live at /<segment>/<term-slug>.
+   */
+  slug: string;
+  /**
+   * Optional intro shown at the top of the listing page.
+   */
+  description?: string | null;
+  /**
+   * Turn off to hide this grouping from the storefront without deleting it.
+   */
+  enabled?: boolean | null;
+  /**
+   * Show this grouping as filter chips on the Shop page.
+   */
+  showInShopFilters?: boolean | null;
+  /**
+   * Show the product's term for this grouping on the product page.
+   */
+  showOnProductPage?: boolean | null;
+  /**
+   * Optional extra details each entry can fill in — e.g. a Manufacturer could have "Country" and "Founded". Leave empty if entries only need a name, description and image.
+   */
+  termFields?:
+    | {
+        /**
+         * Stable identifier, auto-generated from the label. Changing it clears saved values.
+         */
+        key: string;
+        /**
+         * Shown next to the value, e.g. "Country". Falls back to the key if left blank.
+         */
+        label?: string | null;
+        fieldType?: ('text' | 'textarea' | 'number' | 'url') | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1452,6 +1567,14 @@ export interface PayloadLockedDocument {
         value: number | Product;
       } | null)
     | ({
+        relationTo: 'taxonomies';
+        value: number | Taxonomy;
+      } | null)
+    | ({
+        relationTo: 'taxonomy-terms';
+        value: number | TaxonomyTerm;
+      } | null)
+    | ({
         relationTo: 'artists';
         value: number | Artist;
       } | null)
@@ -1611,6 +1734,7 @@ export interface ProductsSelect<T extends boolean = true> {
   artist?: T;
   category?: T;
   garmentType?: T;
+  taxonomyTerms?: T;
   tags?:
     | T
     | {
@@ -1635,6 +1759,53 @@ export interface ProductsSelect<T extends boolean = true> {
     | T
     | {
         label?: T;
+        value?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "taxonomies_select".
+ */
+export interface TaxonomiesSelect<T extends boolean = true> {
+  _order?: T;
+  labelSingular?: T;
+  labelPlural?: T;
+  slug?: T;
+  description?: T;
+  enabled?: T;
+  showInShopFilters?: T;
+  showOnProductPage?: T;
+  termFields?:
+    | T
+    | {
+        key?: T;
+        label?: T;
+        fieldType?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "taxonomy-terms_select".
+ */
+export interface TaxonomyTermsSelect<T extends boolean = true> {
+  taxonomy?: T;
+  name?: T;
+  slug?: T;
+  description?: T;
+  imageMedia?: T;
+  image?: T;
+  parent?: T;
+  featured?: T;
+  details?:
+    | T
+    | {
+        key?: T;
         value?: T;
         id?: T;
       };
