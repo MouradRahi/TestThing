@@ -220,7 +220,7 @@ back-in-stock request, and a past order retaining its snapshot. All test data cl
 collection** — worth checking before adding one. The identical mismatch was found and
 fixed the same session on the new `taxonomy_terms.taxonomy_id`.
 
-### B26 ☐ OPEN (found Session 30, part 3) — Product pages are NOT statically rendered in production
+### B26 ☑ FIXED (Session 30, part 4) — Product pages were NOT statically rendered in production
 
 **Severity**: performance / cost, not correctness. Pages render correctly; they just render
 on every request instead of being served from the edge cache.
@@ -246,15 +246,31 @@ which several sessions took as proof. That table is unreliable — the same know
 recorded in Session 22 part 2 for `/shop`, `/account`, `/checkout` and `/track`. Note the
 product row also lacks the revalidate/expire columns that the genuinely-ISR artist row has,
 which is the tell. **Use `prerender-manifest.json`, emitted HTML, or live response headers —
-never the route table alone.**
+never the route table alone.****Root cause**: `src/lib/auth.ts` imports `headers()` from `next/headers`, and the product
+page called `getCustomer()` during render — a dynamic API in a server component opts the
+entire route out of static rendering. It was there for one reason: to decide whether to show
+`WriteReviewForm`. Introduced with reviews in Session 27 part 4, unnoticed ever since because
+the route table kept reporting `●`.
 
-**Not the cause** (ruled out): `generateStaticParams` works — run directly against the dev
-DB it returns all 6 published products. `revalidate = 3600` and `generateStaticParams` are
-declared identically to the artist page, which *does* prerender. No `cookies()`, `headers()`,
-`draftMode()`, `searchParams` or `force-dynamic` anywhere in the product page or its ten
-imported components (one grep hit in `RecentlyViewedStrip.tsx` is a comment, not a call).
+⚠️ **A correction to this entry's own first diagnosis.** It originally recorded "no
+`cookies()`, `headers()`… anywhere in the product page or its ten imported components" — that
+grep covered the page and its `@/components` imports but **not its `@/lib` imports**, which is
+exactly where the culprit sat. The lesson is to trace dynamic APIs through the *whole* import
+graph, not just the component layer.
 
-**Next step**: bisect the page's component tree — render a stripped-down product page and
-add children back until it flips to dynamic. The prime suspects are whatever the product
-page imports that the artist page does not (`WriteReviewForm`, `NotifyMeForm`,
-`RecentlyViewedStrip`/`Tracker`, `ShareButton`, `WishlistButton`).
+**Fix**: new `GET /api/account/me` returning `{ isLoggedIn }`; `WriteReviewForm` resolves its
+own login state on mount and renders either the form or a "Sign in to write a review" link.
+The page no longer calls any dynamic API. This mirrors the `fetchState` pattern
+`WishlistButton` has used since Session 19 for precisely this reason — and it is a small UX
+improvement too, since signed-out visitors previously saw nothing at all where the form
+would be.
+
+**Verified three independent ways** after the fix:
+- emitted HTML: product pages **0 → 12** (6 products × 2 locales); artist unchanged at 6
+- `prerender-manifest.json`: 17 → 29 prerendered routes, with `/[locale]/product/[slug]`
+  now also in `dynamicRoutes` for the ISR fallback
+- the route table's revalidate columns — the original tell — now read `5m 1y` on the product
+  row, matching artist exactly where they were previously blank
+
+`tsc` clean · 71/71 unit tests · Playwright E2E passes (it walks shop → product → cart →
+checkout, so it exercises the changed page).

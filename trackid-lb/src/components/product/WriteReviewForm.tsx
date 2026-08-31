@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/Button'
+import { Link } from '@/i18n/navigation'
 
 export function WriteReviewForm({ productId }: { productId: string }) {
   const t = useTranslations('product')
@@ -11,6 +12,18 @@ export function WriteReviewForm({ productId }: { productId: string }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+
+  // Login state is resolved here rather than by the page, so the product page
+  // never calls a dynamic API and stays statically rendered (BUGS.md B26).
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
+  useEffect(() => {
+    let active = true
+    fetch('/api/account/me')
+      .then((r) => (r.ok ? r.json() : { isLoggedIn: false }))
+      .then((d) => { if (active) setIsLoggedIn(!!d.isLoggedIn) })
+      .catch(() => { if (active) setIsLoggedIn(false) })
+    return () => { active = false }
+  }, [])
 
   const submit = async () => {
     if (rating < 1) {
@@ -38,6 +51,17 @@ export function WriteReviewForm({ productId }: { productId: string }) {
       setLoading(false)
     }
   }
+
+  // Undetermined on first paint: render nothing rather than flashing the wrong state.
+  if (isLoggedIn === null) return null
+  if (!isLoggedIn)
+    return (
+      <p className="text-xs text-muted">
+        <Link href="/account/login" className="underline hover:text-foreground">
+          {t('reviewSignIn')}
+        </Link>
+      </p>
+    )
 
   if (done) return <p className="text-xs text-muted">{t('reviewSubmitted')}</p>
 

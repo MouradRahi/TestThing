@@ -2688,3 +2688,47 @@ database, without risking real data — then, prompted by a Vercel warning, drop
   before/after was settled against live production instead — which is better evidence anyway.
 - ✅ `npx tsc --noEmit` clean; `npm test` 71/71; `npm run build` succeeded (the first attempt
   died on the same DNS stall — retry, not a code issue).
+
+### Session 30 (part 4) — 2026-08-26 — B26 fixed: product pages are statically rendered again
+Focus: the performance bug found while verifying part 3. Product pages — the highest-traffic
+route on the site — were rendering per-request in production instead of being served from the
+edge cache, silently violating CLAUDE.md's own "ISR not SSR for product pages" non-negotiable.
+- **Owner had already committed and merged the day's work** (PR #25) while the design-sync
+  detour ran, so all three commits were on `origin/main` and therefore deployed. Ran a
+  post-deploy health check first, given this project's history of migration-related prod
+  incidents (Sessions 23, 26, 28): storefront, `/shop`, `/admin` and a DB-touching API route
+  all 200 — so the taxonomy migration applied cleanly on prod, including the
+  `payload_locked_documents_rels` columns whose absence caused the Session 28 part 6 outage.
+- **Root cause**: `src/lib/auth.ts` imports `headers()` from `next/headers`, and the product
+  page called `getCustomer()` during render. A dynamic API in a server component opts the
+  whole route out of static rendering. Its only purpose was deciding whether to show
+  `WriteReviewForm` — introduced with reviews in Session 27 part 4, unnoticed since because
+  the build's route table kept reporting `●`.
+- **Found it by comparing the product page against the artist page** (which prerenders
+  correctly) rather than by the component-tree bisect BUGS.md proposed: diffing their imports
+  surfaced `getCustomer` immediately as something only the product page pulls in.
+- ⚠️ **Corrected my own earlier diagnosis in BUGS.md.** Part 3 had recorded "no `cookies()`,
+  `headers()` … anywhere in the product page or its ten imported components" — that grep
+  covered the page and its `@/components` imports but **not its `@/lib` imports**, which is
+  exactly where the culprit sat. Rewrote the entry rather than leave a false statement
+  standing. Lesson: trace dynamic APIs through the whole import graph, not just components.
+- **Fix**: new `GET /api/account/me` returning `{ isLoggedIn }`; `WriteReviewForm` resolves
+  its own login state on mount and renders either the form or a "Sign in to write a review"
+  link (new `product.reviewSignIn` key, en + ar). The page calls no dynamic API. This mirrors
+  the `fetchState` pattern `WishlistButton` has used since Session 19 for exactly this reason.
+  Also a small UX gain: signed-out visitors previously saw nothing at all in that spot.
+- ✅ **Verified three independent ways**, not by the route table alone: emitted HTML went
+  **0 → 12** product pages (6 products × 2 locales) with artist unchanged at 6 as a control;
+  `prerender-manifest.json` went 17 → 29 prerendered routes with `/[locale]/product/[slug]`
+  also present in `dynamicRoutes` for the ISR fallback; and the route table's revalidate
+  columns — the original tell — now read `5m 1y` on the product row where they had been blank.
+  `tsc` clean; `npm test` 71/71; Playwright E2E passes (it walks shop → product → cart →
+  checkout, exercising the changed page).
+- **Noted in passing, not acted on**: the E2E run logged `Resend error: API key is invalid`
+  (401) and the known WhatsApp "recipient not in allowed list" — the local `RESEND_API_KEY`
+  may have been rotated. Notifications are fire-and-forget so orders are unaffected, but
+  local email testing will silently no-op until the key is refreshed.
+- **Also skipped this session**: `/design-sync` was invoked and correctly declined — this repo
+  is a Next.js application, not a design system (no `dist/`, no package exports, no Storybook,
+  and 60 of 67 components bound to Next runtime context: RSC, next-intl, CartContext, Payload
+  data). Nothing was created. Revisit only if ROADMAP Part 8 extracts a real component library.
