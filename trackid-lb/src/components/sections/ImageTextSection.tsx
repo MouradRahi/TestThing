@@ -47,7 +47,7 @@ export function ImageTextSection({
             </h2>
           )}
           {body && (
-            <p className="text-muted text-sm leading-relaxed mb-8 max-w-sm">{body}</p>
+            <p className="text-muted text-sm leading-relaxed mb-8 max-w-sm whitespace-pre-line">{body}</p>
           )}
           {ctaLabel && ctaHref && (
             <Button href={safeHref(ctaHref)} size="md" className="self-start">{ctaLabel}</Button>

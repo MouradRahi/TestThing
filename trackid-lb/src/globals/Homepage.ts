@@ -9,6 +9,8 @@ import { StatementBlock } from './blocks/statement'
 import { RichTextBlock } from './blocks/rich-text-block'
 import { CTABannerBlock } from './blocks/cta-banner'
 import { NewsletterBlock } from './blocks/newsletter'
+import { ProcessStepsBlock } from './blocks/process-steps'
+import { FounderNoteBlock } from './blocks/founder-note'
 
 export const Homepage: GlobalConfig = {
   slug: 'homepage',
@@ -39,6 +41,8 @@ export const Homepage: GlobalConfig = {
         RichTextBlock,
         CTABannerBlock,
         NewsletterBlock,
+        ProcessStepsBlock,
+        FounderNoteBlock,
       ],
       admin: {
         initCollapsed: true,

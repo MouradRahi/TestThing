@@ -2732,3 +2732,73 @@ edge cache, silently violating CLAUDE.md's own "ISR not SSR for product pages" n
   is a Next.js application, not a design system (no `dist/`, no package exports, no Storybook,
   and 60 of 67 components bound to Next runtime context: RSC, next-intl, CartContext, Payload
   data). Nothing was created. Revisit only if ROADMAP Part 8 extracts a real component library.
+
+### Session 31 — 2026-09-03
+Focus: **About-page section blocks** — the owner wrote the About copy and built the page
+from existing blocks (hero → rich text → 2× image-text → featured → statement), then asked
+for the two additions recommended alongside it plus three renderer fixes flagged during that
+review. All CMS-driven, nothing hardcoded to trackID.lb.
+- **Three renderer fixes**: `StatementSection` rendered every statement as small muted
+  caption text (`text-sm text-muted`), so a signature line looked like a disclaimer — the
+  block now takes a **`size`** option (Display / Caption). `ImageTextSection`'s body dropped
+  typed line breaks (single `<p>`, no `whitespace-pre-line`) — added. `HeroSection`'s subline
+  was `max-w-sm`, ~10 words before it wrapped into a tall narrow column — now `max-w-md`
+  with `text-pretty`.
+- **Two new blocks**, registered in all three block builders (Homepage global, Pages, Posts —
+  they share one block list):
+  - **`process-steps`** — numbered "how it's made" strip. `eyebrow`/`heading`/`intro` +
+    a `steps[]` array of `{title, description}`. Numbers are **generated from array order**,
+    not typed, so reordering in admin renumbers automatically. Renders as an `<ol>` on an
+    `auto-fit minmax(190px,1fr)` grid (step count is admin-defined, so fixed breakpoint
+    columns would break at 3 or 6 steps), each step a hairline top rule + large accent
+    numeral. Deliberately not cards.
+  - **`founder-note`** — portrait + first-person note + name/role. Follows the established
+    `photoMedia` (upload) → `photo` (text URL) picker pattern, wired into
+    `media-fill.ts → fillBlocksMedia`. Photo optional: with none set it renders centered
+    text rather than an empty column.
+- **Design notes**: both sections use only the existing CSS-var tokens (verified `text-accent/70`
+  clears WCAG for large bold text against all three built-in schemes — dark `#e8d5b0`, light
+  `#0a0a0a`, warm `#8b5e3c` — since the accent is CMS-controlled and can't be assumed).
+  The eyebrow field on `process-steps` is optional and documented as such: this project's
+  `text-[10px] uppercase tracking-[0.4em]` kicker is a real brand system, but an eyebrow on
+  *every* section is the AI-scaffolding tell, so the About page uses it on two sections, not six.
+  Motion kept to a hover cue on the step rules — the existing sections have no entrance
+  animation, and a scroll-reveal in an RSC/ISR page costs client JS for little gain.
+- **Migration** `20260903_100000_add_process_steps_and_founder_note_blocks.ts` — 3 enums,
+  18 tables (6 per collection: block + locales, steps + steps locales…), 3 `size` columns.
+  **Generated, not hand-written**, via the Session 30 push-then-diff protocol: snapshot
+  `information_schema` → let Payload's own push build the schema → snapshot again → emit DDL
+  from the live objects. That mattered: Postgres' 63-char identifier limit truncates the
+  unique-index names *differently per prefix*
+  (`homepage_..._locales_locale_parent_id_uniqu` vs `pages_..._locales_locale_parent_id_unique`),
+  which hand-transcription would have got wrong.
+- ⚠️ **Data-preservation catch worth remembering**: `ADD COLUMN ... DEFAULT 'display'` makes
+  Postgres **backfill every existing row** — the push silently flipped the live homepage
+  statement to Display. The migration therefore adds the column *and then* `UPDATE`s every
+  row that exists at migration time back to `'caption'`, so only blocks created afterwards
+  pick up the new default. **Any statement block that already exists (including one on a
+  live About page) will render as Caption after this deploys — open it and set Display.**
+- **Verified, not assumed**: ran the migration's own `down` block first and confirmed it
+  returns the schema to the exact pre-push baseline (982 columns / 466 indexes / 785
+  constraints / 54 enums, zero diff — most hand-written migrations here have never had their
+  `down` tested), then ran `up` for real and diffed against the pushed schema: identical
+  (the only churn was Postgres' OID-embedded internal `2200_<oid>_n_not_null` names, which
+  change whenever a table is recreated — normalised those out, 0 real differences). Then
+  built, started a real server, created a throwaway page exercising both blocks plus one
+  Display and one Caption statement, and confirmed over HTTP: numerals `01`–`05` in order,
+  the auto-fit grid, the founder note's no-photo branch, both statement sizes coexisting on
+  one page with the caption's classes byte-identical to before, and `/ar` rendering 200 with
+  `dir="rtl"`. Throwaway page deleted afterwards.
+- **E2E harness bug found and fixed** (pre-existing, in code this session didn't touch): the
+  product-walk loop raced two `waitFor` calls via `Promise.race` and only awaited the winner,
+  leaving the loser polling across the next iteration's `page.goto('/shop')` — which then
+  failed with `net::ERR_ABORTED; maybe frame was detached`. Latent until the dev catalog
+  drifted enough (3 of 6 products now sold out) for the retry path to actually run. Replaced
+  with a single combined locator matching the size picker, "Add to Cart" **or** "Notify me".
+  Confirmed the app itself was healthy first — via HTTP against `/shop` and both a sold-out
+  and an in-stock product — before touching the test, rather than assuming.
+- ✅ `npx tsc --noEmit` clean; `npm test` 71/71; `npm run build` clean; `npm run test:e2e`
+  1/1 (25.6s, real order placed — consumed one unit of sized stock on dev, as the suite
+  always does); `npm run migrate:status` shows the new migration applied on dev as batch 8.
+- Not yet committed or deployed at time of writing. Vercel's build command already runs
+  `npm run migrate`, so the deploy applies this itself — no manual SQL needed this time.

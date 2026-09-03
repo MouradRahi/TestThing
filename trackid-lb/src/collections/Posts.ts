@@ -11,6 +11,8 @@ import { StatementBlock } from '../globals/blocks/statement'
 import { RichTextBlock } from '../globals/blocks/rich-text-block'
 import { CTABannerBlock } from '../globals/blocks/cta-banner'
 import { NewsletterBlock } from '../globals/blocks/newsletter'
+import { ProcessStepsBlock } from '../globals/blocks/process-steps'
+import { FounderNoteBlock } from '../globals/blocks/founder-note'
 
 // Blog/editorial (ROADMAP Part 7) — reuses the exact same block builder as
 // Pages/Homepage (same reasoning: one system, not three), plus a simple
@@ -116,6 +118,8 @@ export const Posts: CollectionConfig = {
         RichTextBlock,
         CTABannerBlock,
         NewsletterBlock,
+        ProcessStepsBlock,
+        FounderNoteBlock,
       ],
       admin: {
         initCollapsed: true,

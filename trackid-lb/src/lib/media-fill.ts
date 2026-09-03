@@ -46,6 +46,12 @@ export async function fillBlocksMedia(payload: BasePayload, blocks: unknown): Pr
           if (url) block.bgImage = url
         }
         break
+      case 'founder-note':
+        if (block.photoMedia) {
+          const url = await mediaUrl(payload, block.photoMedia)
+          if (url) block.photo = url
+        }
+        break
       case 'image-text':
         if (block.imageMedia) {
           const url = await mediaUrl(payload, block.imageMedia)

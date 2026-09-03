@@ -26,6 +26,7 @@ import * as migration_20260824_140000_add_google_site_verification from './20260
 import * as migration_20260824_150000_add_delivery_returns_info from './20260824_150000_add_delivery_returns_info'
 import * as migration_20260824_160000_add_order_locale from './20260824_160000_add_order_locale'
 import * as migration_20260826_120000_add_admin_defined_taxonomies from './20260826_120000_add_admin_defined_taxonomies'
+import * as migration_20260903_100000_add_process_steps_and_founder_note_blocks from './20260903_100000_add_process_steps_and_founder_note_blocks'
 
 export const migrations = [
   {
@@ -127,5 +128,10 @@ export const migrations = [
     up: migration_20260826_120000_add_admin_defined_taxonomies.up,
     down: migration_20260826_120000_add_admin_defined_taxonomies.down,
     name: '20260826_120000_add_admin_defined_taxonomies',
+  },
+  {
+    up: migration_20260903_100000_add_process_steps_and_founder_note_blocks.up,
+    down: migration_20260903_100000_add_process_steps_and_founder_note_blocks.down,
+    name: '20260903_100000_add_process_steps_and_founder_note_blocks',
   },
 ];
