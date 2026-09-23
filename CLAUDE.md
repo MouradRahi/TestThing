@@ -2802,3 +2802,41 @@ review. All CMS-driven, nothing hardcoded to trackID.lb.
   always does); `npm run migrate:status` shows the new migration applied on dev as batch 8.
 - Not yet committed or deployed at time of writing. Vercel's build command already runs
   `npm run migrate`, so the deploy applies this itself — no manual SQL needed this time.
+
+### Session 32 — 2026-09-23
+Focus: **Vercel Hobby "Fluid Active CPU" exceeded (4h15m / 4h)** — the owner asked what code
+can do about it. Four fixes, all verified against a real production build + server on the
+dev DB (which had auto-paused again and was restored mid-session).
+- **Page-view ping made cheap**: the middleware's per-navigation ping to
+  `/api/analytics/pageview` did a durable rate-limit UPSERT *plus* the counter UPSERT. The
+  rate limit never worked anyway — the ping comes from the middleware, so every visitor
+  shared one IP. Replaced with a shared-secret header (`src/lib/pageview-token.ts`,
+  SHA-256 of `pageview:${PAYLOAD_SECRET}`, Web Crypto so it runs in Edge + Node); the route
+  rejects a bad token *before* `getPayload()`. One DB write per real page view.
+- **ISR lifetimes**: `getSiteSettings`/`getNavigation`'s `unstable_cache` TTL (300s) capped
+  every page that reads it — product/artist pages declared 1h but regenerated every 5 min
+  (the "5m" in the Session 30 route table). TTL → 1 day (both are tag-busted on save), and
+  homepage 60s → 1h, blog/pages/custom-request 5m → 1h. Build now shows product/artist `1h`.
+- **Real bug found while doing that**: `safeRevalidatePath('/product/x')` never matched the
+  cache entry, which lives at `/en/product/x` / `/ar/product/x` (middleware rewrites to the
+  locale-prefixed route) — the short timers had been masking it. `revalidate.ts` now fans a
+  public path out to every locale. Verified: a warm-cached (`x-nextjs-cache: HIT`) product
+  page showed an admin price edit immediately on both `/product/…` and `/ar/product/…`.
+- **Cached failures**: the settings fetchers used to catch errors *inside* `unstable_cache`,
+  so a DB blip cached `{}` for the full TTL (now a day). Now the cached fn throws (never
+  stored) and an outer wrapper falls back to `{}` for that render only.
+- **Crawl surface**: robots.txt disallows `/shop?` + `/ar/shop?` (force-dynamic, unbounded
+  filter/sort/pagination combinations); shop filter/sort links are `rel="nofollow"`.
+- **Scanner probes**: `/wp-login.php`, `/.env`, `/wp-admin`, … used to fall into `[locale]`
+  / `[slug]` and do a full render + DB lookup to 404. `src/lib/scanner-paths.ts` (+29 unit
+  tests, incl. slugs like `php-tee` that must pass) is checked first in middleware; a second
+  matcher entry routes the probed extensions in (dotted paths otherwise skip middleware).
+  Real dotted files that reach middleware get `NextResponse.next()`, never the intl rewrite.
+- **Testing gotcha worth remembering**: Node's `fetch` (undici) sets its own
+  `sec-fetch-mode: cors`, so it can't simulate a navigation — the page-view check looked
+  broken until redone with curl (2 navigations → +2; plain request + scanner probe → +0).
+- ✅ `tsc` clean; `npm test` 100/100; `next build` clean; Playwright E2E 1/1; test counter
+  increments + the temporary price change reverted; throwaway admin deleted.
+- Not addressed (by design): each real page view still costs one small function call —
+  removing it means dropping the admin funnel's "sessions" stage. Check Vercel → Observability
+  → Functions after this deploys to see what remains.

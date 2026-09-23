@@ -2,7 +2,7 @@ import { getLocale } from 'next-intl/server'
 import { getPayload } from '@/lib/payload'
 import { CustomRequestForm, type GarmentOption } from '@/components/custom-request/CustomRequestForm'
 
-export const revalidate = 300
+export const revalidate = 3600
 
 export default async function CustomRequestPage() {
   const payload = await getPayload()

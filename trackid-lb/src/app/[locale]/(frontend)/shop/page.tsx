@@ -175,6 +175,7 @@ export default async function ShopPage({
           <span className="text-[10px] uppercase tracking-[0.2em] text-muted me-1">{t('sort')}</span>
           {SORT_OPTIONS.map((opt) => (
             <Link
+              rel="nofollow"
               key={opt.key}
               href={shopUrl({ sort: opt.key === 'newest' ? undefined : opt.key, cursor: undefined })}
               className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
@@ -192,6 +193,7 @@ export default async function ShopPage({
       {/* Filter bar */}
       <div className="flex flex-wrap gap-2 mb-4 pb-8 border-b border-border">
         <Link
+          rel="nofollow"
           href={shopUrl({ artist: undefined, category: undefined, garmentType: undefined, cursor: undefined })}
           className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
             !artist && !category && !garmentType
@@ -204,6 +206,7 @@ export default async function ShopPage({
 
         {categories.map((cat) => (
           <Link
+            rel="nofollow"
             key={cat.id}
             href={shopUrl({ category: cat.slug, cursor: undefined })}
             className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
@@ -222,6 +225,7 @@ export default async function ShopPage({
 
         {garmentTypes.map((gt) => (
           <Link
+            rel="nofollow"
             key={gt.id}
             href={shopUrl({ garmentType: gt.slug, cursor: undefined })}
             className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
@@ -240,6 +244,7 @@ export default async function ShopPage({
 
         {artists.map((art) => (
           <Link
+            rel="nofollow"
             key={art.id}
             href={shopUrl({ artist: art.slug, cursor: undefined })}
             className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
@@ -257,6 +262,7 @@ export default async function ShopPage({
       <div className="flex flex-wrap items-center gap-2 mb-10 pb-8 border-b border-border">
         <span className="text-[10px] uppercase tracking-[0.2em] text-muted me-1">{t('priceLabel')}</span>
         <Link
+          rel="nofollow"
           href={shopUrl({ price: undefined, cursor: undefined })}
           className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
             !priceBand
@@ -268,6 +274,7 @@ export default async function ShopPage({
         </Link>
         {PRICE_BANDS.map((band) => (
           <Link
+            rel="nofollow"
             key={band.key}
             href={shopUrl({ price: band.key, cursor: undefined })}
             className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${
@@ -283,6 +290,7 @@ export default async function ShopPage({
         <span className="border-r border-border self-stretch mx-1" aria-hidden="true" />
 
         <Link
+          rel="nofollow"
           href={shopUrl({ inStock: inStock === '1' ? undefined : '1', cursor: undefined })}
           aria-pressed={inStock === '1'}
           className={`px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] border transition-colors ${

@@ -5,7 +5,7 @@ import { Link } from '@/i18n/navigation'
 import { getPayload } from '@/lib/payload'
 import { localizedAlternates } from '@/lib/seo'
 
-export const revalidate = 300
+export const revalidate = 3600
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale()

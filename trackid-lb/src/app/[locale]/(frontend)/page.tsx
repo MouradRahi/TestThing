@@ -3,7 +3,7 @@ import { getPayload } from '@/lib/payload'
 import { getSiteSettings } from '@/lib/site-settings'
 import { BlockRenderer } from '@/components/sections/BlockRenderer'
 
-export const revalidate = 60
+export const revalidate = 3600
 
 export default async function HomePage() {
   const locale = await getLocale()

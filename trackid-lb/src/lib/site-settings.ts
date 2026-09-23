@@ -54,42 +54,59 @@ export const COLOR_SCHEMES: Record<string, ColorTokens> = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>
 
-const TTL = process.env.NODE_ENV === 'development' ? 1 : 300
+// Both globals are busted by tag the moment they're saved in admin
+// (SiteSettings/Navigation afterChange hooks), so this timer is only a safety
+// net, not what keeps them fresh. Keep it long: an unstable_cache revalidate
+// also caps the ISR lifetime of every page that reads it — a 5-minute TTL here
+// made the hour-long product/artist pages regenerate every 5 minutes.
+const TTL = process.env.NODE_ENV === 'development' ? 1 : 86_400
 
 // The optional `locale` arg is part of unstable_cache's key, so each locale is
 // cached separately. Localized settings fields (tagline, footer, announcement,
 // copy) return the requested locale's value, falling back to the default.
-export const getSiteSettings = unstable_cache(
+//
+// The cached fetchers throw and the exported wrappers catch: unstable_cache
+// never stores a thrown error, so a transient DB failure falls back to `{}`
+// for that one render instead of being cached for the whole TTL.
+const cachedSiteSettings = unstable_cache(
   async (locale?: string): Promise<AnyRecord> => {
-    try {
-      const payload = await getPayload()
-      return (await payload.findGlobal({
-        slug: 'site-settings',
-        ...(locale ? { locale: locale as 'en' | 'ar' } : {}),
-      })) as AnyRecord
-    } catch {
-      return {}
-    }
+    const payload = await getPayload()
+    return (await payload.findGlobal({
+      slug: 'site-settings',
+      ...(locale ? { locale: locale as 'en' | 'ar' } : {}),
+    })) as AnyRecord
   },
   ['site-settings'],
   { revalidate: TTL, tags: ['site-settings'] },
 )
 
-export const getNavigation = unstable_cache(
+const cachedNavigation = unstable_cache(
   async (locale?: string): Promise<AnyRecord> => {
-    try {
-      const payload = await getPayload()
-      return (await payload.findGlobal({
-        slug: 'navigation',
-        ...(locale ? { locale: locale as 'en' | 'ar' } : {}),
-      })) as AnyRecord
-    } catch {
-      return {}
-    }
+    const payload = await getPayload()
+    return (await payload.findGlobal({
+      slug: 'navigation',
+      ...(locale ? { locale: locale as 'en' | 'ar' } : {}),
+    })) as AnyRecord
   },
   ['navigation'],
   { revalidate: TTL, tags: ['navigation'] },
 )
+
+export async function getSiteSettings(locale?: string): Promise<AnyRecord> {
+  try {
+    return await cachedSiteSettings(locale)
+  } catch {
+    return {}
+  }
+}
+
+export async function getNavigation(locale?: string): Promise<AnyRecord> {
+  try {
+    return await cachedNavigation(locale)
+  } catch {
+    return {}
+  }
+}
 
 // ── Theme helpers ────────────────────────────────────────────────────────────
 

@@ -1,6 +1,9 @@
 import createMiddleware from 'next-intl/middleware'
+import { NextResponse } from 'next/server'
 import { routing } from './i18n/routing'
 import { CSP_HEADER } from './lib/csp'
+import { PAGEVIEW_TOKEN_HEADER, getPageviewToken } from './lib/pageview-token'
+import { isScannerPath } from './lib/scanner-paths'
 import type { NextFetchEvent, NextRequest } from 'next/server'
 
 const intlMiddleware = createMiddleware(routing)
@@ -16,10 +19,25 @@ const intlMiddleware = createMiddleware(routing)
 const UTM_COOKIE = 'utm_data'
 const UTM_PARAMS = ['utm_source', 'utm_medium', 'utm_campaign'] as const
 
-export default function middleware(request: NextRequest, event: NextFetchEvent) {
+export default async function middleware(request: NextRequest, event: NextFetchEvent) {
+  const { pathname } = request.nextUrl
+  // Scanner probes get a bare 404 before any page code runs (see
+  // scanner-paths.ts). Dotted paths normally skip middleware entirely, so the
+  // matcher has a second entry routing the probed extensions in.
+  if (isScannerPath(pathname)) {
+    return new NextResponse(null, { status: 404 })
+  }
+  // Only the matcher's scanner-extension entry lets dotted paths in; anything
+  // that reached here without being a scanner path is a real file — leave it
+  // alone rather than letting next-intl rewrite it to /en/<file>.
+  if (/\.[^/]+$/.test(pathname)) return NextResponse.next()
+
   if (request.headers.get('sec-fetch-mode') === 'navigate') {
     const pingUrl = new URL('/api/analytics/pageview', request.nextUrl.origin)
-    event.waitUntil(fetch(pingUrl, { method: 'POST' }).catch(() => {}))
+    const token = await getPageviewToken()
+    event.waitUntil(
+      fetch(pingUrl, { method: 'POST', headers: { [PAGEVIEW_TOKEN_HEADER]: token } }).catch(() => {}),
+    )
   }
 
   const response = intlMiddleware(request)
@@ -65,5 +83,10 @@ export default function middleware(request: NextRequest, event: NextFetchEvent) 
 export const config = {
   // Run on storefront paths only. Exclude the Payload admin (/admin), all API
   // routes (/api), Next internals, and any file with an extension.
-  matcher: ['/((?!api|admin|_next|_vercel|.*\\..*).*)'],
+  // The second entry pulls scanner-probe extensions (.php, .env, …) back in so
+  // they can be 404'd cheaply above instead of rendering a dynamic route.
+  matcher: [
+    '/((?!api|admin|_next|_vercel|.*\\..*).*)',
+    '/(.*\\.(?:php|php\\d|asp|aspx|jsp|cgi|env|git|sql|bak|ini|yml|yaml|log)(?:/.*)?)',
+  ],
 }
