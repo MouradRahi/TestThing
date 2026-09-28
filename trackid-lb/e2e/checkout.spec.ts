@@ -56,7 +56,10 @@ test('browse → add to cart → COD checkout → order confirmation', async ({ 
     await isVisibleSoon(buyBox)
 
     if (await isVisibleSoon(sizeButtons, 500)) {
-      const enabledSize = sizeButtons.filter({ hasNot: page.locator(':disabled') }).first()
+      // .and(':enabled') tests the button itself. filter({ hasNot: ':disabled' })
+      // looks for a disabled *descendant* — a button has none, so it matched
+      // sold-out (disabled) sizes too and .first() clicked one of those.
+      const enabledSize = sizeButtons.and(page.locator(':enabled')).first()
       if (!(await isVisibleSoon(enabledSize, 500))) continue // every size sold out
       await enabledSize.click()
     }
