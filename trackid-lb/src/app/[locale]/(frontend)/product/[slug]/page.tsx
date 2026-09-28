@@ -10,7 +10,6 @@ import { WishlistButton } from '@/components/account/WishlistButton'
 import { RichTextRenderer } from '@/components/RichTextRenderer'
 import { WriteReviewForm } from '@/components/product/WriteReviewForm'
 import { NotifyMeForm } from '@/components/product/NotifyMeForm'
-import { getCustomer } from '@/lib/auth'
 import { getSizes, totalStock } from '@/lib/stock'
 import { resolveAlt } from '@/lib/image'
 import { formatPrice, formatLBP } from '@/lib/format'
@@ -102,7 +101,7 @@ export default async function ProductPage({
   const { locale, slug } = await params
   const payload = await getPayload()
 
-  const [{ docs }, settings, customer] = await Promise.all([
+  const [{ docs }, settings] = await Promise.all([
     payload.find({
       collection: 'products',
       where: { slug: { equals: slug }, status: { equals: 'published' } },
@@ -111,7 +110,6 @@ export default async function ProductPage({
       locale: locale as 'en' | 'ar',
     }),
     getSiteSettings(locale),
-    getCustomer(),
   ])
 
   const product = docs[0]
@@ -480,11 +478,9 @@ export default async function ProductPage({
           {t('reviews')}
         </h2>
 
-        {customer && (
-          <div className="mb-10 pb-10 border-b border-border">
-            <WriteReviewForm productId={String(product.id)} />
-          </div>
-        )}
+        <div className="mb-10 pb-10 border-b border-border">
+          <WriteReviewForm productId={String(product.id)} />
+        </div>
 
         {reviews.length === 0 ? (
           <p className="text-sm text-muted">{t('noReviews')}</p>

@@ -63,7 +63,7 @@ export function HeroSection({
           </h1>
         )}
         {subline && (
-          <p className="text-muted text-base max-w-sm mb-12">{subline}</p>
+          <p className="text-muted text-base max-w-md mb-12 text-pretty">{subline}</p>
         )}
         {(ctaLabel && ctaHref) && (
           <div className="flex flex-wrap gap-4">

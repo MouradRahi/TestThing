@@ -6,6 +6,8 @@ import { StatementSection } from './StatementSection'
 import { RichTextSection } from './RichTextSection'
 import { CTABannerSection } from './CTABannerSection'
 import { NewsletterSection } from './NewsletterSection'
+import { ProcessStepsSection } from './ProcessStepsSection'
+import { FounderNoteSection } from './FounderNoteSection'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Block = Record<string, any> & { blockType: string; hidden?: boolean }
@@ -70,7 +72,7 @@ export function BlockRenderer({
             return <ImageTextSection key={i} {...block} />
 
           case 'statement':
-            return <StatementSection key={i} text={block.text} />
+            return <StatementSection key={i} text={block.text} size={block.size} />
 
           case 'rich-text':
             return <RichTextSection key={i} content={block.content} />
@@ -80,6 +82,29 @@ export function BlockRenderer({
 
           case 'newsletter':
             return <NewsletterSection key={i} heading={block.heading} subtext={block.subtext} bgColor={block.bgColor} />
+
+          case 'process-steps':
+            return (
+              <ProcessStepsSection
+                key={i}
+                eyebrow={block.eyebrow}
+                heading={block.heading}
+                intro={block.intro}
+                steps={block.steps ?? []}
+              />
+            )
+
+          case 'founder-note':
+            return (
+              <FounderNoteSection
+                key={i}
+                photo={block.photo}
+                photoAlt={block.photoAlt}
+                quote={block.quote}
+                name={block.name}
+                role={block.role}
+              />
+            )
 
           default:
             return null

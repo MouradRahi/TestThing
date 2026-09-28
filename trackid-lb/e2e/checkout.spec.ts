@@ -37,7 +37,7 @@ test('browse → add to cart → COD checkout → order confirmation', async ({ 
 
   let addedToCart = false
   for (let i = 0; i < candidateCount && !addedToCart; i++) {
-    await page.goto('/shop')
+    await page.goto('/shop', { waitUntil: 'domcontentloaded' })
     await productLinks.nth(i).click()
     await expect(page).toHaveURL(/\/product\//)
 
@@ -45,12 +45,21 @@ test('browse → add to cart → COD checkout → order confirmation', async ({ 
     // Cart" is meaningful; unsized/one-of-a-kind pieces skip straight to it.
     const sizeButtons = page.getByRole('button', { name: /^(S|M|L|XL)$/ })
     const addToCart = page.getByRole('button', { name: 'Add to Cart' })
-    // Either the size picker or a direct "Add to Cart" appears once the buy
-    // box has hydrated — wait for whichever this product actually has.
-    await Promise.race([isVisibleSoon(sizeButtons), isVisibleSoon(addToCart)])
+    // Either the size picker, a direct "Add to Cart", or the sold-out
+    // "Notify me" appears once the buy box has hydrated — wait for whichever
+    // this product actually has. This is ONE locator on purpose: racing two
+    // separate waits left the losing one still polling after the loop moved
+    // on, and that dangling wait aborted the next iteration's page.goto()
+    // with net::ERR_ABORTED once the catalog drifted enough for sold-out
+    // products to actually exercise the retry path.
+    const buyBox = page.getByRole('button', { name: /^(S|M|L|XL|Add to Cart|Notify me)$/ })
+    await isVisibleSoon(buyBox)
 
     if (await isVisibleSoon(sizeButtons, 500)) {
-      const enabledSize = sizeButtons.filter({ hasNot: page.locator(':disabled') }).first()
+      // .and(':enabled') tests the button itself. filter({ hasNot: ':disabled' })
+      // looks for a disabled *descendant* — a button has none, so it matched
+      // sold-out (disabled) sizes too and .first() clicked one of those.
+      const enabledSize = sizeButtons.and(page.locator(':enabled')).first()
       if (!(await isVisibleSoon(enabledSize, 500))) continue // every size sold out
       await enabledSize.click()
     }

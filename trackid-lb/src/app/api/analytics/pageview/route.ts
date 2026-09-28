@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from '@/lib/payload'
-import { durableRateLimit } from '@/lib/durable-rate-limit'
-import { clientIp } from '@/lib/api-guards'
 import { recordPageView } from '@/lib/analytics'
+import { PAGEVIEW_TOKEN_HEADER, getPageviewToken } from '@/lib/pageview-token'
 
 // Fire-and-forget pageview ping from middleware.ts (ROADMAP Part 4 §4.3's
 // "lightweight own counter" — no cookies, no per-user tracking, just a daily
-// aggregate total). Public and unauthenticated by necessity (every visitor
-// hits this), so rate-limited to blunt trivial abuse — this only inflates an
-// internal dashboard number, not a security boundary, hence the generous cap.
+// aggregate total). Only our own middleware may call it: the token check runs
+// before Payload is even initialized, so an outside caller costs almost no CPU
+// and can't inflate the count. One DB write per real page view.
 export async function POST(req: NextRequest) {
-  const payload = await getPayload()
-  if (!(await durableRateLimit(payload, `pageview:${clientIp(req)}`, 300, 10 * 60_000))) {
-    return NextResponse.json({ ok: false }, { status: 429 })
+  if (req.headers.get(PAGEVIEW_TOKEN_HEADER) !== (await getPageviewToken())) {
+    return new NextResponse(null, { status: 403 })
   }
+  const payload = await getPayload()
   await recordPageView(payload)
-  return NextResponse.json({ ok: true })
+  return new NextResponse(null, { status: 204 })
 }

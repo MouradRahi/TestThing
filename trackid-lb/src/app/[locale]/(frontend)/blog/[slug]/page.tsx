@@ -12,7 +12,7 @@ import { jsonLdScript } from '@/lib/sanitize'
 import { routing } from '@/i18n/routing'
 import { getSiteSettings, resolveStoreName } from '@/lib/site-settings'
 
-export const revalidate = 300
+export const revalidate = 3600
 export const dynamicParams = true
 
 export async function generateStaticParams() {

@@ -882,9 +882,13 @@ export interface Page {
           }
         | {
             /**
-             * A single impactful sentence — displayed centered in large muted text.
+             * A single impactful sentence, displayed centered.
              */
             text: string;
+            /**
+             * Statement blocks saved before this option existed keep the Caption look until you set this explicitly.
+             */
+            size?: ('display' | 'caption') | null;
             hidden?: boolean | null;
             id?: string | null;
             blockName?: string | null;
@@ -949,6 +953,61 @@ export interface Page {
             id?: string | null;
             blockName?: string | null;
             blockType: 'newsletter';
+          }
+        | {
+            /**
+             * Optional small label above the heading. Leave blank on most sections — an eyebrow on every section reads as filler.
+             */
+            eyebrow?: string | null;
+            /**
+             * e.g. "How a piece gets made"
+             */
+            heading?: string | null;
+            /**
+             * One or two sentences. Sits beside the heading on desktop.
+             */
+            intro?: string | null;
+            /**
+             * Drag to reorder — the numbers are generated from this order, not typed in.
+             */
+            steps?:
+              | {
+                  title: string;
+                  description?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'process-steps';
+          }
+        | {
+            /**
+             * Portrait. Shot in the same light as the rest of the page — 4:5 crops best.
+             */
+            photoMedia?: (number | null) | Media;
+            /**
+             * Filled automatically from the picked image. Paste a URL only if not using the media library.
+             */
+            photo?: string | null;
+            photoAlt?: string | null;
+            /**
+             * Written in first person. Two or three sentences — this is a note, not a bio.
+             */
+            quote: string;
+            /**
+             * First name is enough, and reads warmer than a full one.
+             */
+            name?: string | null;
+            /**
+             * e.g. "Founder & painter"
+             */
+            role?: string | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'founder-note';
           }
       )[]
     | null;
@@ -1137,9 +1196,13 @@ export interface Post {
           }
         | {
             /**
-             * A single impactful sentence — displayed centered in large muted text.
+             * A single impactful sentence, displayed centered.
              */
             text: string;
+            /**
+             * Statement blocks saved before this option existed keep the Caption look until you set this explicitly.
+             */
+            size?: ('display' | 'caption') | null;
             hidden?: boolean | null;
             id?: string | null;
             blockName?: string | null;
@@ -1204,6 +1267,61 @@ export interface Post {
             id?: string | null;
             blockName?: string | null;
             blockType: 'newsletter';
+          }
+        | {
+            /**
+             * Optional small label above the heading. Leave blank on most sections — an eyebrow on every section reads as filler.
+             */
+            eyebrow?: string | null;
+            /**
+             * e.g. "How a piece gets made"
+             */
+            heading?: string | null;
+            /**
+             * One or two sentences. Sits beside the heading on desktop.
+             */
+            intro?: string | null;
+            /**
+             * Drag to reorder — the numbers are generated from this order, not typed in.
+             */
+            steps?:
+              | {
+                  title: string;
+                  description?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'process-steps';
+          }
+        | {
+            /**
+             * Portrait. Shot in the same light as the rest of the page — 4:5 crops best.
+             */
+            photoMedia?: (number | null) | Media;
+            /**
+             * Filled automatically from the picked image. Paste a URL only if not using the media library.
+             */
+            photo?: string | null;
+            photoAlt?: string | null;
+            /**
+             * Written in first person. Two or three sentences — this is a note, not a bio.
+             */
+            quote: string;
+            /**
+             * First name is enough, and reads warmer than a full one.
+             */
+            name?: string | null;
+            /**
+             * e.g. "Founder & painter"
+             */
+            role?: string | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'founder-note';
           }
       )[]
     | null;
@@ -1989,6 +2107,7 @@ export interface PagesSelect<T extends boolean = true> {
           | T
           | {
               text?: T;
+              size?: T;
               hidden?: T;
               id?: T;
               blockName?: T;
@@ -2023,6 +2142,36 @@ export interface PagesSelect<T extends boolean = true> {
               heading?: T;
               subtext?: T;
               bgColor?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'process-steps'?:
+          | T
+          | {
+              eyebrow?: T;
+              heading?: T;
+              intro?: T;
+              steps?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'founder-note'?:
+          | T
+          | {
+              photoMedia?: T;
+              photo?: T;
+              photoAlt?: T;
+              quote?: T;
+              name?: T;
+              role?: T;
               hidden?: T;
               id?: T;
               blockName?: T;
@@ -2132,6 +2281,7 @@ export interface PostsSelect<T extends boolean = true> {
           | T
           | {
               text?: T;
+              size?: T;
               hidden?: T;
               id?: T;
               blockName?: T;
@@ -2166,6 +2316,36 @@ export interface PostsSelect<T extends boolean = true> {
               heading?: T;
               subtext?: T;
               bgColor?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'process-steps'?:
+          | T
+          | {
+              eyebrow?: T;
+              heading?: T;
+              intro?: T;
+              steps?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'founder-note'?:
+          | T
+          | {
+              photoMedia?: T;
+              photo?: T;
+              photoAlt?: T;
+              quote?: T;
+              name?: T;
+              role?: T;
               hidden?: T;
               id?: T;
               blockName?: T;
@@ -3038,9 +3218,13 @@ export interface Homepage {
           }
         | {
             /**
-             * A single impactful sentence — displayed centered in large muted text.
+             * A single impactful sentence, displayed centered.
              */
             text: string;
+            /**
+             * Statement blocks saved before this option existed keep the Caption look until you set this explicitly.
+             */
+            size?: ('display' | 'caption') | null;
             hidden?: boolean | null;
             id?: string | null;
             blockName?: string | null;
@@ -3105,6 +3289,61 @@ export interface Homepage {
             id?: string | null;
             blockName?: string | null;
             blockType: 'newsletter';
+          }
+        | {
+            /**
+             * Optional small label above the heading. Leave blank on most sections — an eyebrow on every section reads as filler.
+             */
+            eyebrow?: string | null;
+            /**
+             * e.g. "How a piece gets made"
+             */
+            heading?: string | null;
+            /**
+             * One or two sentences. Sits beside the heading on desktop.
+             */
+            intro?: string | null;
+            /**
+             * Drag to reorder — the numbers are generated from this order, not typed in.
+             */
+            steps?:
+              | {
+                  title: string;
+                  description?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'process-steps';
+          }
+        | {
+            /**
+             * Portrait. Shot in the same light as the rest of the page — 4:5 crops best.
+             */
+            photoMedia?: (number | null) | Media;
+            /**
+             * Filled automatically from the picked image. Paste a URL only if not using the media library.
+             */
+            photo?: string | null;
+            photoAlt?: string | null;
+            /**
+             * Written in first person. Two or three sentences — this is a note, not a bio.
+             */
+            quote: string;
+            /**
+             * First name is enough, and reads warmer than a full one.
+             */
+            name?: string | null;
+            /**
+             * e.g. "Founder & painter"
+             */
+            role?: string | null;
+            hidden?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'founder-note';
           }
       )[]
     | null;
@@ -3331,6 +3570,7 @@ export interface HomepageSelect<T extends boolean = true> {
           | T
           | {
               text?: T;
+              size?: T;
               hidden?: T;
               id?: T;
               blockName?: T;
@@ -3365,6 +3605,36 @@ export interface HomepageSelect<T extends boolean = true> {
               heading?: T;
               subtext?: T;
               bgColor?: T;
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'process-steps'?:
+          | T
+          | {
+              eyebrow?: T;
+              heading?: T;
+              intro?: T;
+              steps?:
+                | T
+                | {
+                    title?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              hidden?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'founder-note'?:
+          | T
+          | {
+              photoMedia?: T;
+              photo?: T;
+              photoAlt?: T;
+              quote?: T;
+              name?: T;
+              role?: T;
               hidden?: T;
               id?: T;
               blockName?: T;

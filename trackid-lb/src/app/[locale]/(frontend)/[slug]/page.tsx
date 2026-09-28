@@ -5,7 +5,7 @@ import { RichTextRenderer } from '@/components/RichTextRenderer'
 import { BlockRenderer } from '@/components/sections/BlockRenderer'
 import { localizedAlternates } from '@/lib/seo'
 
-export const revalidate = 300
+export const revalidate = 3600
 export const dynamicParams = true
 
 export async function generateStaticParams() {

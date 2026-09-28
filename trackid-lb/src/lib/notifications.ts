@@ -921,7 +921,12 @@ export async function sendOrderConfirmationWhatsApp(order: OrderNotificationData
 //
 // Expected template (submit for approval in Meta Business Manager, category
 // "Utility"): body text with two variables, e.g.
-//   "Update on your order {{1}}: {{2}}."
+//   "Hi! Here's the latest update on your trackID.lb order {{1}}. Current
+//    status: {{2}}. We'll message you here again as soon as anything changes
+//    — thank you for your support!"
+// NOTE: a shorter body like "Update on your order {{1}}: {{2}}." is REJECTED
+// by Meta ("This template has too many variables for its length") — a
+// template needs enough non-variable text for review. Verified 2026-08-26.
 // {{1}} = order number, {{2}} = the same human status label the status email
 // uses (STATUS_EMAIL_COPY[status].subject) — kept in sync automatically since
 // both read from the same map.

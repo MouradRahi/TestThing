@@ -2688,3 +2688,155 @@ database, without risking real data — then, prompted by a Vercel warning, drop
   before/after was settled against live production instead — which is better evidence anyway.
 - ✅ `npx tsc --noEmit` clean; `npm test` 71/71; `npm run build` succeeded (the first attempt
   died on the same DNS stall — retry, not a code issue).
+
+### Session 30 (part 4) — 2026-08-26 — B26 fixed: product pages are statically rendered again
+Focus: the performance bug found while verifying part 3. Product pages — the highest-traffic
+route on the site — were rendering per-request in production instead of being served from the
+edge cache, silently violating CLAUDE.md's own "ISR not SSR for product pages" non-negotiable.
+- **Owner had already committed and merged the day's work** (PR #25) while the design-sync
+  detour ran, so all three commits were on `origin/main` and therefore deployed. Ran a
+  post-deploy health check first, given this project's history of migration-related prod
+  incidents (Sessions 23, 26, 28): storefront, `/shop`, `/admin` and a DB-touching API route
+  all 200 — so the taxonomy migration applied cleanly on prod, including the
+  `payload_locked_documents_rels` columns whose absence caused the Session 28 part 6 outage.
+- **Root cause**: `src/lib/auth.ts` imports `headers()` from `next/headers`, and the product
+  page called `getCustomer()` during render. A dynamic API in a server component opts the
+  whole route out of static rendering. Its only purpose was deciding whether to show
+  `WriteReviewForm` — introduced with reviews in Session 27 part 4, unnoticed since because
+  the build's route table kept reporting `●`.
+- **Found it by comparing the product page against the artist page** (which prerenders
+  correctly) rather than by the component-tree bisect BUGS.md proposed: diffing their imports
+  surfaced `getCustomer` immediately as something only the product page pulls in.
+- ⚠️ **Corrected my own earlier diagnosis in BUGS.md.** Part 3 had recorded "no `cookies()`,
+  `headers()` … anywhere in the product page or its ten imported components" — that grep
+  covered the page and its `@/components` imports but **not its `@/lib` imports**, which is
+  exactly where the culprit sat. Rewrote the entry rather than leave a false statement
+  standing. Lesson: trace dynamic APIs through the whole import graph, not just components.
+- **Fix**: new `GET /api/account/me` returning `{ isLoggedIn }`; `WriteReviewForm` resolves
+  its own login state on mount and renders either the form or a "Sign in to write a review"
+  link (new `product.reviewSignIn` key, en + ar). The page calls no dynamic API. This mirrors
+  the `fetchState` pattern `WishlistButton` has used since Session 19 for exactly this reason.
+  Also a small UX gain: signed-out visitors previously saw nothing at all in that spot.
+- ✅ **Verified three independent ways**, not by the route table alone: emitted HTML went
+  **0 → 12** product pages (6 products × 2 locales) with artist unchanged at 6 as a control;
+  `prerender-manifest.json` went 17 → 29 prerendered routes with `/[locale]/product/[slug]`
+  also present in `dynamicRoutes` for the ISR fallback; and the route table's revalidate
+  columns — the original tell — now read `5m 1y` on the product row where they had been blank.
+  `tsc` clean; `npm test` 71/71; Playwright E2E passes (it walks shop → product → cart →
+  checkout, exercising the changed page).
+- **Noted in passing, not acted on**: the E2E run logged `Resend error: API key is invalid`
+  (401) and the known WhatsApp "recipient not in allowed list" — the local `RESEND_API_KEY`
+  may have been rotated. Notifications are fire-and-forget so orders are unaffected, but
+  local email testing will silently no-op until the key is refreshed.
+- **Also skipped this session**: `/design-sync` was invoked and correctly declined — this repo
+  is a Next.js application, not a design system (no `dist/`, no package exports, no Storybook,
+  and 60 of 67 components bound to Next runtime context: RSC, next-intl, CartContext, Payload
+  data). Nothing was created. Revisit only if ROADMAP Part 8 extracts a real component library.
+
+### Session 31 — 2026-09-03
+Focus: **About-page section blocks** — the owner wrote the About copy and built the page
+from existing blocks (hero → rich text → 2× image-text → featured → statement), then asked
+for the two additions recommended alongside it plus three renderer fixes flagged during that
+review. All CMS-driven, nothing hardcoded to trackID.lb.
+- **Three renderer fixes**: `StatementSection` rendered every statement as small muted
+  caption text (`text-sm text-muted`), so a signature line looked like a disclaimer — the
+  block now takes a **`size`** option (Display / Caption). `ImageTextSection`'s body dropped
+  typed line breaks (single `<p>`, no `whitespace-pre-line`) — added. `HeroSection`'s subline
+  was `max-w-sm`, ~10 words before it wrapped into a tall narrow column — now `max-w-md`
+  with `text-pretty`.
+- **Two new blocks**, registered in all three block builders (Homepage global, Pages, Posts —
+  they share one block list):
+  - **`process-steps`** — numbered "how it's made" strip. `eyebrow`/`heading`/`intro` +
+    a `steps[]` array of `{title, description}`. Numbers are **generated from array order**,
+    not typed, so reordering in admin renumbers automatically. Renders as an `<ol>` on an
+    `auto-fit minmax(190px,1fr)` grid (step count is admin-defined, so fixed breakpoint
+    columns would break at 3 or 6 steps), each step a hairline top rule + large accent
+    numeral. Deliberately not cards.
+  - **`founder-note`** — portrait + first-person note + name/role. Follows the established
+    `photoMedia` (upload) → `photo` (text URL) picker pattern, wired into
+    `media-fill.ts → fillBlocksMedia`. Photo optional: with none set it renders centered
+    text rather than an empty column.
+- **Design notes**: both sections use only the existing CSS-var tokens (verified `text-accent/70`
+  clears WCAG for large bold text against all three built-in schemes — dark `#e8d5b0`, light
+  `#0a0a0a`, warm `#8b5e3c` — since the accent is CMS-controlled and can't be assumed).
+  The eyebrow field on `process-steps` is optional and documented as such: this project's
+  `text-[10px] uppercase tracking-[0.4em]` kicker is a real brand system, but an eyebrow on
+  *every* section is the AI-scaffolding tell, so the About page uses it on two sections, not six.
+  Motion kept to a hover cue on the step rules — the existing sections have no entrance
+  animation, and a scroll-reveal in an RSC/ISR page costs client JS for little gain.
+- **Migration** `20260903_100000_add_process_steps_and_founder_note_blocks.ts` — 3 enums,
+  18 tables (6 per collection: block + locales, steps + steps locales…), 3 `size` columns.
+  **Generated, not hand-written**, via the Session 30 push-then-diff protocol: snapshot
+  `information_schema` → let Payload's own push build the schema → snapshot again → emit DDL
+  from the live objects. That mattered: Postgres' 63-char identifier limit truncates the
+  unique-index names *differently per prefix*
+  (`homepage_..._locales_locale_parent_id_uniqu` vs `pages_..._locales_locale_parent_id_unique`),
+  which hand-transcription would have got wrong.
+- ⚠️ **Data-preservation catch worth remembering**: `ADD COLUMN ... DEFAULT 'display'` makes
+  Postgres **backfill every existing row** — the push silently flipped the live homepage
+  statement to Display. The migration therefore adds the column *and then* `UPDATE`s every
+  row that exists at migration time back to `'caption'`, so only blocks created afterwards
+  pick up the new default. **Any statement block that already exists (including one on a
+  live About page) will render as Caption after this deploys — open it and set Display.**
+- **Verified, not assumed**: ran the migration's own `down` block first and confirmed it
+  returns the schema to the exact pre-push baseline (982 columns / 466 indexes / 785
+  constraints / 54 enums, zero diff — most hand-written migrations here have never had their
+  `down` tested), then ran `up` for real and diffed against the pushed schema: identical
+  (the only churn was Postgres' OID-embedded internal `2200_<oid>_n_not_null` names, which
+  change whenever a table is recreated — normalised those out, 0 real differences). Then
+  built, started a real server, created a throwaway page exercising both blocks plus one
+  Display and one Caption statement, and confirmed over HTTP: numerals `01`–`05` in order,
+  the auto-fit grid, the founder note's no-photo branch, both statement sizes coexisting on
+  one page with the caption's classes byte-identical to before, and `/ar` rendering 200 with
+  `dir="rtl"`. Throwaway page deleted afterwards.
+- **E2E harness bug found and fixed** (pre-existing, in code this session didn't touch): the
+  product-walk loop raced two `waitFor` calls via `Promise.race` and only awaited the winner,
+  leaving the loser polling across the next iteration's `page.goto('/shop')` — which then
+  failed with `net::ERR_ABORTED; maybe frame was detached`. Latent until the dev catalog
+  drifted enough (3 of 6 products now sold out) for the retry path to actually run. Replaced
+  with a single combined locator matching the size picker, "Add to Cart" **or** "Notify me".
+  Confirmed the app itself was healthy first — via HTTP against `/shop` and both a sold-out
+  and an in-stock product — before touching the test, rather than assuming.
+- ✅ `npx tsc --noEmit` clean; `npm test` 71/71; `npm run build` clean; `npm run test:e2e`
+  1/1 (25.6s, real order placed — consumed one unit of sized stock on dev, as the suite
+  always does); `npm run migrate:status` shows the new migration applied on dev as batch 8.
+- Not yet committed or deployed at time of writing. Vercel's build command already runs
+  `npm run migrate`, so the deploy applies this itself — no manual SQL needed this time.
+
+### Session 32 — 2026-09-23
+Focus: **Vercel Hobby "Fluid Active CPU" exceeded (4h15m / 4h)** — the owner asked what code
+can do about it. Four fixes, all verified against a real production build + server on the
+dev DB (which had auto-paused again and was restored mid-session).
+- **Page-view ping made cheap**: the middleware's per-navigation ping to
+  `/api/analytics/pageview` did a durable rate-limit UPSERT *plus* the counter UPSERT. The
+  rate limit never worked anyway — the ping comes from the middleware, so every visitor
+  shared one IP. Replaced with a shared-secret header (`src/lib/pageview-token.ts`,
+  SHA-256 of `pageview:${PAYLOAD_SECRET}`, Web Crypto so it runs in Edge + Node); the route
+  rejects a bad token *before* `getPayload()`. One DB write per real page view.
+- **ISR lifetimes**: `getSiteSettings`/`getNavigation`'s `unstable_cache` TTL (300s) capped
+  every page that reads it — product/artist pages declared 1h but regenerated every 5 min
+  (the "5m" in the Session 30 route table). TTL → 1 day (both are tag-busted on save), and
+  homepage 60s → 1h, blog/pages/custom-request 5m → 1h. Build now shows product/artist `1h`.
+- **Real bug found while doing that**: `safeRevalidatePath('/product/x')` never matched the
+  cache entry, which lives at `/en/product/x` / `/ar/product/x` (middleware rewrites to the
+  locale-prefixed route) — the short timers had been masking it. `revalidate.ts` now fans a
+  public path out to every locale. Verified: a warm-cached (`x-nextjs-cache: HIT`) product
+  page showed an admin price edit immediately on both `/product/…` and `/ar/product/…`.
+- **Cached failures**: the settings fetchers used to catch errors *inside* `unstable_cache`,
+  so a DB blip cached `{}` for the full TTL (now a day). Now the cached fn throws (never
+  stored) and an outer wrapper falls back to `{}` for that render only.
+- **Crawl surface**: robots.txt disallows `/shop?` + `/ar/shop?` (force-dynamic, unbounded
+  filter/sort/pagination combinations); shop filter/sort links are `rel="nofollow"`.
+- **Scanner probes**: `/wp-login.php`, `/.env`, `/wp-admin`, … used to fall into `[locale]`
+  / `[slug]` and do a full render + DB lookup to 404. `src/lib/scanner-paths.ts` (+29 unit
+  tests, incl. slugs like `php-tee` that must pass) is checked first in middleware; a second
+  matcher entry routes the probed extensions in (dotted paths otherwise skip middleware).
+  Real dotted files that reach middleware get `NextResponse.next()`, never the intl rewrite.
+- **Testing gotcha worth remembering**: Node's `fetch` (undici) sets its own
+  `sec-fetch-mode: cors`, so it can't simulate a navigation — the page-view check looked
+  broken until redone with curl (2 navigations → +2; plain request + scanner probe → +0).
+- ✅ `tsc` clean; `npm test` 100/100; `next build` clean; Playwright E2E 1/1; test counter
+  increments + the temporary price change reverted; throwaway admin deleted.
+- Not addressed (by design): each real page view still costs one small function call —
+  removing it means dropping the admin funnel's "sessions" stage. Check Vercel → Observability
+  → Functions after this deploys to see what remains.
